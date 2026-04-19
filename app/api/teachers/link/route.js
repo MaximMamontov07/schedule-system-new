@@ -17,17 +17,6 @@ export async function POST(request) {
 
     const db = await getDb();
     
-    // Проверяем существование колонки user_id
-    const columnCheck = await db.query(`
-      SELECT column_name FROM information_schema.columns 
-      WHERE table_name = 'teachers' AND column_name = 'user_id'
-    `);
-    
-    if (columnCheck.rows.length === 0) {
-      // Добавляем колонку если её нет
-      await db.query('ALTER TABLE teachers ADD COLUMN user_id INTEGER UNIQUE');
-    }
-    
     // Проверяем пользователя
     const targetUser = await db.query('SELECT id, role, full_name FROM users WHERE id = $1', [userId]);
     if (targetUser.rows.length === 0) {
@@ -44,14 +33,13 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Преподаватель не найден' }, { status: 404 });
     }
     
-    if (teacher.rows[0].user_id) {
-      return NextResponse.json({ error: 'Преподаватель уже привязан' }, { status: 400 });
-    }
-    
     // Привязываем
     await db.query('UPDATE teachers SET user_id = $1 WHERE id = $2', [userId, teacherId]);
     
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      message: `Преподаватель "${teacher.rows[0].name}" привязан к пользователю "${targetUser.rows[0].full_name}"`
+    });
   } catch (error) {
     console.error('Link error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -73,9 +61,19 @@ export async function DELETE(request) {
     }
 
     const db = await getDb();
+    
+    // Проверяем преподавателя
+    const teacher = await db.query('SELECT name FROM teachers WHERE id = $1', [teacherId]);
+    if (teacher.rows.length === 0) {
+      return NextResponse.json({ error: 'Преподаватель не найден' }, { status: 404 });
+    }
+    
     await db.query('UPDATE teachers SET user_id = NULL WHERE id = $1', [teacherId]);
     
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      message: `Привязка преподавателя "${teacher.rows[0].name}" удалена`
+    });
   } catch (error) {
     console.error('Unlink error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

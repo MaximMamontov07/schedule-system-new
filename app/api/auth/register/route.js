@@ -24,7 +24,7 @@ export async function POST(request) {
 
     const db = await getDb();
     
-    // Проверяем, существует ли пользователь
+    // Проверяем существование
     const existing = await db.query('SELECT id FROM users WHERE username = $1', [username]);
     if (existing.rows.length > 0) {
       return NextResponse.json(
@@ -43,23 +43,30 @@ export async function POST(request) {
     
     const userId = result.rows[0].id;
 
-    // Если создаем преподавателя - добавляем запись в таблицу teachers
+    // Если роль teacher - создаем запись в teachers
     if (role === 'teacher') {
-      await db.query(
-        'INSERT INTO teachers (name, user_id) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET name = $1',
-        [fullName, userId]
-      );
+      const existingTeacher = await db.query('SELECT id FROM teachers WHERE name = $1', [fullName]);
+      if (existingTeacher.rows.length === 0) {
+        await db.query(
+          'INSERT INTO teachers (name, user_id) VALUES ($1, $2)',
+          [fullName, userId]
+        );
+      } else {
+        await db.query(
+          'UPDATE teachers SET user_id = $1 WHERE id = $2',
+          [userId, existingTeacher.rows[0].id]
+        );
+      }
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Пользователь создан',
-      userId: userId
+      message: 'Пользователь создан'
     });
   } catch (error) {
     console.error('Register error:', error);
     return NextResponse.json(
-      { error: 'Ошибка сервера: ' + error.message },
+      { error: error.message },
       { status: 500 }
     );
   }
