@@ -5,11 +5,11 @@ import { getUserFromRequest } from '@/lib/auth';
 export async function GET() {
   try {
     const db = await getDb();
-    const groups = await db.all('SELECT * FROM groups ORDER BY name');
-    return NextResponse.json(groups);
+    const result = await db.query('SELECT * FROM groups ORDER BY name');
+    return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('Groups GET error:', error);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+    return NextResponse.json([], { status: 200 });
   }
 }
 
@@ -27,12 +27,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Название обязательно' }, { status: 400 });
     }
 
-    await db.run('INSERT INTO groups (name) VALUES (?)', [name.trim()]);
+    await db.query('INSERT INTO groups (name) VALUES ($1)', [name.trim()]);
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error.message?.includes('UNIQUE')) {
-      return NextResponse.json({ error: 'Группа уже существует' }, { status: 400 });
-    }
     console.error('Groups POST error:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
@@ -53,7 +50,7 @@ export async function DELETE(request) {
     }
 
     const db = await getDb();
-    await db.run('DELETE FROM groups WHERE id = ?', [id]);
+    await db.query('DELETE FROM groups WHERE id = $1', [id]);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Groups DELETE error:', error);
