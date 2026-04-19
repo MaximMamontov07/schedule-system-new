@@ -365,30 +365,43 @@ function HomeContent() {
     }
   };
 
-  const loadData = async () => {
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+ const loadData = async () => {
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  
+  try {
+    const [scheduleRes, groupsRes, teachersRes, subjectsRes, classroomsRes] = await Promise.all([
+      fetch('/api/schedule', { headers }),
+      fetch('/api/groups'),
+      fetch('/api/teachers'),
+      fetch('/api/subjects'),
+      fetch('/api/classrooms')
+    ]);
     
-    try {
-      const [scheduleRes, groupsRes, teachersRes, subjectsRes, classroomsRes] = await Promise.all([
-        fetch('/api/schedule', { headers }),
-        fetch('/api/groups'),
-        fetch('/api/teachers'),
-        fetch('/api/subjects'),
-        fetch('/api/classrooms')
-      ]);
-      
-      setSchedule(await scheduleRes.json());
-      setGroups(await groupsRes.json());
-      setTeachers(await teachersRes.json());
-      setSubjects(await subjectsRes.json());
-      setClassrooms(await classroomsRes.json());
-    } catch (e) {
-      console.error(e);
-      showNotification('Ошибка загрузки данных', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const scheduleData = await scheduleRes.json();
+    const groupsData = await groupsRes.json();
+    const teachersData = await teachersRes.json();
+    const subjectsData = await subjectsRes.json();
+    const classroomsData = await classroomsRes.json();
+    
+    setSchedule(Array.isArray(scheduleData) ? scheduleData : []);
+    setGroups(Array.isArray(groupsData) ? groupsData : []);
+    setTeachers(Array.isArray(teachersData) ? teachersData : []);
+    setSubjects(Array.isArray(subjectsData) ? subjectsData : []);
+    setClassrooms(Array.isArray(classroomsData) ? classroomsData : []);
+    
+    console.log('Data loaded:', { 
+      schedule: scheduleData.length, 
+      groups: groupsData.length, 
+      teachers: teachersData.length, 
+      subjects: subjectsData.length 
+    });
+  } catch (e) {
+    console.error('Load data error:', e);
+    showNotification('Ошибка загрузки данных', 'error');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loadUsers = async () => {
     if (!token || !canManageUsers) return;
@@ -518,28 +531,63 @@ function HomeContent() {
     }
   };
 
-  const handleAddLesson = async (e) => {
-    e.preventDefault();
-    if (!canEditSchedule) return showNotification('Нет прав', 'error');
+ const handleAddLesson = async (e) => {
+  e.preventDefault();
+  
+  if (!canEditSchedule) {
+    showNotification('Нет прав для добавления занятий', 'error');
+    return;
+  }
+
+  if (!newLesson.group_id || !newLesson.teacher_id || !newLesson.subject_id || 
+      !newLesson.pair_number || !newLesson.day_of_week) {
+    showNotification('Заполните все поля!', 'error');
+    return;
+  }
+
+  try {
+    const lessonData = {
+      group_id: parseInt(newLesson.group_id),
+      teacher_id: parseInt(newLesson.teacher_id),
+      subject_id: parseInt(newLesson.subject_id),
+      pair_number: parseInt(newLesson.pair_number),
+      day_of_week: parseInt(newLesson.day_of_week)
+    };
     
-    try {
-      const res = await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ...newLesson, classroom_id: newLesson.classroom_id || null })
+    console.log('Sending lesson data:', lessonData);
+    
+    const response = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(lessonData)
+    });
+
+    const data = await response.json();
+    console.log('Response status:', response.status);
+    console.log('Response data:', data);
+
+    if (response.ok) {
+      showNotification('Занятие добавлено!', 'success');
+      setNewLesson({
+        group_id: '',
+        teacher_id: '',
+        subject_id: '',
+        classroom_id: '',
+        pair_number: '1',
+        day_of_week: '1'
       });
-      if (res.ok) {
-        showNotification('Занятие добавлено', 'success');
-        setNewLesson({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1' });
-        loadData();
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка', 'error');
+      loadData(); // Перезагружаем расписание
+    } else {
+      showNotification(data.error || 'Ошибка при добавлении', 'error');
     }
-  };
+  } catch (error) {
+    console.error('Add lesson error:', error);
+    showNotification('Ошибка при добавлении: ' + error.message, 'error');
+  }
+};
 
   const handleUpdateLesson = async (e) => {
     if (e) e.preventDefault();
@@ -849,56 +897,77 @@ function HomeContent() {
             </div>
           </div>
           
-          <div className="add-lesson-section">
-            <h3><i className="fas fa-plus"></i> Добавить новое занятие</h3>
-            <form onSubmit={handleAddLesson} className="add-lesson-form">
-              <div className="form-grid">
-                <div className="form-field">
-                  <label><i className="fas fa-users"></i> Группа</label>
-                  <select value={newLesson.group_id} onChange={e => setNewLesson({...newLesson, group_id: e.target.value})} required>
-                    <option value="">Выберите группу</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label><i className="fas fa-book"></i> Предмет</label>
-                  <select value={newLesson.subject_id} onChange={e => setNewLesson({...newLesson, subject_id: e.target.value})} required>
-                    <option value="">Выберите предмет</option>
-                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
-                  <select value={newLesson.teacher_id} onChange={e => setNewLesson({...newLesson, teacher_id: e.target.value})} required>
-                    <option value="">Выберите преподавателя</option>
-                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label><i className="fas fa-door-open"></i> Аудитория</label>
-                  <select value={newLesson.classroom_id} onChange={e => setNewLesson({...newLesson, classroom_id: e.target.value})}>
-                    <option value="">Не указана</option>
-                    {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label><i className="fas fa-calendar-day"></i> День недели</label>
-                  <select value={newLesson.day_of_week} onChange={e => setNewLesson({...newLesson, day_of_week: e.target.value})}>
-                    {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
-                  </select>
-                </div>
-                <div className="form-field">
-                  <label><i className="fas fa-clock"></i> Пара</label>
-                  <select value={newLesson.pair_number} onChange={e => setNewLesson({...newLesson, pair_number: e.target.value})}>
-                    {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
-                  </select>
-                </div>
-              </div>
-              <button type="submit" className="submit-button">
-                <i className="fas fa-plus"></i> Добавить занятие
-              </button>
-            </form>
-          </div>
+        <div className="add-lesson-section">
+  <h3><i className="fas fa-plus"></i> Добавить новое занятие</h3>
+  <form onSubmit={handleAddLesson} className="add-lesson-form">
+    <div className="form-grid">
+      <div className="form-field">
+        <label><i className="fas fa-users"></i> Группа</label>
+        <select 
+          value={newLesson.group_id} 
+          onChange={e => setNewLesson({...newLesson, group_id: e.target.value})} 
+          required
+        >
+          <option value="">Выберите группу</option>
+          {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+      </div>
+      <div className="form-field">
+        <label><i className="fas fa-book"></i> Предмет</label>
+        <select 
+          value={newLesson.subject_id} 
+          onChange={e => setNewLesson({...newLesson, subject_id: e.target.value})} 
+          required
+        >
+          <option value="">Выберите предмет</option>
+          {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </div>
+      <div className="form-field">
+        <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
+        <select 
+          value={newLesson.teacher_id} 
+          onChange={e => setNewLesson({...newLesson, teacher_id: e.target.value})} 
+          required
+        >
+          <option value="">Выберите преподавателя</option>
+          {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      </div>
+      <div className="form-field">
+        <label><i className="fas fa-calendar-day"></i> День недели</label>
+        <select 
+          value={newLesson.day_of_week} 
+          onChange={e => setNewLesson({...newLesson, day_of_week: e.target.value})}
+        >
+          <option value="1">Понедельник</option>
+          <option value="2">Вторник</option>
+          <option value="3">Среда</option>
+          <option value="4">Четверг</option>
+          <option value="5">Пятница</option>
+          <option value="6">Суббота</option>
+        </select>
+      </div>
+      <div className="form-field">
+        <label><i className="fas fa-clock"></i> Пара</label>
+        <select 
+          value={newLesson.pair_number} 
+          onChange={e => setNewLesson({...newLesson, pair_number: e.target.value})}
+        >
+          <option value="1">1 пара (08:30-10:00)</option>
+          <option value="2">2 пара (10:10-11:40)</option>
+          <option value="3">3 пара (12:10-13:40)</option>
+          <option value="4">4 пара (13:50-15:20)</option>
+          <option value="5">5 пара (15:30-17:00)</option>
+          <option value="6">6 пара (17:10-18:40)</option>
+        </select>
+      </div>
+    </div>
+    <button type="submit" className="submit-button">
+      <i className="fas fa-plus"></i> Добавить занятие
+    </button>
+  </form>
+</div>
           
           <div className="schedule-editor">
             <h3><i className="fas fa-edit"></i> Редактирование расписания</h3>
