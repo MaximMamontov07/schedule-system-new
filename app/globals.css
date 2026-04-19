@@ -859,7 +859,17 @@ body {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
-
+/* Classroom badge */
+.lesson-classroom {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: rgba(74, 111, 165, 0.1);
+  border-radius: 1rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-left: 0.5rem;
+}
 /* Directories */
 .directories-grid {
   display: grid;

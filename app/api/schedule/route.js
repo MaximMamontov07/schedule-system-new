@@ -48,20 +48,34 @@ export async function POST(request) {
 export async function GET(request) {
   try {
     const db = await getDb();
-    const result = await db.query(`
+    const { searchParams } = new URL(request.url);
+    const groupId = searchParams.get('groupId');
+
+    let query = `
       SELECT 
         s.*,
         g.name as group_name,
         t.name as teacher_name,
-        sub.name as subject_name
+        sub.name as subject_name,
+        c.name as classroom_name
       FROM schedule s
       JOIN groups g ON s.group_id = g.id
       JOIN teachers t ON s.teacher_id = t.id
       JOIN subjects sub ON s.subject_id = sub.id
-      ORDER BY s.day_of_week, s.pair_number
-    `);
+      LEFT JOIN classrooms c ON s.classroom_id = c.id
+    `;
+    let params = [];
+
+    if (groupId) {
+      query += ' WHERE s.group_id = $1';
+      params.push(parseInt(groupId));
+    }
+
+    query += ' ORDER BY s.day_of_week, s.pair_number';
     
-    return NextResponse.json(result.rows);
+    const result = await db.query(query, params);
+    
+    return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('Schedule GET error:', error);
     return NextResponse.json([], { status: 200 });
