@@ -16,10 +16,12 @@ export async function POST(request) {
 
     const db = await getDb();
     
-    const user = await db.get(
-      'SELECT id, username, password, full_name, role, group_id FROM users WHERE username = ?',
+    const result = await db.query(
+      'SELECT id, username, password, full_name, role, group_id FROM users WHERE username = $1',
       [username]
     );
+    
+    const user = result.rows[0];
 
     if (!user) {
       return NextResponse.json(

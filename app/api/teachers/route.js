@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const db = await getDb();
     const result = await db.query('SELECT * FROM teachers ORDER BY name');
-    return NextResponse.json(result.rows || []);
+    return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Teachers GET error:', error);
     return NextResponse.json([], { status: 200 });
@@ -30,6 +30,9 @@ export async function POST(request) {
     await db.query('INSERT INTO teachers (name) VALUES ($1)', [name.trim()]);
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'Преподаватель уже существует' }, { status: 400 });
+    }
     console.error('Teachers POST error:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }

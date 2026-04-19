@@ -5,11 +5,11 @@ import { getUserFromRequest } from '@/lib/auth';
 export async function GET() {
   try {
     const db = await getDb();
-    const subjects = await db.all('SELECT * FROM subjects ORDER BY name');
-    return NextResponse.json(subjects);
+    const result = await db.query('SELECT * FROM subjects ORDER BY name');
+    return NextResponse.json(result.rows);
   } catch (error) {
     console.error('Subjects GET error:', error);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+    return NextResponse.json([], { status: 200 });
   }
 }
 
@@ -27,10 +27,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Название обязательно' }, { status: 400 });
     }
 
-    await db.run('INSERT INTO subjects (name) VALUES (?)', [name.trim()]);
+    await db.query('INSERT INTO subjects (name) VALUES ($1)', [name.trim()]);
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error.message?.includes('UNIQUE')) {
+    if (error.code === '23505') {
       return NextResponse.json({ error: 'Предмет уже существует' }, { status: 400 });
     }
     console.error('Subjects POST error:', error);
@@ -53,7 +53,7 @@ export async function DELETE(request) {
     }
 
     const db = await getDb();
-    await db.run('DELETE FROM subjects WHERE id = ?', [id]);
+    await db.query('DELETE FROM subjects WHERE id = $1', [id]);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Subjects DELETE error:', error);
