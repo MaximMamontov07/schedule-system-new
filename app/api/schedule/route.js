@@ -41,34 +41,58 @@ export async function POST(request) {
   try {
     const user = await getUserFromRequest(request);
     if (!user || !['methodist', 'admin'].includes(user.role)) {
-      return NextResponse.json({ error: 'Нет прав' }, { status: 403 });
+      return NextResponse.json({ error: 'Только методист и админ могут создавать занятия' }, { status: 403 });
     }
 
     const db = await getDb();
     const body = await request.json();
-    const { group_id, teacher_id, subject_id, pair_number, day_of_week } = body;
+    const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week } = body;
 
     if (!group_id || !teacher_id || !subject_id || !pair_number || !day_of_week) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
     }
 
+    // Проверяем, что группа существует
+    const groupCheck = await db.query('SELECT id FROM groups WHERE id = $1', [group_id]);
+    if (groupCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'Группа не найдена' }, { status: 400 });
+    }
+
+    // Проверяем, что преподаватель существует
+    const teacherCheck = await db.query('SELECT id FROM teachers WHERE id = $1', [teacher_id]);
+    if (teacherCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'Преподаватель не найден' }, { status: 400 });
+    }
+
+    // Проверяем, что предмет существует
+    const subjectCheck = await db.query('SELECT id FROM subjects WHERE id = $1', [subject_id]);
+    if (subjectCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'Предмет не найден' }, { status: 400 });
+    }
+
     const query = `
-      INSERT INTO schedule (group_id, teacher_id, subject_id, pair_number, day_of_week) 
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week) 
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
     `;
     
-    await db.query(query, [
+    const result = await db.query(query, [
       parseInt(group_id), 
       parseInt(teacher_id), 
       parseInt(subject_id), 
+      classroom_id ? parseInt(classroom_id) : null,
       parseInt(pair_number), 
       parseInt(day_of_week)
     ]);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Занятие добавлено',
+      id: result.rows[0].id 
+    });
   } catch (error) {
     console.error('Schedule POST error:', error);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+    return NextResponse.json({ error: 'Ошибка сервера: ' + error.message }, { status: 500 });
   }
 }
 

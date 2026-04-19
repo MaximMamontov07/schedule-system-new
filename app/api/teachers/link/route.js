@@ -17,33 +17,36 @@ export async function POST(request) {
 
     const db = await getDb();
     
-    const targetUser = await db.get('SELECT id, role, full_name FROM users WHERE id = ?', [userId]);
-    if (!targetUser) {
+    // Проверяем, существует ли пользователь
+    const targetUser = await db.query('SELECT id, role, full_name FROM users WHERE id = $1', [userId]);
+    if (targetUser.rows.length === 0) {
       return NextResponse.json({ error: 'Пользователь не найден' }, { status: 404 });
     }
     
-    if (targetUser.role !== 'teacher') {
+    if (targetUser.rows[0].role !== 'teacher') {
       return NextResponse.json({ error: 'Пользователь должен иметь роль teacher' }, { status: 400 });
     }
     
-    const teacher = await db.get('SELECT id, name, user_id FROM teachers WHERE id = ?', [teacherId]);
-    if (!teacher) {
+    // Проверяем, существует ли преподаватель
+    const teacher = await db.query('SELECT id, name, user_id FROM teachers WHERE id = $1', [teacherId]);
+    if (teacher.rows.length === 0) {
       return NextResponse.json({ error: 'Преподаватель не найден' }, { status: 404 });
     }
     
-    if (teacher.user_id) {
+    if (teacher.rows[0].user_id) {
       return NextResponse.json({ error: 'Преподаватель уже привязан к пользователю' }, { status: 400 });
     }
     
-    await db.run('UPDATE teachers SET user_id = ? WHERE id = ?', [userId, teacherId]);
+    // Привязываем
+    await db.query('UPDATE teachers SET user_id = $1 WHERE id = $2', [userId, teacherId]);
     
     return NextResponse.json({ 
       success: true,
-      message: `Преподаватель "${teacher.name}" привязан к пользователю "${targetUser.full_name}"`
+      message: `Преподаватель "${teacher.rows[0].name}" привязан к пользователю "${targetUser.rows[0].full_name}"`
     });
   } catch (error) {
     console.error('Link error:', error);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+    return NextResponse.json({ error: 'Ошибка сервера: ' + error.message }, { status: 500 });
   }
 }
 
@@ -62,7 +65,7 @@ export async function DELETE(request) {
     }
 
     const db = await getDb();
-    await db.run('UPDATE teachers SET user_id = NULL WHERE id = ?', [teacherId]);
+    await db.query('UPDATE teachers SET user_id = NULL WHERE id = $1', [teacherId]);
     
     return NextResponse.json({ success: true, message: 'Привязка удалена' });
   } catch (error) {
