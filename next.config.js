@@ -2,13 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ['sqlite3', 'bcryptjs']
-  },
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals.push('sqlite3');
-    }
-    return config;
+    serverComponentsExternalPackages: ['pg', 'bcryptjs']
   }
 }
 
