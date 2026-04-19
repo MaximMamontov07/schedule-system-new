@@ -5,11 +5,11 @@ import { getUserFromRequest } from '@/lib/auth';
 export async function GET() {
   try {
     const db = await getDb();
-    const teachers = await db.all('SELECT * FROM teachers ORDER BY name');
-    return NextResponse.json(teachers);
+    const result = await db.query('SELECT * FROM teachers ORDER BY name');
+    return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('Teachers GET error:', error);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+    return NextResponse.json([], { status: 200 });
   }
 }
 
@@ -27,12 +27,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Имя обязательно' }, { status: 400 });
     }
 
-    await db.run('INSERT INTO teachers (name) VALUES (?)', [name.trim()]);
+    await db.query('INSERT INTO teachers (name) VALUES ($1)', [name.trim()]);
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error.message?.includes('UNIQUE')) {
-      return NextResponse.json({ error: 'Преподаватель уже существует' }, { status: 400 });
-    }
     console.error('Teachers POST error:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
@@ -53,7 +50,7 @@ export async function DELETE(request) {
     }
 
     const db = await getDb();
-    await db.run('DELETE FROM teachers WHERE id = ?', [id]);
+    await db.query('DELETE FROM teachers WHERE id = $1', [id]);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Teachers DELETE error:', error);
