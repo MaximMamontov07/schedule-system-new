@@ -5,11 +5,9 @@ import { getUserFromRequest } from '@/lib/auth';
 export async function GET(request) {
   try {
     const db = await getDb();
-    const user = await getUserFromRequest(request);
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
 
-    // Простой запрос без classroom_id
     let query = `
       SELECT 
         s.*,
@@ -21,7 +19,6 @@ export async function GET(request) {
       JOIN teachers t ON s.teacher_id = t.id
       JOIN subjects sub ON s.subject_id = sub.id
     `;
-    
     let params = [];
 
     if (groupId) {
@@ -36,7 +33,6 @@ export async function GET(request) {
     return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('Schedule GET error:', error);
-    // Возвращаем пустой массив вместо ошибки
     return NextResponse.json([], { status: 200 });
   }
 }
