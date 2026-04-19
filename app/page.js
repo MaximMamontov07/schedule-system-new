@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
-// Контекст темы
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
 
 const ThemeProvider = ({ children }) => {
@@ -47,17 +46,18 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', methodist: 'Методист', teacher: 'Преподаватель', student: 'Студент' };
 
-// Профессиональная таблица расписания
-const ScheduleGrid = ({ data, onEditClick, onDeleteClick, canEdit = false }) => {
+const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(6).fill().map(() => Array(6).fill(null));
-    data.forEach(lesson => {
-      const dayIndex = lesson.day_of_week - 1;
-      const pairIndex = lesson.pair_number - 1;
-      if (dayIndex >= 0 && dayIndex < 6 && pairIndex >= 0 && pairIndex < 6) {
-        matrix[dayIndex][pairIndex] = lesson;
-      }
-    });
+    if (Array.isArray(data)) {
+      data.forEach(lesson => {
+        const dayIndex = lesson.day_of_week - 1;
+        const pairIndex = lesson.pair_number - 1;
+        if (dayIndex >= 0 && dayIndex < 6 && pairIndex >= 0 && pairIndex < 6) {
+          matrix[dayIndex][pairIndex] = lesson;
+        }
+      });
+    }
     return matrix;
   }, [data]);
 
@@ -80,7 +80,7 @@ const ScheduleGrid = ({ data, onEditClick, onDeleteClick, canEdit = false }) => 
                   <span className="pair-num">{pair.name}</span>
                   <span className="pair-time">{pair.time}</span>
                 </div>
-               </td>
+              </td>
               {DAYS.map((_, dayIndex) => {
                 const lesson = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLesson = lesson !== null;
@@ -123,9 +123,12 @@ const ScheduleGrid = ({ data, onEditClick, onDeleteClick, canEdit = false }) => 
                         )}
                       </div>
                     ) : (
-                      canEdit && (
-                        <button className="add-lesson-trigger" onClick={() => onEditClick({ day_of_week: dayIndex + 1, pair_number: pair.number, isNew: true })}>
-                          <i className="fas fa-plus"></i>
+                      canEdit && onAddClick && (
+                        <button 
+                          className="add-lesson-trigger" 
+                          onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number })}
+                        >
+                          <i className="fas fa-plus-circle"></i>
                         </button>
                       )
                     )}
@@ -140,17 +143,18 @@ const ScheduleGrid = ({ data, onEditClick, onDeleteClick, canEdit = false }) => 
   );
 };
 
-// Панель преподавателя
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(6).fill().map(() => Array(6).fill(null));
-    data.forEach(lesson => {
-      const dayIndex = lesson.day_of_week - 1;
-      const pairIndex = lesson.pair_number - 1;
-      if (dayIndex >= 0 && dayIndex < 6 && pairIndex >= 0 && pairIndex < 6) {
-        matrix[dayIndex][pairIndex] = lesson;
-      }
-    });
+    if (Array.isArray(data)) {
+      data.forEach(lesson => {
+        const dayIndex = lesson.day_of_week - 1;
+        const pairIndex = lesson.pair_number - 1;
+        if (dayIndex >= 0 && dayIndex < 6 && pairIndex >= 0 && pairIndex < 6) {
+          matrix[dayIndex][pairIndex] = lesson;
+        }
+      });
+    }
     return matrix;
   }, [data]);
 
@@ -173,7 +177,7 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                   <span className="pair-num">{pair.name}</span>
                   <span className="pair-time">{pair.time}</span>
                 </div>
-               </td>
+              </td>
               {DAYS.map((_, dayIndex) => {
                 const lesson = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLesson = lesson !== null;
@@ -206,10 +210,10 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                           {isChanged && (
                             <div className="teacher-actions">
                               <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="cancel-btn">
-                                <i className="fas fa-undo-alt"></i>
+                                <i className="fas fa-undo-alt"></i> Отмена
                               </button>
                               <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="save-btn">
-                                {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>}
+                                {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
                               </button>
                             </div>
                           )}
@@ -297,111 +301,61 @@ function HomeContent() {
   const exportToPDF = async () => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
-      
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-      const isDarkTheme = currentTheme === 'dark';
-      
-      const pdfStyles = isDarkTheme ? `
-        body { font-family: 'Inter', sans-serif; padding: 30px; background: #0f172a; color: #f1f5f9; }
-        h1 { color: #3b82f6; text-align: center; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; background: #1e293b; }
-        th { background: #3b82f6; color: white; padding: 12px; }
-        td { padding: 10px; border-bottom: 1px solid #475569; color: #cbd5e1; }
-        tr:nth-child(even) { background: #334155; }
-      ` : `
-        body { font-family: 'Inter', sans-serif; padding: 30px; background: white; color: #1e293b; }
-        h1 { color: #2563eb; text-align: center; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #2563eb; color: white; padding: 12px; }
-        td { padding: 10px; border-bottom: 1px solid #e2e8f0; color: #475569; }
-        tr:nth-child(even) { background: #f8fafc; }
-      `;
-      
       const element = document.createElement('div');
       element.innerHTML = `
-        <!DOCTYPE html>
         <html>
-        <head><meta charset="UTF-8"><style>${pdfStyles}</style></head>
-        <body>
-          <h1>Расписание занятий</h1>
-          <div style="text-align:center; margin-bottom:20px; color: ${isDarkTheme ? '#94a3b8' : '#64748b'};">
-            ${user ? `Пользователь: ${user.fullName} (${ROLES[user.role]})` : ''}
-            <br>Дата: ${new Date().toLocaleString('ru-RU')}
-          </div>
-          <table>
-            <thead>
-              <tr><th>День</th><th>Время</th><th>Группа</th><th>Предмет</th><th>Преподаватель</th><th>Аудитория</th></tr>
-            </thead>
-            <tbody>
-              ${filteredSchedule.map(lesson => `
-                <tr>
-                  <td>${DAYS[lesson.day_of_week - 1]}</td>
-                  <td>${PAIRS[lesson.pair_number - 1].time}</td>
-                  <td>${lesson.group_name}</td>
-                  <td>${lesson.subject_name}</td>
-                  <td>${lesson.teacher_name}</td>
-                  <td>${lesson.classroom_name || '—'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body>
+          <head><meta charset="UTF-8"></head>
+          <body>
+            <h1>Расписание занятий</h1>
+            <table border="1" cellpadding="8">
+              <thead><tr><th>День</th><th>Время</th><th>Группа</th><th>Предмет</th><th>Преподаватель</th><th>Аудитория</th></tr></thead>
+              <tbody>
+                ${filteredSchedule.map(lesson => `
+                  <tr>
+                    <td>${DAYS[lesson.day_of_week - 1]}</td>
+                    <td>${PAIRS[lesson.pair_number - 1].time}</td>
+                    <td>${lesson.group_name}</td>
+                    <td>${lesson.subject_name}</td>
+                    <td>${lesson.teacher_name}</td>
+                    <td>${lesson.classroom_name || '—'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </body>
         </html>
       `;
-
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename: `Расписание_${new Date().toISOString().split('T')[0]}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, backgroundColor: isDarkTheme ? '#0f172a' : '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-      };
-
-      await html2pdf().set(opt).from(element).save();
+      await html2pdf().from(element).save();
       showNotification('PDF файл сохранен', 'success');
     } catch (error) {
-      console.error('PDF export error:', error);
       showNotification('Ошибка экспорта PDF', 'error');
     }
   };
 
- const loadData = async () => {
-  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-  
-  try {
-    const [scheduleRes, groupsRes, teachersRes, subjectsRes, classroomsRes] = await Promise.all([
-      fetch('/api/schedule', { headers }),
-      fetch('/api/groups'),
-      fetch('/api/teachers'),
-      fetch('/api/subjects'),
-      fetch('/api/classrooms')
-    ]);
+  const loadData = async () => {
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     
-    const scheduleData = await scheduleRes.json();
-    const groupsData = await groupsRes.json();
-    const teachersData = await teachersRes.json();
-    const subjectsData = await subjectsRes.json();
-    const classroomsData = await classroomsRes.json();
-    
-    setSchedule(Array.isArray(scheduleData) ? scheduleData : []);
-    setGroups(Array.isArray(groupsData) ? groupsData : []);
-    setTeachers(Array.isArray(teachersData) ? teachersData : []);
-    setSubjects(Array.isArray(subjectsData) ? subjectsData : []);
-    setClassrooms(Array.isArray(classroomsData) ? classroomsData : []);
-    
-    console.log('Data loaded:', { 
-      schedule: scheduleData.length, 
-      groups: groupsData.length, 
-      teachers: teachersData.length, 
-      subjects: subjectsData.length 
-    });
-  } catch (e) {
-    console.error('Load data error:', e);
-    showNotification('Ошибка загрузки данных', 'error');
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      const [scheduleRes, groupsRes, teachersRes, subjectsRes, classroomsRes] = await Promise.all([
+        fetch('/api/schedule', { headers }),
+        fetch('/api/groups'),
+        fetch('/api/teachers'),
+        fetch('/api/subjects'),
+        fetch('/api/classrooms')
+      ]);
+      
+      setSchedule(await scheduleRes.json());
+      setGroups(await groupsRes.json());
+      setTeachers(await teachersRes.json());
+      setSubjects(await subjectsRes.json());
+      setClassrooms(await classroomsRes.json());
+    } catch (e) {
+      console.error(e);
+      showNotification('Ошибка загрузки данных', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadUsers = async () => {
     if (!token || !canManageUsers) return;
@@ -531,63 +485,28 @@ function HomeContent() {
     }
   };
 
- const handleAddLesson = async (e) => {
-  e.preventDefault();
-  
-  if (!canEditSchedule) {
-    showNotification('Нет прав для добавления занятий', 'error');
-    return;
-  }
-
-  if (!newLesson.group_id || !newLesson.teacher_id || !newLesson.subject_id || 
-      !newLesson.pair_number || !newLesson.day_of_week) {
-    showNotification('Заполните все поля!', 'error');
-    return;
-  }
-
-  try {
-    const lessonData = {
-      group_id: parseInt(newLesson.group_id),
-      teacher_id: parseInt(newLesson.teacher_id),
-      subject_id: parseInt(newLesson.subject_id),
-      pair_number: parseInt(newLesson.pair_number),
-      day_of_week: parseInt(newLesson.day_of_week)
-    };
+  const handleAddLesson = async (e) => {
+    e.preventDefault();
+    if (!canEditSchedule) return showNotification('Нет прав', 'error');
     
-    console.log('Sending lesson data:', lessonData);
-    
-    const response = await fetch('/api/schedule', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(lessonData)
-    });
-
-    const data = await response.json();
-    console.log('Response status:', response.status);
-    console.log('Response data:', data);
-
-    if (response.ok) {
-      showNotification('Занятие добавлено!', 'success');
-      setNewLesson({
-        group_id: '',
-        teacher_id: '',
-        subject_id: '',
-        classroom_id: '',
-        pair_number: '1',
-        day_of_week: '1'
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ...newLesson, classroom_id: newLesson.classroom_id || null })
       });
-      loadData(); // Перезагружаем расписание
-    } else {
-      showNotification(data.error || 'Ошибка при добавлении', 'error');
+      if (res.ok) {
+        showNotification('Занятие добавлено', 'success');
+        setNewLesson({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1' });
+        loadData();
+      } else {
+        const error = await res.json();
+        showNotification(error.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка', 'error');
     }
-  } catch (error) {
-    console.error('Add lesson error:', error);
-    showNotification('Ошибка при добавлении: ' + error.message, 'error');
-  }
-};
+  };
 
   const handleUpdateLesson = async (e) => {
     if (e) e.preventDefault();
@@ -624,6 +543,19 @@ function HomeContent() {
     } catch (e) {
       showNotification('Ошибка', 'error');
     }
+  };
+
+  const handleAddScheduleClick = (slotData) => {
+    setEditingLesson({
+      id: null,
+      group_id: '',
+      teacher_id: '',
+      subject_id: '',
+      classroom_id: '',
+      pair_number: slotData.pair_number,
+      day_of_week: slotData.day_of_week
+    });
+    setShowEditModal(true);
   };
 
   const addDirectory = async (type, name, setShow, setValue) => {
@@ -800,15 +732,9 @@ function HomeContent() {
           </div>
           
           {loading ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Загрузка расписания...</p>
-            </div>
+            <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
           ) : filteredSchedule.length === 0 ? (
-            <div className="empty-state">
-              <i className="fas fa-calendar-times"></i>
-              <p>Нет занятий для отображения</p>
-            </div>
+            <div className="empty-state"><i className="fas fa-calendar-times"></i><p>Нет занятий для отображения</p></div>
           ) : (
             <ScheduleGrid data={filteredSchedule} canEdit={false} />
           )}
@@ -832,25 +758,15 @@ function HomeContent() {
                   <i className="fas fa-save"></i> Сохранить все ({Object.keys(hasChanges).filter(id => hasChanges[id]).length})
                 </button>
               )}
-              <button className="action-button export-excel" onClick={exportToExcel}>
-                <i className="fas fa-file-excel"></i> Excel
-              </button>
-              <button className="action-button export-pdf" onClick={exportToPDF}>
-                <i className="fas fa-file-pdf"></i> PDF
-              </button>
+              <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
+              <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
             </div>
           </div>
           
           {loading ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Загрузка...</p>
-            </div>
+            <div className="loading-state"><div className="spinner"></div><p>Загрузка...</p></div>
           ) : filteredSchedule.length === 0 ? (
-            <div className="empty-state">
-              <i className="fas fa-info-circle"></i>
-              <p>Нет назначенных занятий</p>
-            </div>
+            <div className="empty-state"><i className="fas fa-info-circle"></i><p>Нет назначенных занятий</p></div>
           ) : (
             <TeacherPanel 
               data={filteredSchedule}
@@ -888,86 +804,59 @@ function HomeContent() {
                 <option value="">Все группы</option>
                 {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
-              <button className="action-button export-excel" onClick={exportToExcel}>
-                <i className="fas fa-file-excel"></i> Excel
-              </button>
-              <button className="action-button export-pdf" onClick={exportToPDF}>
-                <i className="fas fa-file-pdf"></i> PDF
-              </button>
+              <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
+              <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
             </div>
           </div>
           
-        <div className="add-lesson-section">
-  <h3><i className="fas fa-plus"></i> Добавить новое занятие</h3>
-  <form onSubmit={handleAddLesson} className="add-lesson-form">
-    <div className="form-grid">
-      <div className="form-field">
-        <label><i className="fas fa-users"></i> Группа</label>
-        <select 
-          value={newLesson.group_id} 
-          onChange={e => setNewLesson({...newLesson, group_id: e.target.value})} 
-          required
-        >
-          <option value="">Выберите группу</option>
-          {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-        </select>
-      </div>
-      <div className="form-field">
-        <label><i className="fas fa-book"></i> Предмет</label>
-        <select 
-          value={newLesson.subject_id} 
-          onChange={e => setNewLesson({...newLesson, subject_id: e.target.value})} 
-          required
-        >
-          <option value="">Выберите предмет</option>
-          {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </div>
-      <div className="form-field">
-        <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
-        <select 
-          value={newLesson.teacher_id} 
-          onChange={e => setNewLesson({...newLesson, teacher_id: e.target.value})} 
-          required
-        >
-          <option value="">Выберите преподавателя</option>
-          {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-      </div>
-      <div className="form-field">
-        <label><i className="fas fa-calendar-day"></i> День недели</label>
-        <select 
-          value={newLesson.day_of_week} 
-          onChange={e => setNewLesson({...newLesson, day_of_week: e.target.value})}
-        >
-          <option value="1">Понедельник</option>
-          <option value="2">Вторник</option>
-          <option value="3">Среда</option>
-          <option value="4">Четверг</option>
-          <option value="5">Пятница</option>
-          <option value="6">Суббота</option>
-        </select>
-      </div>
-      <div className="form-field">
-        <label><i className="fas fa-clock"></i> Пара</label>
-        <select 
-          value={newLesson.pair_number} 
-          onChange={e => setNewLesson({...newLesson, pair_number: e.target.value})}
-        >
-          <option value="1">1 пара (08:30-10:00)</option>
-          <option value="2">2 пара (10:10-11:40)</option>
-          <option value="3">3 пара (12:10-13:40)</option>
-          <option value="4">4 пара (13:50-15:20)</option>
-          <option value="5">5 пара (15:30-17:00)</option>
-          <option value="6">6 пара (17:10-18:40)</option>
-        </select>
-      </div>
-    </div>
-    <button type="submit" className="submit-button">
-      <i className="fas fa-plus"></i> Добавить занятие
-    </button>
-  </form>
-</div>
+          <div className="add-lesson-section">
+            <h3><i className="fas fa-plus"></i> Добавить новое занятие</h3>
+            <form onSubmit={handleAddLesson} className="add-lesson-form">
+              <div className="form-grid">
+                <div className="form-field">
+                  <label><i className="fas fa-users"></i> Группа</label>
+                  <select value={newLesson.group_id} onChange={e => setNewLesson({...newLesson, group_id: e.target.value})} required>
+                    <option value="">Выберите группу</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-book"></i> Предмет</label>
+                  <select value={newLesson.subject_id} onChange={e => setNewLesson({...newLesson, subject_id: e.target.value})} required>
+                    <option value="">Выберите предмет</option>
+                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
+                  <select value={newLesson.teacher_id} onChange={e => setNewLesson({...newLesson, teacher_id: e.target.value})} required>
+                    <option value="">Выберите преподавателя</option>
+                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-door-open"></i> Аудитория</label>
+                  <select value={newLesson.classroom_id} onChange={e => setNewLesson({...newLesson, classroom_id: e.target.value})}>
+                    <option value="">Не указана</option>
+                    {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-calendar-day"></i> День недели</label>
+                  <select value={newLesson.day_of_week} onChange={e => setNewLesson({...newLesson, day_of_week: e.target.value})}>
+                    {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-clock"></i> Пара</label>
+                  <select value={newLesson.pair_number} onChange={e => setNewLesson({...newLesson, pair_number: e.target.value})}>
+                    {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
+                  </select>
+                </div>
+              </div>
+              <button type="submit" className="submit-button"><i className="fas fa-plus"></i> Добавить занятие</button>
+            </form>
+          </div>
           
           <div className="schedule-editor">
             <h3><i className="fas fa-edit"></i> Редактирование расписания</h3>
@@ -984,6 +873,7 @@ function HomeContent() {
                   setShowEditModal(true);
                 }}
                 onDeleteClick={handleDeleteLesson}
+                onAddClick={handleAddScheduleClick}
               />
             )}
           </div>
@@ -1005,17 +895,13 @@ function HomeContent() {
               <div className="directory-header">
                 <i className="fas fa-users"></i>
                 <h3>Группы</h3>
-                <button className="add-dir-btn" onClick={() => setShowGroupModal(true)}>
-                  <i className="fas fa-plus"></i>
-                </button>
+                <button className="add-dir-btn" onClick={() => setShowGroupModal(true)}><i className="fas fa-plus"></i></button>
               </div>
               <div className="directory-list">
                 {groups.map(g => (
                   <div key={g.id} className="directory-item">
                     <span>{g.name}</span>
-                    <button onClick={() => deleteDirectory('groups', g.id)} className="delete-item-btn">
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
+                    <button onClick={() => deleteDirectory('groups', g.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
                   </div>
                 ))}
               </div>
@@ -1025,17 +911,13 @@ function HomeContent() {
               <div className="directory-header">
                 <i className="fas fa-chalkboard-teacher"></i>
                 <h3>Преподаватели</h3>
-                <button className="add-dir-btn" onClick={() => setShowTeacherModal(true)}>
-                  <i className="fas fa-plus"></i>
-                </button>
+                <button className="add-dir-btn" onClick={() => setShowTeacherModal(true)}><i className="fas fa-plus"></i></button>
               </div>
               <div className="directory-list">
                 {teachers.map(t => (
                   <div key={t.id} className="directory-item">
                     <span>{t.name}</span>
-                    <button onClick={() => deleteDirectory('teachers', t.id)} className="delete-item-btn">
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
+                    <button onClick={() => deleteDirectory('teachers', t.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
                   </div>
                 ))}
               </div>
@@ -1045,17 +927,13 @@ function HomeContent() {
               <div className="directory-header">
                 <i className="fas fa-book"></i>
                 <h3>Предметы</h3>
-                <button className="add-dir-btn" onClick={() => setShowSubjectModal(true)}>
-                  <i className="fas fa-plus"></i>
-                </button>
+                <button className="add-dir-btn" onClick={() => setShowSubjectModal(true)}><i className="fas fa-plus"></i></button>
               </div>
               <div className="directory-list">
                 {subjects.map(s => (
                   <div key={s.id} className="directory-item">
                     <span>{s.name}</span>
-                    <button onClick={() => deleteDirectory('subjects', s.id)} className="delete-item-btn">
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
+                    <button onClick={() => deleteDirectory('subjects', s.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
                   </div>
                 ))}
               </div>
@@ -1065,17 +943,13 @@ function HomeContent() {
               <div className="directory-header">
                 <i className="fas fa-door-open"></i>
                 <h3>Аудитории</h3>
-                <button className="add-dir-btn" onClick={() => setShowClassroomModal(true)}>
-                  <i className="fas fa-plus"></i>
-                </button>
+                <button className="add-dir-btn" onClick={() => setShowClassroomModal(true)}><i className="fas fa-plus"></i></button>
               </div>
               <div className="directory-list">
                 {classrooms.map(c => (
                   <div key={c.id} className="directory-item">
                     <span>{c.name}</span>
-                    <button onClick={() => handleDeleteClassroom(c.id)} className="delete-item-btn">
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
+                    <button onClick={() => handleDeleteClassroom(c.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
                   </div>
                 ))}
               </div>
@@ -1102,21 +976,12 @@ function HomeContent() {
             <div className="users-list">
               {users.map(u => (
                 <div key={u.id} className="user-card">
-                  <div className="user-avatar">
-                    <i className={`fas ${u.role === 'admin' ? 'fa-crown' : u.role === 'methodist' ? 'fa-clipboard-list' : u.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
-                  </div>
+                  <div className="user-avatar"><i className={`fas ${u.role === 'admin' ? 'fa-crown' : u.role === 'methodist' ? 'fa-clipboard-list' : u.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i></div>
                   <div className="user-details">
                     <div className="user-name">{u.full_name}</div>
-                    <div className="user-meta">
-                      @{u.username} • {ROLES[u.role]}
-                      {u.group_name && ` • Группа: ${u.group_name}`}
-                    </div>
+                    <div className="user-meta">@{u.username} • {ROLES[u.role]}{u.group_name && ` • Группа: ${u.group_name}`}</div>
                   </div>
-                  {u.id !== user?.id && (
-                    <button onClick={() => handleDeleteUser(u.id)} className="delete-user-btn">
-                      <i className="fas fa-trash-alt"></i>
-                    </button>
-                  )}
+                  {u.id !== user?.id && <button onClick={() => handleDeleteUser(u.id)} className="delete-user-btn"><i className="fas fa-trash-alt"></i></button>}
                 </div>
               ))}
             </div>
@@ -1144,23 +1009,17 @@ function HomeContent() {
                       <div className="link-controls">
                         <select className="user-select" id={`teacher-select-${teacher.id}`} defaultValue="">
                           <option value="" disabled>Выберите пользователя...</option>
-                          {availableUsers.map(u => (
-                            <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>
-                          ))}
+                          {availableUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>)}
                         </select>
                         <button onClick={() => {
                           const select = document.getElementById(`teacher-select-${teacher.id}`);
                           const userId = select.value;
                           if (userId) linkTeacherToUser(teacher.id, parseInt(userId));
                           else showNotification('Выберите пользователя', 'error');
-                        }} className="link-button">
-                          <i className="fas fa-link"></i> Привязать
-                        </button>
+                        }} className="link-button"><i className="fas fa-link"></i> Привязать</button>
                       </div>
                     ) : (
-                      <button onClick={() => unlinkTeacher(teacher.id)} className="unlink-button">
-                        <i className="fas fa-unlink"></i> Отвязать
-                      </button>
+                      <button onClick={() => unlinkTeacher(teacher.id)} className="unlink-button"><i className="fas fa-unlink"></i> Отвязать</button>
                     )}
                   </div>
                 );
@@ -1175,13 +1034,9 @@ function HomeContent() {
   };
 
   if (authChecking) {
-    return (
-      <div className="loading-screen">
-        <div className="spinner-large"></div>
-        <p>Загрузка системы...</p>
-      </div>
-    );
+    return <div className="loading-screen"><div className="spinner-large"></div><p>Загрузка системы...</p></div>;
   }
+  
   if (!user) {
     return (
       <>
@@ -1189,61 +1044,27 @@ function HomeContent() {
         <div className="landing-page">
           <div className="landing-content">
             <div className="landing-hero">
-              <div className="hero-badge">
-                <span><i className="fas fa-graduation-cap"></i> Расписание</span>
-              </div>
-              <h1 className="hero-title">
-                Просмотр учебного расписания<br/>
-                <span className="gradient-highlight"></span>
-              </h1>
-              <p className="hero-description">
-                Современная платформа для просмотра расписания в колледже. 
-              </p>
+              <div className="hero-badge"><span><i className="fas fa-graduation-cap"></i> Расписание</span></div>
+              <h1 className="hero-title">Учебное расписание<br/><span className="gradient-highlight">Колледжа</span></h1>
+              <p className="hero-description">Современная платформа для просмотра расписания в колледже.</p>
               <div className="hero-buttons">
-                <button className="btn-primary" onClick={() => setShowLogin(true)}>
-                  <i className="fas fa-sign-in-alt"></i> Войти в систему
-                </button>
+                <button className="btn-primary" onClick={() => setShowLogin(true)}><i className="fas fa-sign-in-alt"></i> Войти в систему</button>
               </div>
             </div>
           </div>
         </div>
-            
-           
         
         {showLogin && createPortal(
           <div className="modal" onClick={() => setShowLogin(false)}>
             <div className="modal-container" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h2><i className="fas fa-sign-in-alt"></i> Вход в систему</h2>
-                <button className="modal-close" onClick={() => setShowLogin(false)}>
-                  <i className="fas fa-times"></i>
-                </button>
+                <button className="modal-close" onClick={() => setShowLogin(false)}><i className="fas fa-times"></i></button>
               </div>
               <form onSubmit={handleLogin} className="modal-form">
-                <div className="form-group">
-                  <label><i className="fas fa-user"></i> Логин</label>
-                  <input 
-                    type="text" 
-                    placeholder="Введите логин" 
-                    value={loginData.username} 
-                    onChange={e => setLoginData({...loginData, username: e.target.value})}
-                    required
-                    autoFocus
-                  />
-                </div>
-                <div className="form-group">
-                  <label><i className="fas fa-lock"></i> Пароль</label>
-                  <input 
-                    type="password" 
-                    placeholder="Введите пароль" 
-                    value={loginData.password} 
-                    onChange={e => setLoginData({...loginData, password: e.target.value})}
-                    required
-                  />
-                </div>
-                <button type="submit" className="submit-btn">
-                  <i className="fas fa-sign-in-alt"></i> Войти
-                </button>
+                <div className="form-group"><label><i className="fas fa-user"></i> Логин</label><input type="text" placeholder="Введите логин" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} required autoFocus /></div>
+                <div className="form-group"><label><i className="fas fa-lock"></i> Пароль</label><input type="password" placeholder="Введите пароль" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} required /></div>
+                <button type="submit" className="submit-btn"><i className="fas fa-sign-in-alt"></i> Войти</button>
               </form>
             </div>
           </div>,
@@ -1257,19 +1078,19 @@ function HomeContent() {
     <div className="app-container">
       {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
       
+      <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+        <i className="fas fa-bars"></i>
+      </button>
+      
       <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
           <i className="fas fa-calendar-alt"></i>
           <span className="brand-name">Расписание</span>
-          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
-            <i className="fas fa-times"></i>
-          </button>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}><i className="fas fa-times"></i></button>
         </div>
         
         <div className="sidebar-profile">
-          <div className="profile-avatar">
-            <i className={`fas ${user.role === 'admin' ? 'fa-clipboard-list' : user.role === 'methodist' ? 'fa-clipboard-list' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
-          </div>
+          <div className="profile-avatar"><i className={`fas ${user.role === 'admin' ? 'fa-clipboard-list' : user.role === 'methodist' ? 'fa-clipboard-list' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i></div>
           <div className="profile-info">
             <div className="profile-name">{user.fullName}</div>
             <div className="profile-role">{ROLES[user.role]}</div>
@@ -1278,34 +1099,29 @@ function HomeContent() {
         
         <nav className="sidebar-nav">
           <button className={`nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
-            <i className="fas fa-calendar-week"></i>
-            <span>Расписание</span>
+            <i className="fas fa-calendar-week"></i><span>Расписание</span>
           </button>
           
           {isTeacher && (
             <button className={`nav-item ${activeTab === 'my-lessons' ? 'active' : ''}`} onClick={() => { setActiveTab('my-lessons'); setSidebarOpen(false); }}>
-              <i className="fas fa-chalkboard-teacher"></i>
-              <span>Мои занятия</span>
+              <i className="fas fa-chalkboard-teacher"></i><span>Мои занятия</span>
             </button>
           )}
           
           {(user?.role === 'methodist' || user?.role === 'admin') && (
             <>
               <button className={`nav-item ${activeTab === 'manage-schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('manage-schedule'); setSidebarOpen(false); }}>
-                <i className="fas fa-plus-circle"></i>
-                <span>Управление</span>
+                <i className="fas fa-plus-circle"></i><span>Управление</span>
               </button>
               <button className={`nav-item ${activeTab === 'directories' ? 'active' : ''}`} onClick={() => { setActiveTab('directories'); setSidebarOpen(false); }}>
-                <i className="fas fa-database"></i>
-                <span>Справочники</span>
+                <i className="fas fa-database"></i><span>Справочники</span>
               </button>
             </>
           )}
           
           {user?.role === 'admin' && (
             <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
-              <i className="fas fa-users-cog"></i>
-              <span>Пользователи</span>
+              <i className="fas fa-users-cog"></i><span>Пользователи</span>
             </button>
           )}
         </nav>
@@ -1316,8 +1132,7 @@ function HomeContent() {
             <span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span>
           </button>
           <button className="logout-btn" onClick={handleLogout}>
-            <i className="fas fa-sign-out-alt"></i>
-            <span>Выйти</span>
+            <i className="fas fa-sign-out-alt"></i><span>Выйти</span>
           </button>
         </div>
       </aside>
@@ -1326,9 +1141,7 @@ function HomeContent() {
       
       <main className="app-main">
         <header className="app-header">
-          <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}>
-            <i className="fas fa-bars"></i>
-          </button>
+          <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}><i className="fas fa-bars"></i></button>
           <div className="header-title">
             <h1>
               {activeTab === 'schedule' && 'Расписание занятий'}
@@ -1339,54 +1152,32 @@ function HomeContent() {
             </h1>
           </div>
           <div className="header-actions-right">
-            <button className="theme-toggle-header" onClick={toggleTheme}>
-              <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-            </button>
-            <div className="header-role">
-              <span className="role-badge">{ROLES[user.role]}</span>
-            </div>
+            <button className="theme-toggle-header" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i></button>
+            <div className="header-role"><span className="role-badge">{ROLES[user.role]}</span></div>
           </div>
         </header>
         
-        <div className="app-content">
-          {renderMainContent()}
-        </div>
+        <div className="app-content">{renderMainContent()}</div>
       </main>
 
+      {/* Модальные окна */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-user-plus"></i> Создать пользователя</h2>
-              <button className="modal-close" onClick={() => setShowRegister(false)}><i className="fas fa-times"></i></button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-user-plus"></i> Создать пользователя</h2><button className="modal-close" onClick={() => setShowRegister(false)}><i className="fas fa-times"></i></button></div>
             <form onSubmit={handleRegister} className="modal-form">
-              <div className="form-group">
-                <label><i className="fas fa-user"></i> Логин</label>
-                <input placeholder="Логин" value={registerData.username} onChange={e => setRegisterData({...registerData, username: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label><i className="fas fa-lock"></i> Пароль</label>
-                <input type="password" placeholder="Пароль" value={registerData.password} onChange={e => setRegisterData({...registerData, password: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label><i className="fas fa-id-card"></i> ФИО</label>
-                <input placeholder="ФИО" value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label><i className="fas fa-tag"></i> Роль</label>
+              <div className="form-group"><label>Логин</label><input placeholder="Логин" value={registerData.username} onChange={e => setRegisterData({...registerData, username: e.target.value})} required /></div>
+              <div className="form-group"><label>Пароль</label><input type="password" placeholder="Пароль" value={registerData.password} onChange={e => setRegisterData({...registerData, password: e.target.value})} required /></div>
+              <div className="form-group"><label>ФИО</label><input placeholder="ФИО" value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required /></div>
+              <div className="form-group"><label>Роль</label>
                 <select value={registerData.role} onChange={e => setRegisterData({...registerData, role: e.target.value})}>
-                  <option value="student">Студент</option>
-                  <option value="teacher">Преподаватель</option>
-                  <option value="methodist">Методист</option>
+                  <option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="methodist">Методист</option>
                 </select>
               </div>
               {registerData.role === 'student' && (
-                <div className="form-group">
-                  <label><i className="fas fa-users"></i> Группа</label>
+                <div className="form-group"><label>Группа</label>
                   <select value={registerData.groupId} onChange={e => setRegisterData({...registerData, groupId: e.target.value})}>
-                    <option value="">Выберите группу</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    <option value="">Выберите группу</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
               )}
@@ -1400,15 +1191,9 @@ function HomeContent() {
       {showGroupModal && createPortal(
         <div className="modal" onClick={() => setShowGroupModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-users"></i> Добавить группу</h2>
-              <button className="modal-close" onClick={() => setShowGroupModal(false)}><i className="fas fa-times"></i></button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-users"></i> Добавить группу</h2><button className="modal-close" onClick={() => setShowGroupModal(false)}><i className="fas fa-times"></i></button></div>
             <form onSubmit={(e) => { e.preventDefault(); addDirectory('groups', newGroup, setShowGroupModal, setNewGroup); }} className="modal-form">
-              <div className="form-group">
-                <label>Название группы</label>
-                <input placeholder="Например: ИС-21" value={newGroup} onChange={e => setNewGroup(e.target.value)} required autoFocus />
-              </div>
+              <div className="form-group"><label>Название группы</label><input placeholder="Например: ИС-21" value={newGroup} onChange={e => setNewGroup(e.target.value)} required autoFocus /></div>
               <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
             </form>
           </div>
@@ -1419,15 +1204,9 @@ function HomeContent() {
       {showTeacherModal && createPortal(
         <div className="modal" onClick={() => setShowTeacherModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-chalkboard-teacher"></i> Добавить преподавателя</h2>
-              <button className="modal-close" onClick={() => setShowTeacherModal(false)}><i className="fas fa-times"></i></button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-chalkboard-teacher"></i> Добавить преподавателя</h2><button className="modal-close" onClick={() => setShowTeacherModal(false)}><i className="fas fa-times"></i></button></div>
             <form onSubmit={(e) => { e.preventDefault(); addDirectory('teachers', newTeacher, setShowTeacherModal, setNewTeacher); }} className="modal-form">
-              <div className="form-group">
-                <label>ФИО преподавателя</label>
-                <input placeholder="Иванов Иван Иванович" value={newTeacher} onChange={e => setNewTeacher(e.target.value)} required autoFocus />
-              </div>
+              <div className="form-group"><label>ФИО преподавателя</label><input placeholder="Иванов Иван Иванович" value={newTeacher} onChange={e => setNewTeacher(e.target.value)} required autoFocus /></div>
               <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
             </form>
           </div>
@@ -1438,15 +1217,9 @@ function HomeContent() {
       {showSubjectModal && createPortal(
         <div className="modal" onClick={() => setShowSubjectModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-book"></i> Добавить предмет</h2>
-              <button className="modal-close" onClick={() => setShowSubjectModal(false)}><i className="fas fa-times"></i></button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-book"></i> Добавить предмет</h2><button className="modal-close" onClick={() => setShowSubjectModal(false)}><i className="fas fa-times"></i></button></div>
             <form onSubmit={(e) => { e.preventDefault(); addDirectory('subjects', newSubject, setShowSubjectModal, setNewSubject); }} className="modal-form">
-              <div className="form-group">
-                <label>Название предмета</label>
-                <input placeholder="Например: Математика" value={newSubject} onChange={e => setNewSubject(e.target.value)} required autoFocus />
-              </div>
+              <div className="form-group"><label>Название предмета</label><input placeholder="Например: Математика" value={newSubject} onChange={e => setNewSubject(e.target.value)} required autoFocus /></div>
               <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
             </form>
           </div>
@@ -1457,15 +1230,9 @@ function HomeContent() {
       {showClassroomModal && createPortal(
         <div className="modal" onClick={() => setShowClassroomModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-door-open"></i> Добавить аудиторию</h2>
-              <button className="modal-close" onClick={() => setShowClassroomModal(false)}><i className="fas fa-times"></i></button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-door-open"></i> Добавить аудиторию</h2><button className="modal-close" onClick={() => setShowClassroomModal(false)}><i className="fas fa-times"></i></button></div>
             <form onSubmit={handleAddClassroom} className="modal-form">
-              <div className="form-group">
-                <label>Номер аудитории</label>
-                <input placeholder="Например: 305" value={newClassroom} onChange={e => setNewClassroom(e.target.value)} required autoFocus />
-              </div>
+              <div className="form-group"><label>Номер аудитории</label><input placeholder="Например: 305" value={newClassroom} onChange={e => setNewClassroom(e.target.value)} required autoFocus /></div>
               <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
             </form>
           </div>
@@ -1477,48 +1244,64 @@ function HomeContent() {
         <div className="modal" onClick={() => setShowEditModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2><i className="fas fa-edit"></i> Редактировать занятие</h2>
+              <h2><i className="fas fa-calendar-plus"></i> {editingLesson.id ? 'Редактировать занятие' : 'Добавить занятие'}</h2>
               <button className="modal-close" onClick={() => setShowEditModal(false)}><i className="fas fa-times"></i></button>
             </div>
-            <form onSubmit={handleUpdateLesson} className="modal-form">
-              <div className="form-group">
-                <label><i className="fas fa-users"></i> Группа</label>
-                <select value={editingLesson.group_id} onChange={e => setEditingLesson({...editingLesson, group_id: parseInt(e.target.value)})}>
-                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!editingLesson.group_id || !editingLesson.teacher_id || !editingLesson.subject_id) {
+                showNotification('Заполните все поля!', 'error');
+                return;
+              }
+              try {
+                const url = editingLesson.id ? `/api/schedule/${editingLesson.id}` : '/api/schedule';
+                const method = editingLesson.id ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                  method: method,
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                  body: JSON.stringify({
+                    group_id: parseInt(editingLesson.group_id),
+                    teacher_id: parseInt(editingLesson.teacher_id),
+                    subject_id: parseInt(editingLesson.subject_id),
+                    classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
+                    pair_number: parseInt(editingLesson.pair_number),
+                    day_of_week: parseInt(editingLesson.day_of_week)
+                  })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                  showNotification(editingLesson.id ? 'Занятие обновлено!' : 'Занятие добавлено!', 'success');
+                  setShowEditModal(false);
+                  setEditingLesson(null);
+                  loadData();
+                } else {
+                  showNotification(data.error || 'Ошибка', 'error');
+                }
+              } catch (error) {
+                showNotification('Ошибка: ' + error.message, 'error');
+              }
+            }} className="modal-form">
+              <div className="form-group"><label>Группа</label>
+                <select value={editingLesson.group_id || ''} onChange={e => setEditingLesson({...editingLesson, group_id: e.target.value})} required>
+                  <option value="">Выберите группу</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label><i className="fas fa-book"></i> Предмет</label>
-                <select value={editingLesson.subject_id} onChange={e => setEditingLesson({...editingLesson, subject_id: parseInt(e.target.value)})}>
-                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <div className="form-group"><label>Предмет</label>
+                <select value={editingLesson.subject_id || ''} onChange={e => setEditingLesson({...editingLesson, subject_id: e.target.value})} required>
+                  <option value="">Выберите предмет</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
-                <select value={editingLesson.teacher_id} onChange={e => setEditingLesson({...editingLesson, teacher_id: parseInt(e.target.value)})}>
-                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              <div className="form-group"><label>Преподаватель</label>
+                <select value={editingLesson.teacher_id || ''} onChange={e => setEditingLesson({...editingLesson, teacher_id: e.target.value})} required>
+                  <option value="">Выберите преподавателя</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label><i className="fas fa-door-open"></i> Аудитория</label>
-                <select value={editingLesson.classroom_id || ''} onChange={e => setEditingLesson({...editingLesson, classroom_id: e.target.value ? parseInt(e.target.value) : null})}>
-                  <option value="">Без аудитории</option>
-                  {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <div className="form-group"><label>Аудитория</label>
+                <select value={editingLesson.classroom_id || ''} onChange={e => setEditingLesson({...editingLesson, classroom_id: e.target.value})}>
+                  <option value="">Не выбрана</option>{classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label><i className="fas fa-calendar-day"></i> День недели</label>
-                <select value={editingLesson.day_of_week} onChange={e => setEditingLesson({...editingLesson, day_of_week: parseInt(e.target.value)})}>
-                  {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label><i className="fas fa-clock"></i> Пара</label>
-                <select value={editingLesson.pair_number} onChange={e => setEditingLesson({...editingLesson, pair_number: parseInt(e.target.value)})}>
-                  {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
-                </select>
-              </div>
-              <button type="submit" className="submit-btn"><i className="fas fa-save"></i> Сохранить</button>
+              <button type="submit" className="submit-btn"><i className="fas fa-save"></i> {editingLesson.id ? 'Сохранить' : 'Добавить'}</button>
             </form>
           </div>
         </div>,
