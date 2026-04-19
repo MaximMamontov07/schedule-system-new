@@ -177,7 +177,7 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                   <span className="pair-num">{pair.name}</span>
                   <span className="pair-time">{pair.time}</span>
                 </div>
-               </td>
+              </td>
               {DAYS.map((_, dayIndex) => {
                 const lesson = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLesson = lesson !== null;
@@ -196,14 +196,14 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                         </div>
                         <div className="lesson-detail">
                           <i className="fas fa-door-open"></i>
-                          <span>Аудитория: <strong>{lesson.classroom_name || '—'}</strong></span>
+                          <span>{lesson.classroom_name || '—'}</span>
                         </div>
                         <div className="teacher-controls">
                           <textarea 
                             placeholder="Заметки (домашнее задание, материалы...)"
                             value={currentData?.notes || ''}
                             onChange={(e) => onNotesChange(lesson.id, e.target.value)}
-                            rows="3"
+                            rows="2"
                             disabled={isSaving}
                             className="teacher-notes-input"
                           />
