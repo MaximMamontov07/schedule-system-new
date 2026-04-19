@@ -1141,21 +1141,25 @@ function HomeContent() {
       
       <main className="app-main">
         <header className="app-header">
-          <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}><i className="fas fa-bars"></i></button>
-          <div className="header-title">
-            <h1>
-              {activeTab === 'schedule' && 'Расписание занятий'}
-              {activeTab === 'my-lessons' && 'Мои занятия'}
-              {activeTab === 'manage-schedule' && 'Управление расписанием'}
-              {activeTab === 'directories' && 'Справочники'}
-              {activeTab === 'users' && 'Управление пользователями'}
-            </h1>
-          </div>
-          <div className="header-actions-right">
-            <button className="theme-toggle-header" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i></button>
-            <div className="header-role"><span className="role-badge">{ROLES[user.role]}</span></div>
-          </div>
-        </header>
+  <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}>
+    <i className="fas fa-bars"></i>
+  </button>
+  <div className="header-title">
+    <h1>
+      {activeTab === 'schedule' && 'Расписание занятий'}
+      {activeTab === 'my-lessons' && 'Мои занятия'}
+      {activeTab === 'manage-schedule' && 'Управление расписанием'}
+      {activeTab === 'directories' && 'Справочники'}
+      {activeTab === 'users' && 'Управление пользователями'}
+    </h1>
+  </div>
+  <div className="header-actions-right">
+    <button className="theme-toggle-header" onClick={toggleTheme}>
+      <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+    </button>
+    <div className="role-badge">{ROLES[user.role]}</div>
+  </div>
+</header>
         
         <div className="app-content">{renderMainContent()}</div>
       </main>
