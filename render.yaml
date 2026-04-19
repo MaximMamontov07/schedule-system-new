@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: schedule-system-new
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RENDER
+        value: true
+    disk:
+      name: sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
