@@ -1310,50 +1310,7 @@ function HomeContent() {
     </div>
   );
 }
-{/* Мобильная нижняя навигация */}
-<div className="bottom-nav">
-  <button className={`bottom-nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
-    <i className="fas fa-calendar-week"></i>
-    <span>Расписание</span>
-  </button>
-  
-  {isTeacher && (
-    <button className={`bottom-nav-item ${activeTab === 'my-lessons' ? 'active' : ''}`} onClick={() => { setActiveTab('my-lessons'); setSidebarOpen(false); }}>
-      <i className="fas fa-chalkboard-teacher"></i>
-      <span>Мои занятия</span>
-    </button>
-  )}
-  
-  {(user?.role === 'methodist' || user?.role === 'admin') && (
-    <>
-      <button className={`bottom-nav-item ${activeTab === 'manage-schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('manage-schedule'); setSidebarOpen(false); }}>
-        <i className="fas fa-plus-circle"></i>
-        <span>Управление</span>
-      </button>
-      <button className={`bottom-nav-item ${activeTab === 'directories' ? 'active' : ''}`} onClick={() => { setActiveTab('directories'); setSidebarOpen(false); }}>
-        <i className="fas fa-database"></i>
-        <span>Справочники</span>
-      </button>
-    </>
-  )}
-  
-  {user?.role === 'admin' && (
-    <button className={`bottom-nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
-      <i className="fas fa-users-cog"></i>
-      <span>Пользователи</span>
-    </button>
-  )}
-</div>
 
-{/* Плавающая кнопка для быстрого добавления (только для админа/методиста) */}
-{(user?.role === 'methodist' || user?.role === 'admin') && activeTab === 'manage-schedule' && (
-  <button className="fab-button" onClick={() => {
-    // Прокрутить к форме добавления
-    document.querySelector('.add-lesson-section')?.scrollIntoView({ behavior: 'smooth' });
-  }}>
-    <i className="fas fa-plus"></i>
-  </button>
-)}
 export default function Home() {
   return (
     <ThemeProvider>
