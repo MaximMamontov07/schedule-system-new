@@ -1079,7 +1079,7 @@ function HomeContent() {
       {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
       
       <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
-        <i className="fas fa-bars"></i>
+        <i className=""></i>
       </button>
       
       <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
