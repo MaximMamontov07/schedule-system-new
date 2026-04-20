@@ -1815,3 +1815,254 @@ a {
     font-size: 10px !important;
   }
 }
+/* ========== СТИЛИ ДЛЯ ВСЕХ КНОПОК ========== */
+
+
+button {
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Кнопка входа в модальном окне */
+.modal-form .submit-btn,
+.modal-form button[type="submit"],
+.login-btn-modal {
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  border: none;
+  border-radius: 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.modal-form .submit-btn::before,
+.modal-form button[type="submit"]::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.modal-form .submit-btn:hover::before,
+.modal-form button[type="submit"]:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.modal-form .submit-btn:hover,
+.modal-form button[type="submit"]:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+}
+
+.modal-form .submit-btn:active,
+.modal-form button[type="submit"]:active {
+  transform: translateY(0);
+}
+
+/* Кнопка отмены в модальных окнах */
+.modal-form .cancel-btn,
+.modal-close-btn {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.modal-form .cancel-btn:hover,
+.modal-close-btn:hover {
+  background: var(--surface-muted);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* Группа кнопок в модальном окне */
+.modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.modal-buttons-horizontal {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.modal-buttons-horizontal .submit-btn,
+.modal-buttons-horizontal .cancel-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* Стили для формы входа */
+.login-form {
+  width: 100%;
+}
+
+.login-form .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.login-form .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.login-form .form-group label i {
+  margin-right: 0.5rem;
+  color: var(--primary);
+  width: 1.25rem;
+}
+
+.login-form .form-group input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: 1rem;
+  font-size: 1rem;
+  transition: var(--transition);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.login-form .form-group input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.1);
+}
+
+/* Анимация для модального окна входа */
+.login-modal .modal-container {
+  max-width: 420px;
+}
+
+.login-modal .modal-header {
+  text-align: center;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.login-modal .modal-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.login-modal .modal-header h2 i {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* Стили для всех кнопок действий */
+.action-button,
+.submit-button,
+.add-dir-btn,
+.link-button,
+.unlink-button,
+.save-btn,
+.cancel-btn,
+.edit-btn,
+.delete-btn {
+  transition: all 0.2s ease;
+}
+
+.action-button:hover,
+.submit-button:hover,
+.add-dir-btn:hover,
+.link-button:hover,
+.save-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Кнопка входа на главной странице */
+.btn-primary,
+.landing-page .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  border: none;
+  border-radius: 3rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-primary:hover,
+.landing-page .btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-xl);
+  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+}
+
+.btn-primary:active,
+.landing-page .btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Мобильная адаптация для кнопок */
+@media (max-width: 768px) {
+  .modal-form .submit-btn,
+  .modal-form button[type="submit"],
+  .login-btn-modal {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+  }
+  
+  .modal-buttons-horizontal {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .btn-primary,
+  .landing-page .btn-primary {
+    width: 100%;
+    justify-content: center;
+    padding: 0.875rem 1.5rem;
+  }
+}
