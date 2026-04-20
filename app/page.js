@@ -1078,6 +1078,10 @@ function HomeContent() {
     <div className="app-container">
       {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
       
+      <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+        <i className="fas fa-bars"></i>
+      </button>
+      
       <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
           <i className="fas fa-calendar-alt"></i>
@@ -1122,11 +1126,15 @@ function HomeContent() {
           )}
         </nav>
         
-       <div className="sidebar-footer">
-  <button className="logout-btn" onClick={handleLogout}>
-    <i className="fas fa-sign-out-alt"></i><span>Выйти</span>
-  </button>
-</div>
+        <div className="sidebar-footer">
+          <button className="theme-toggle-btn" onClick={toggleTheme}>
+            <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+            <span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span>
+          </button>
+          <button className="logout-btn" onClick={handleLogout}>
+            <i className="fas fa-sign-out-alt"></i><span>Выйти</span>
+          </button>
+        </div>
       </aside>
       
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
@@ -1137,7 +1145,13 @@ function HomeContent() {
     <i className="fas fa-bars"></i>
   </button>
   <div className="header-title">
-    <h1>{/* заголовок */}</h1>
+    <h1>
+      {activeTab === 'schedule' && 'Расписание занятий'}
+      {activeTab === 'my-lessons' && 'Мои занятия'}
+      {activeTab === 'manage-schedule' && 'Управление расписанием'}
+      {activeTab === 'directories' && 'Справочники'}
+      {activeTab === 'users' && 'Управление пользователями'}
+    </h1>
   </div>
   <div className="header-actions-right">
     <button className="theme-toggle-header" onClick={toggleTheme}>
