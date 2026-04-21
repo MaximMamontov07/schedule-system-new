@@ -35,7 +35,7 @@ const ThemeProvider = ({ children }) => {
 
 const useTheme = () => useContext(ThemeContext);
 
-const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 const PAIRS = [
   { number: 1, time: '8:30-10:00', name: '1 пара' },
   { number: 2, time: '10:10-11:40', name: '2 пара' },
@@ -46,16 +46,85 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', methodist: 'Методист', teacher: 'Преподаватель', student: 'Студент' };
 
+// Функция для получения дат текущей недели
+const getWeekDates = () => {
+  const now = new Date();
+  const currentDay = now.getDay();
+  // Получаем понедельник текущей недели (если сегодня воскресенье, то currentDay = 0)
+  const monday = new Date(now);
+  const diff = currentDay === 0 ? 6 : currentDay - 1;
+  monday.setDate(now.getDate() - diff);
+  
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
+    weekDates.push(date);
+  }
+  return weekDates;
+};
+
+const formatDate = (date) => {
+  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  return `${date.getDate()} ${months[date.getMonth()]}`;
+};
+
 // Профессиональный компонент фильтров
-const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset }) => {
+const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, currentWeek }) => {
+  const [showWeekPicker, setShowWeekPicker] = useState(false);
+  const [tempWeekOffset, setTempWeekOffset] = useState(0);
+  
+  const weekDates = getWeekDates();
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[6];
+  
+  const weekNumber = (date) => {
+    const d = new Date(date);
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  };
+  
+  const goToPreviousWeek = () => {
+    const newOffset = (filters.weekOffset || 0) - 1;
+    onFilterChange('weekOffset', newOffset);
+  };
+  
+  const goToNextWeek = () => {
+    const newOffset = (filters.weekOffset || 0) + 1;
+    onFilterChange('weekOffset', newOffset);
+  };
+  
+  const goToCurrentWeek = () => {
+    onFilterChange('weekOffset', 0);
+  };
+  
   return (
     <div className="filter-bar">
       <div className="filter-bar-header">
-        <span className="filter-bar-title">
-          <i className="fas fa-sliders-h"></i> Фильтры
-        </span>
+        <div className="week-navigation">
+          <button className="week-nav-btn" onClick={goToPreviousWeek} title="Предыдущая неделя">
+            <i className="fas fa-chevron-left"></i>
+          </button>
+          <div className="week-display">
+            <i className="fas fa-calendar-week"></i>
+            <span>
+              {formatDate(weekStart)} - {formatDate(weekEnd)}
+            </span>
+            <span className="week-number">({weekNumber(weekStart)} неделя)</span>
+          </div>
+          <button className="week-nav-btn" onClick={goToNextWeek} title="Следующая неделя">
+            <i className="fas fa-chevron-right"></i>
+          </button>
+          {(filters.weekOffset !== 0) && (
+            <button className="week-today-btn" onClick={goToCurrentWeek} title="Текущая неделя">
+              <i className="fas fa-calendar-day"></i> Сегодня
+            </button>
+          )}
+        </div>
         <button className="reset-filters-btn" onClick={onReset}>
-          <i className="fas fa-undo-alt"></i> Сбросить
+          <i className="fas fa-undo-alt"></i> Сбросить фильтры
         </button>
       </div>
       <div className="filter-grid">
@@ -148,20 +217,29 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
 };
 
 // Профессиональная сетка расписания
-const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick }) => {
+const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates }) => {
   const scheduleMatrix = useMemo(() => {
-    const matrix = Array(6).fill().map(() => Array(6).fill(null));
+    const matrix = Array(7).fill().map(() => Array(6).fill(null));
     if (Array.isArray(data)) {
       data.forEach(lesson => {
         const dayIndex = lesson.day_of_week - 1;
         const pairIndex = lesson.pair_number - 1;
-        if (dayIndex >= 0 && dayIndex < 6 && pairIndex >= 0 && pairIndex < 6) {
+        if (dayIndex >= 0 && dayIndex < 7 && pairIndex >= 0 && pairIndex < 6) {
           matrix[dayIndex][pairIndex] = lesson;
         }
       });
     }
     return matrix;
   }, [data]);
+
+  const getStatusColor = (lesson) => {
+    if (!lesson) return '';
+    const now = new Date();
+    const lessonDate = weekDates[lesson.day_of_week - 1];
+    const isToday = lessonDate.toDateString() === now.toDateString();
+    if (isToday) return 'today';
+    return '';
+  };
 
   return (
     <div className="schedule-grid-wrapper">
@@ -174,13 +252,19 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                 <span>Время</span>
               </div>
             </th>
-            {DAYS.map(day => (
-              <th key={day} className="day-header">
-                <div className="day-header-content">
-                  <span className="day-name">{day}</span>
-                </div>
-              </th>
-            ))}
+            {DAYS.map((day, idx) => {
+              const date = weekDates[idx];
+              const isToday = date && date.toDateString() === new Date().toDateString();
+              const isWeekend = idx === 5 || idx === 6;
+              return (
+                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                  <div className="day-header-content">
+                    <span className="day-name">{day}</span>
+                    <span className="day-date">{date ? formatDate(date) : ''}</span>
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -195,9 +279,11 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
               {DAYS.map((_, dayIndex) => {
                 const lesson = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLesson = lesson !== null;
+                const isToday = weekDates[dayIndex]?.toDateString() === new Date().toDateString();
+                const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLesson ? (
                       <div className="lesson-card-modern">
                         <div className="lesson-header">
@@ -263,7 +349,7 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// Публичный просмотр с фильтрацией (только сетка)
+// Публичный просмотр с фильтрацией
 const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
   const [filters, setFilters] = useState({
     groupId: '',
@@ -271,8 +357,27 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     subjectId: '',
     dayOfWeek: '',
     pairNumber: '',
-    classroomId: ''
+    classroomId: '',
+    weekOffset: 0
   });
+
+  const getWeekDatesWithOffset = (offset) => {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const monday = new Date(now);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(now.getDate() - diff + (offset * 7));
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      weekDates.push(date);
+    }
+    return weekDates;
+  };
+
+  const weekDates = getWeekDatesWithOffset(filters.weekOffset || 0);
 
   const filteredSchedule = useMemo(() => {
     let filtered = [...schedule];
@@ -310,7 +415,8 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
       subjectId: '',
       dayOfWeek: '',
       pairNumber: '',
-      classroomId: ''
+      classroomId: '',
+      weekOffset: 0
     });
   };
 
@@ -333,6 +439,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         subjects={subjects}
         classrooms={classrooms}
         onReset={resetFilters}
+        currentWeek={weekDates}
       />
       
       {filteredSchedule.length === 0 ? (
@@ -341,20 +448,25 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
           <p>Нет занятий по выбранным фильтрам</p>
         </div>
       ) : (
-        <ScheduleGrid data={filteredSchedule} canEdit={false} />
+        <ScheduleGrid 
+          data={filteredSchedule} 
+          canEdit={false} 
+          weekDates={weekDates}
+        />
       )}
     </div>
   );
 };
 
-const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
+// Teacher Panel Component (остается без изменений в функционале)
+const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, weekDates }) => {
   const scheduleMatrix = useMemo(() => {
-    const matrix = Array(6).fill().map(() => Array(6).fill(null));
+    const matrix = Array(7).fill().map(() => Array(6).fill(null));
     if (Array.isArray(data)) {
       data.forEach(lesson => {
         const dayIndex = lesson.day_of_week - 1;
         const pairIndex = lesson.pair_number - 1;
-        if (dayIndex >= 0 && dayIndex < 6 && pairIndex >= 0 && pairIndex < 6) {
+        if (dayIndex >= 0 && dayIndex < 7 && pairIndex >= 0 && pairIndex < 6) {
           matrix[dayIndex][pairIndex] = lesson;
         }
       });
@@ -373,13 +485,19 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 <span>Время</span>
               </div>
             </th>
-            {DAYS.map(day => (
-              <th key={day} className="day-header">
-                <div className="day-header-content">
-                  <span className="day-name">{day}</span>
-                </div>
-              </th>
-            ))}
+            {DAYS.map((day, idx) => {
+              const date = weekDates[idx];
+              const isToday = date && date.toDateString() === new Date().toDateString();
+              const isWeekend = idx === 5 || idx === 6;
+              return (
+                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                  <div className="day-header-content">
+                    <span className="day-name">{day}</span>
+                    <span className="day-date">{date ? formatDate(date) : ''}</span>
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -397,9 +515,11 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 const currentData = hasLesson ? (localData[lesson.id] || { notes: lesson.notes || '' }) : null;
                 const isChanged = hasLesson ? hasChanges[lesson.id] : false;
                 const isSaving = hasLesson ? saving[lesson.id] : false;
+                const isToday = weekDates[dayIndex]?.toDateString() === new Date().toDateString();
+                const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLesson ? (
                       <div className="teacher-lesson-card">
                         <div className="lesson-header">
@@ -448,6 +568,7 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
+// HomeContent component continues...
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
   const [schedule, setSchedule] = useState([]);
@@ -463,6 +584,7 @@ function HomeContent() {
   const [notification, setNotification] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('schedule');
+  const [weekOffset, setWeekOffset] = useState(0);
   
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
@@ -485,6 +607,24 @@ function HomeContent() {
   const [localData, setLocalData] = useState({});
   const [hasChanges, setHasChanges] = useState({});
   const [saving, setSaving] = useState({});
+
+  const getWeekDatesWithOffset = (offset) => {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const monday = new Date(now);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(now.getDate() - diff + (offset * 7));
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      weekDates.push(date);
+    }
+    return weekDates;
+  };
+
+  const currentWeekDates = getWeekDatesWithOffset(weekOffset);
 
   const showNotification = (msg, type) => {
     setNotification({ msg, type });
@@ -909,11 +1049,15 @@ function HomeContent() {
 
   useEffect(() => {
     if (isTeacher && schedule.length > 0) {
-      const initialData = {};
-      schedule.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
-      setLocalData(initialData);
+      const teacher = teachers.find(t => t.user_id === user.id);
+      if (teacher) {
+        const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
+        const initialData = {};
+        teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
+        setLocalData(initialData);
+      }
     }
-  }, [schedule, isTeacher]);
+  }, [schedule, isTeacher, teachers, user]);
 
   const filteredSchedule = getFilteredSchedule();
 
@@ -952,10 +1096,8 @@ function HomeContent() {
     }
     
     if (activeTab === 'my-lessons' && isTeacher) {
-      const teacherLessons = schedule.filter(lesson => {
-        const teacher = teachers.find(t => t.user_id === user.id);
-        return teacher && lesson.teacher_id === teacher.id;
-      });
+      const teacher = teachers.find(t => t.user_id === user.id);
+      const teacherLessons = teacher ? schedule.filter(lesson => lesson.teacher_id === teacher.id) : [];
       
       return (
         <div className="content-card">
@@ -1000,6 +1142,7 @@ function HomeContent() {
                   });
                 }
               }}
+              weekDates={currentWeekDates}
             />
           )}
         </div>
@@ -1088,6 +1231,7 @@ function HomeContent() {
                 }}
                 onDeleteClick={handleDeleteLesson}
                 onAddClick={handleAddScheduleClick}
+                weekDates={currentWeekDates}
               />
             )}
           </div>
@@ -1423,7 +1567,7 @@ function HomeContent() {
         <div className="app-content">{renderMainContent()}</div>
       </main>
 
-      {/* Модальные окна */}
+      {/* Modal windows remain the same */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>

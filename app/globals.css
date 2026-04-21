@@ -2429,6 +2429,318 @@ body {
     font-size: 0.7rem;
   }
 }
+/* Week Navigation */
+.week-navigation {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.week-nav-btn {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 2rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: var(--transition);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.week-nav-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.week-display {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-radius: 2rem;
+  color: white;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.week-display i {
+  font-size: 1rem;
+}
+
+.week-number {
+  font-size: 0.75rem;
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.5rem;
+  border-radius: 1rem;
+}
+
+.week-today-btn {
+  background: var(--success);
+  border: none;
+  border-radius: 2rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: var(--transition);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.week-today-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+/* Day Header with Date */
+.day-header {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 1rem 0.5rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.day-header.today {
+  background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.day-header.today::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.day-header.weekend {
+  background: linear-gradient(135deg, var(--secondary) 0%, #4a5568 100%);
+  opacity: 0.8;
+}
+
+.day-header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.day-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.day-date {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.9;
+}
+
+/* Column highlighting */
+.lesson-cell.today-column {
+  background: linear-gradient(135deg, rgba(44, 95, 45, 0.05), rgba(44, 95, 45, 0.02));
+  border-left: 3px solid var(--success);
+  border-right: 3px solid var(--success);
+}
+
+.lesson-cell.weekend-column {
+  background: rgba(100, 116, 139, 0.05);
+}
+
+/* Enhanced Lesson Card */
+.lesson-card-modern {
+  padding: 0.875rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  transition: var(--transition);
+}
+
+.lesson-card-modern:hover {
+  background: var(--surface-muted);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.lesson-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.lesson-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--primary);
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.lesson-group-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--success);
+  background: rgba(44, 95, 45, 0.12);
+  padding: 0.25rem 0.625rem;
+  border-radius: 2rem;
+  white-space: nowrap;
+}
+
+.lesson-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lesson-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.lesson-info i {
+  width: 1rem;
+  font-size: 0.75rem;
+  color: var(--primary);
+}
+
+.lesson-notes-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--warning);
+  background: rgba(196, 163, 90, 0.12);
+  padding: 0.375rem 0.625rem;
+  border-radius: var(--radius-sm);
+  margin-top: 0.25rem;
+}
+
+.lesson-actions-modern {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 0.625rem;
+}
+
+.lesson-action-btn {
+  background: none;
+  border: none;
+  padding: 0.375rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.lesson-action-btn.edit {
+  color: var(--warning);
+}
+
+.lesson-action-btn.edit:hover {
+  background: rgba(196, 163, 90, 0.15);
+  transform: scale(1.1);
+}
+
+.lesson-action-btn.delete {
+  color: var(--danger);
+}
+
+.lesson-action-btn.delete:hover {
+  background: rgba(193, 102, 107, 0.15);
+  transform: scale(1.1);
+}
+
+/* Add Lesson Button */
+.add-lesson-btn {
+  width: 100%;
+  height: 100%;
+  min-height: 130px;
+  background: none;
+  border: 2px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 1.5rem;
+  border-radius: var(--radius-sm);
+  margin: 0.5rem;
+}
+
+.add-lesson-btn:hover {
+  background: var(--surface-muted);
+  color: var(--primary);
+  border-color: var(--primary);
+  transform: scale(0.98);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .week-navigation {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .week-nav-btn,
+  .week-today-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .week-display {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .day-name {
+    font-size: 0.8rem;
+  }
+  
+  .day-date {
+    font-size: 0.65rem;
+  }
+  
+  .lesson-title {
+    font-size: 0.8rem;
+  }
+  
+  .lesson-info {
+    font-size: 0.7rem;
+  }
+}
 @media (max-width: 480px) {
   .schedule-list-table {
     font-size: 0.7rem;
