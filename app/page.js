@@ -46,16 +46,25 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', methodist: 'Методист', teacher: 'Преподаватель', student: 'Студент' };
 
-// Компонент фильтров - ИСПРАВЛЕН
+// Профессиональный компонент фильтров
 const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset }) => {
   return (
     <div className="filter-bar">
-      <div className="filter-row">
+      <div className="filter-bar-header">
+        <span className="filter-bar-title">
+          <i className="fas fa-sliders-h"></i> Фильтры
+        </span>
+        <button className="reset-filters-btn" onClick={onReset}>
+          <i className="fas fa-undo-alt"></i> Сбросить
+        </button>
+      </div>
+      <div className="filter-grid">
         <div className="filter-group">
           <label><i className="fas fa-users"></i> Группа</label>
           <select 
             value={filters.groupId} 
             onChange={(e) => onFilterChange('groupId', e.target.value)}
+            className="filter-select"
           >
             <option value="">Все группы</option>
             {groups?.map(g => (
@@ -69,6 +78,7 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
           <select 
             value={filters.teacherId} 
             onChange={(e) => onFilterChange('teacherId', e.target.value)}
+            className="filter-select"
           >
             <option value="">Все преподаватели</option>
             {teachers?.map(t => (
@@ -82,6 +92,7 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
           <select 
             value={filters.subjectId} 
             onChange={(e) => onFilterChange('subjectId', e.target.value)}
+            className="filter-select"
           >
             <option value="">Все предметы</option>
             {subjects?.map(s => (
@@ -89,14 +100,13 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
             ))}
           </select>
         </div>
-      </div>
 
-      <div className="filter-row">
         <div className="filter-group">
           <label><i className="fas fa-calendar-day"></i> День недели</label>
           <select 
             value={filters.dayOfWeek} 
             onChange={(e) => onFilterChange('dayOfWeek', e.target.value)}
+            className="filter-select"
           >
             <option value="">Все дни</option>
             {DAYS.map((day, idx) => (
@@ -110,10 +120,11 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
           <select 
             value={filters.pairNumber} 
             onChange={(e) => onFilterChange('pairNumber', e.target.value)}
+            className="filter-select"
           >
             <option value="">Все пары</option>
             {PAIRS.map(p => (
-              <option key={p.number} value={p.number}>{p.name} ({p.time})</option>
+              <option key={p.number} value={p.number}>{p.name}</option>
             ))}
           </select>
         </div>
@@ -123,6 +134,7 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
           <select 
             value={filters.classroomId} 
             onChange={(e) => onFilterChange('classroomId', e.target.value)}
+            className="filter-select"
           >
             <option value="">Все аудитории</option>
             {classrooms?.map(c => (
@@ -130,17 +142,13 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
             ))}
           </select>
         </div>
-
-        <button className="reset-filters-btn" onClick={onReset}>
-          <i className="fas fa-undo-alt"></i> Сбросить
-        </button>
       </div>
     </div>
   );
 };
 
-// Компонент для отображения расписания (общий для всех)
-const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, showGroupColumn = false }) => {
+// Профессиональная сетка расписания
+const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(6).fill().map(() => Array(6).fill(null));
     if (Array.isArray(data)) {
@@ -160,9 +168,18 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
       <table className="schedule-grid">
         <thead>
           <tr>
-            <th className="time-header">Время</th>
+            <th className="time-header">
+              <div className="time-header-content">
+                <i className="fas fa-clock"></i>
+                <span>Время</span>
+              </div>
+            </th>
             {DAYS.map(day => (
-              <th key={day} className="day-header">{day}</th>
+              <th key={day} className="day-header">
+                <div className="day-header-content">
+                  <span className="day-name">{day}</span>
+                </div>
+              </th>
             ))}
           </tr>
         </thead>
@@ -170,8 +187,8 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
           {PAIRS.map(pair => (
             <tr key={pair.number}>
               <td className="time-slot">
-                <div className="time-slot-content">
-                  <span className="pair-num">{pair.name}</span>
+                <div className="time-slot-card">
+                  <span className="pair-number">{pair.name}</span>
                   <span className="pair-time">{pair.time}</span>
                 </div>
               </td>
@@ -180,39 +197,45 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                 const hasLesson = lesson !== null;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-slot ${hasLesson ? 'occupied' : 'empty'}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'}`}>
                     {hasLesson ? (
-                      <div className="lesson-card">
-                        <div className="lesson-card-header">
-                          <span className="lesson-subject">{lesson.subject_name}</span>
-                          {showGroupColumn && (
-                            <span className="lesson-group-badge">{lesson.group_name}</span>
-                          )}
+                      <div className="lesson-card-modern">
+                        <div className="lesson-header">
+                          <h4 className="lesson-title">{lesson.subject_name}</h4>
+                          <span className="lesson-group-tag">{lesson.group_name}</span>
                         </div>
-                        <div className="lesson-details">
-                          <div className="lesson-detail">
+                        <div className="lesson-body">
+                          <div className="lesson-info">
                             <i className="fas fa-chalkboard-teacher"></i>
                             <span>{lesson.teacher_name}</span>
                           </div>
                           {lesson.classroom_name && (
-                            <div className="lesson-detail">
+                            <div className="lesson-info">
                               <i className="fas fa-door-open"></i>
                               <span>{lesson.classroom_name}</span>
                             </div>
                           )}
                           {lesson.notes && (
-                            <div className="lesson-notes-preview" title={lesson.notes}>
+                            <div className="lesson-notes-badge" title={lesson.notes}>
                               <i className="fas fa-sticky-note"></i>
-                              <span>{lesson.notes.length > 40 ? lesson.notes.substring(0, 40) + '...' : lesson.notes}</span>
+                              <span>{lesson.notes.length > 35 ? lesson.notes.substring(0, 35) + '...' : lesson.notes}</span>
                             </div>
                           )}
                         </div>
                         {canEdit && (
-                          <div className="lesson-actions">
-                            <button className="action-btn edit-btn" onClick={() => onEditClick(lesson)} title="Редактировать">
+                          <div className="lesson-actions-modern">
+                            <button 
+                              className="lesson-action-btn edit" 
+                              onClick={() => onEditClick(lesson)} 
+                              title="Редактировать"
+                            >
                               <i className="fas fa-edit"></i>
                             </button>
-                            <button className="action-btn delete-btn" onClick={() => onDeleteClick(lesson.id)} title="Удалить">
+                            <button 
+                              className="lesson-action-btn delete" 
+                              onClick={() => onDeleteClick(lesson.id)} 
+                              title="Удалить"
+                            >
                               <i className="fas fa-trash-alt"></i>
                             </button>
                           </div>
@@ -221,10 +244,11 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                     ) : (
                       canEdit && onAddClick && (
                         <button 
-                          className="add-lesson-trigger" 
+                          className="add-lesson-btn"
                           onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number })}
+                          title="Добавить занятие"
                         >
-                          <i className="fas fa-plus-circle"></i>
+                          <i className="fas fa-plus"></i>
                         </button>
                       )
                     )}
@@ -239,63 +263,8 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// Компонент для отображения расписания в виде списка
-const ScheduleListView = ({ data, onEditClick, onDeleteClick, canEdit }) => {
-  if (data.length === 0) {
-    return (
-      <div className="empty-state">
-        <i className="fas fa-info-circle"></i>
-        <p>Нет занятий по выбранным фильтрам</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="schedule-list-view">
-      <table className="schedule-list-table">
-        <thead>
-          <tr>
-            <th>День</th>
-            <th>Пара</th>
-            <th>Группа</th>
-            <th>Предмет</th>
-            <th>Преподаватель</th>
-            <th>Аудитория</th>
-            <th>Заметки</th>
-            {canEdit && <th>Действия</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map(lesson => (
-            <tr key={lesson.id}>
-              <td>{DAYS[lesson.day_of_week - 1]}</td>
-              <td>{PAIRS[lesson.pair_number - 1]?.name} ({PAIRS[lesson.pair_number - 1]?.time})</td>
-              <td>{lesson.group_name}</td>
-              <td>{lesson.subject_name}</td>
-              <td>{lesson.teacher_name}</td>
-              <td>{lesson.classroom_name || '—'}</td>
-              <td className="notes-cell">{lesson.notes || '—'}</td>
-              {canEdit && (
-                <td className="actions-cell">
-                  <button className="action-btn edit-btn" onClick={() => onEditClick(lesson)}>
-                    <i className="fas fa-edit"></i>
-                  </button>
-                  <button className="action-btn delete-btn" onClick={() => onDeleteClick(lesson.id)}>
-                    <i className="fas fa-trash-alt"></i>
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-// Компонент для публичного просмотра с фильтрацией
-const PublicScheduleWithFilters = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
-  const [viewMode, setViewMode] = useState('grid');
+// Публичный просмотр с фильтрацией (только сетка)
+const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
   const [filters, setFilters] = useState({
     groupId: '',
     teacherId: '',
@@ -355,7 +324,7 @@ const PublicScheduleWithFilters = ({ schedule, groups, teachers, subjects, class
   }
 
   return (
-    <div className="public-schedule-container">
+    <div className="schedule-container">
       <FilterBar 
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -366,30 +335,13 @@ const PublicScheduleWithFilters = ({ schedule, groups, teachers, subjects, class
         onReset={resetFilters}
       />
       
-      <div className="view-mode-toggle">
-        <button 
-          className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
-          onClick={() => setViewMode('grid')}
-        >
-          <i className="fas fa-calendar-alt"></i> Сетка
-        </button>
-        <button 
-          className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
-          onClick={() => setViewMode('list')}
-        >
-          <i className="fas fa-list"></i> Список
-        </button>
-      </div>
-
       {filteredSchedule.length === 0 ? (
         <div className="empty-state">
           <i className="fas fa-search"></i>
           <p>Нет занятий по выбранным фильтрам</p>
         </div>
-      ) : viewMode === 'grid' ? (
-        <ScheduleGrid data={filteredSchedule} showGroupColumn={!filters.groupId} />
       ) : (
-        <ScheduleListView data={filteredSchedule} canEdit={false} />
+        <ScheduleGrid data={filteredSchedule} canEdit={false} />
       )}
     </div>
   );
@@ -411,13 +363,22 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   }, [data]);
 
   return (
-    <div className="teacher-panel-wrapper">
-      <table className="teacher-schedule-grid">
+    <div className="schedule-grid-wrapper">
+      <table className="schedule-grid">
         <thead>
           <tr>
-            <th className="time-header">Время</th>
+            <th className="time-header">
+              <div className="time-header-content">
+                <i className="fas fa-clock"></i>
+                <span>Время</span>
+              </div>
+            </th>
             {DAYS.map(day => (
-              <th key={day} className="day-header">{day}</th>
+              <th key={day} className="day-header">
+                <div className="day-header-content">
+                  <span className="day-name">{day}</span>
+                </div>
+              </th>
             ))}
           </tr>
         </thead>
@@ -425,8 +386,8 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
           {PAIRS.map(pair => (
             <tr key={pair.number}>
               <td className="time-slot">
-                <div className="time-slot-content">
-                  <span className="pair-num">{pair.name}</span>
+                <div className="time-slot-card">
+                  <span className="pair-number">{pair.name}</span>
                   <span className="pair-time">{pair.time}</span>
                 </div>
               </td>
@@ -438,33 +399,35 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 const isSaving = hasLesson ? saving[lesson.id] : false;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-slot ${hasLesson ? 'occupied' : 'empty'}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'}`}>
                     {hasLesson ? (
                       <div className="teacher-lesson-card">
-                        <div className="lesson-card-header">
-                          <span className="lesson-subject">{lesson.subject_name}</span>
-                          <span className="lesson-group-badge">{lesson.group_name}</span>
-                          {isChanged && <span className="unsaved-indicator"><i className="fas fa-circle"></i></span>}
+                        <div className="lesson-header">
+                          <h4 className="lesson-title">{lesson.subject_name}</h4>
+                          <div className="lesson-badges">
+                            <span className="lesson-group-tag">{lesson.group_name}</span>
+                            {isChanged && <span className="unsaved-badge"><i className="fas fa-circle"></i> Не сохранено</span>}
+                          </div>
                         </div>
-                        <div className="lesson-detail">
-                          <i className="fas fa-door-open"></i>
-                          <span>{lesson.classroom_name || '—'}</span>
-                        </div>
-                        <div className="teacher-controls">
+                        <div className="lesson-body">
+                          <div className="lesson-info">
+                            <i className="fas fa-door-open"></i>
+                            <span>{lesson.classroom_name || 'Аудитория не указана'}</span>
+                          </div>
                           <textarea 
                             placeholder="Заметки (домашнее задание, материалы...)"
                             value={currentData?.notes || ''}
                             onChange={(e) => onNotesChange(lesson.id, e.target.value)}
-                            rows="2"
+                            rows="3"
                             disabled={isSaving}
-                            className="teacher-notes-input"
+                            className="teacher-notes-textarea"
                           />
                           {isChanged && (
-                            <div className="teacher-actions">
-                              <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="cancel-btn">
-                                <i className="fas fa-undo-alt"></i> Отмена
+                            <div className="teacher-actions-modern">
+                              <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="teacher-action-btn cancel">
+                                <i className="fas fa-times"></i> Отмена
                               </button>
-                              <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="save-btn">
+                              <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="teacher-action-btn save">
                                 {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
                               </button>
                             </div>
@@ -472,7 +435,7 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                         </div>
                       </div>
                     ) : (
-                      <div className="empty-slot"></div>
+                      <div className="empty-cell"></div>
                     )}
                   </td>
                 );
@@ -975,7 +938,7 @@ function HomeContent() {
           {loading ? (
             <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
           ) : (
-            <PublicScheduleWithFilters 
+            <PublicScheduleView 
               schedule={schedule}
               groups={groups}
               teachers={teachers}
@@ -989,6 +952,11 @@ function HomeContent() {
     }
     
     if (activeTab === 'my-lessons' && isTeacher) {
+      const teacherLessons = schedule.filter(lesson => {
+        const teacher = teachers.find(t => t.user_id === user.id);
+        return teacher && lesson.teacher_id === teacher.id;
+      });
+      
       return (
         <div className="content-card">
           <div className="content-header">
@@ -1011,18 +979,18 @@ function HomeContent() {
           
           {loading ? (
             <div className="loading-state"><div className="spinner"></div><p>Загрузка...</p></div>
-          ) : filteredSchedule.length === 0 ? (
+          ) : teacherLessons.length === 0 ? (
             <div className="empty-state"><i className="fas fa-info-circle"></i><p>Нет назначенных занятий</p></div>
           ) : (
             <TeacherPanel 
-              data={filteredSchedule}
+              data={teacherLessons}
               localData={localData}
               hasChanges={hasChanges}
               saving={saving}
               onNotesChange={handleNotesChange}
               onSave={handleSaveLesson}
               onCancel={(lessonId) => {
-                const lesson = filteredSchedule.find(l => l.id === lessonId);
+                const lesson = teacherLessons.find(l => l.id === lessonId);
                 if (lesson) {
                   setLocalData(prev => ({ ...prev, [lessonId]: { notes: lesson.notes || '' } }));
                   setHasChanges(prev => {
@@ -1056,7 +1024,7 @@ function HomeContent() {
           </div>
           
           <div className="add-lesson-section">
-            <h3><i className="fas fa-plus"></i> Добавить новое занятие</h3>
+            <h3><i className="fas fa-plus-circle"></i> Добавить новое занятие</h3>
             <form onSubmit={handleAddLesson} className="add-lesson-form">
               <div className="form-grid">
                 <div className="form-field">
@@ -1282,7 +1250,16 @@ function HomeContent() {
   };
 
   if (authChecking) {
-    return <div className="loading-screen"><div className="spinner-large"></div><p>Загрузка системы...</p></div>;
+    return (
+      <div className="loading-screen">
+        <div className="spinner-large"></div>
+        <p>Загрузка системы...</p>
+        <button className="theme-toggle-loading" onClick={toggleTheme}>
+          <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+          {theme === 'light' ? ' Тёмная тема' : ' Светлая тема'}
+        </button>
+      </div>
+    );
   }
   
   if (!user) {
@@ -1292,11 +1269,25 @@ function HomeContent() {
         <div className="landing-page">
           <div className="landing-content">
             <div className="landing-hero">
-              <div className="hero-badge"><span><i className="fas fa-graduation-cap"></i> Расписание</span></div>
-              <h1 className="hero-title">Учебное расписание<br/><span className="gradient-highlight">Колледжа</span></h1>
-              <p className="hero-description">Современная платформа для просмотра расписания в колледже.</p>
+              <div className="hero-badge">
+                <span><i className="fas fa-graduation-cap"></i> Расписание</span>
+              </div>
+              <h1 className="hero-title">
+                Учебное расписание
+                <br/>
+                <span className="gradient-highlight">Колледжа</span>
+              </h1>
+              <p className="hero-description">
+                Современная платформа для просмотра расписания в колледже
+              </p>
               <div className="hero-buttons">
-                <button className="btn-primary" onClick={() => setShowLogin(true)}><i className="fas fa-sign-in-alt"></i> Войти в систему</button>
+                <button className="btn-primary" onClick={() => setShowLogin(true)}>
+                  <i className="fas fa-sign-in-alt"></i> Войти в систему
+                </button>
+                <button className="btn-secondary" onClick={toggleTheme}>
+                  <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+                  {theme === 'light' ? ' Тёмная тема' : ' Светлая тема'}
+                </button>
               </div>
             </div>
             
@@ -1304,7 +1295,7 @@ function HomeContent() {
               <h2 className="section-title">
                 <i className="fas fa-calendar-alt"></i> Расписание занятий
               </h2>
-              <PublicScheduleWithFilters 
+              <PublicScheduleView 
                 schedule={schedule}
                 groups={groups}
                 teachers={teachers}
@@ -1324,9 +1315,17 @@ function HomeContent() {
                 <button className="modal-close" onClick={() => setShowLogin(false)}><i className="fas fa-times"></i></button>
               </div>
               <form onSubmit={handleLogin} className="modal-form">
-                <div className="form-group"><label><i className="fas fa-user"></i> Логин</label><input type="text" placeholder="Введите логин" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} required autoFocus /></div>
-                <div className="form-group"><label><i className="fas fa-lock"></i> Пароль</label><input type="password" placeholder="Введите пароль" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} required /></div>
-                <button type="submit" className="submit-btn"><i className="fas fa-sign-in-alt"></i> Войти</button>
+                <div className="form-group">
+                  <label><i className="fas fa-user"></i> Логин</label>
+                  <input type="text" placeholder="Введите логин" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} required autoFocus />
+                </div>
+                <div className="form-group">
+                  <label><i className="fas fa-lock"></i> Пароль</label>
+                  <input type="password" placeholder="Введите пароль" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} required />
+                </div>
+                <button type="submit" className="submit-btn">
+                  <i className="fas fa-sign-in-alt"></i> Войти
+                </button>
               </form>
             </div>
           </div>,
@@ -1348,7 +1347,9 @@ function HomeContent() {
         </div>
         
         <div className="sidebar-profile">
-          <div className="profile-avatar"><i className={`fas ${user.role === 'admin' ? 'fa-clipboard-list' : user.role === 'methodist' ? 'fa-clipboard-list' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i></div>
+          <div className="profile-avatar">
+            <i className={`fas ${user.role === 'admin' ? 'fa-crown' : user.role === 'methodist' ? 'fa-clipboard-list' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
+          </div>
           <div className="profile-info">
             <div className="profile-name">{user.fullName}</div>
             <div className="profile-role">{ROLES[user.role]}</div>
@@ -1433,7 +1434,7 @@ function HomeContent() {
               <div className="form-group"><label>ФИО</label><input placeholder="ФИО" value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required /></div>
               <div className="form-group"><label>Роль</label>
                 <select value={registerData.role} onChange={e => setRegisterData({...registerData, role: e.target.value})}>
-                  <option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="methodist">Методист</option>
+                  <option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="methodist">Методист</option><option value="admin">Администратор</option>
                 </select>
               </div>
               {registerData.role === 'student' && (
