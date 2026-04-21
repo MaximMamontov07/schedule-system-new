@@ -46,14 +46,160 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', methodist: 'Методист', teacher: 'Преподаватель', student: 'Студент' };
 
-// Функция для получения дат текущей недели
-const getWeekDates = () => {
-  const now = new Date();
-  const currentDay = now.getDay();
-  // Получаем понедельник текущей недели (если сегодня воскресенье, то currentDay = 0)
-  const monday = new Date(now);
+// Компонент календаря
+const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [viewMode, setViewMode] = useState('month');
+  
+  const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    
+    const days = [];
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      days.push({
+        date: new Date(year, month, -i),
+        isCurrentMonth: false,
+        day: prevMonthLastDay - i
+      });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true,
+        day: i
+      });
+    }
+    const remainingDays = 42 - days.length;
+    for (let i = 1; i <= remainingDays; i++) {
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false,
+        day: i
+      });
+    }
+    
+    return days;
+  };
+  
+  const changeMonth = (delta) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1));
+  };
+  
+  const isToday = (date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
+  
+  const isSelected = (date) => {
+    return selectedDate && 
+           date.getDate() === selectedDate.getDate() &&
+           date.getMonth() === selectedDate.getMonth() &&
+           date.getFullYear() === selectedDate.getFullYear();
+  };
+  
+  const handleDateClick = (date) => {
+    onDateSelect(date);
+    onClose();
+  };
+  
+  const years = [];
+  const currentYear = currentMonth.getFullYear();
+  for (let i = currentYear - 5; i <= currentYear + 5; i++) {
+    years.push(i);
+  }
+  
+  return (
+    <div className="datepicker-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="datepicker-header">
+        <div className="datepicker-nav">
+          <button onClick={() => changeMonth(-1)} className="datepicker-nav-btn">
+            <i className="fas fa-chevron-left"></i>
+          </button>
+          <button 
+            className="datepicker-month-year"
+            onClick={() => setViewMode(viewMode === 'month' ? 'year' : 'month')}
+          >
+            {viewMode === 'month' ? (
+              <span>{months[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
+            ) : (
+              <span>{currentMonth.getFullYear()}</span>
+            )}
+            <i className="fas fa-chevron-down"></i>
+          </button>
+          <button onClick={() => changeMonth(1)} className="datepicker-nav-btn">
+            <i className="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <button className="datepicker-close" onClick={onClose}>
+          <i className="fas fa-times"></i>
+        </button>
+      </div>
+      
+      {viewMode === 'month' ? (
+        <>
+          <div className="datepicker-weekdays">
+            {weekdays.map(day => (
+              <div key={day} className="datepicker-weekday">{day}</div>
+            ))}
+          </div>
+          <div className="datepicker-days">
+            {getDaysInMonth(currentMonth).map((day, idx) => (
+              <button
+                key={idx}
+                className={`datepicker-day ${!day.isCurrentMonth ? 'other-month' : ''} ${isToday(day.date) ? 'today' : ''} ${isSelected(day.date) ? 'selected' : ''}`}
+                onClick={() => handleDateClick(day.date)}
+              >
+                {day.day}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="datepicker-years">
+          {years.map(year => (
+            <button
+              key={year}
+              className={`datepicker-year ${year === currentMonth.getFullYear() ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
+                setViewMode('month');
+              }}
+            >
+              {year}
+            </button>
+          ))}
+        </div>
+      )}
+      
+      <div className="datepicker-footer">
+        <button className="datepicker-today-btn" onClick={() => {
+          const today = new Date();
+          handleDateClick(today);
+        }}>
+          <i className="fas fa-calendar-day"></i> Сегодня
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const getWeekDates = (selectedDate = null) => {
+  const baseDate = selectedDate || new Date();
+  const currentDay = baseDate.getDay();
+  const monday = new Date(baseDate);
   const diff = currentDay === 0 ? 6 : currentDay - 1;
-  monday.setDate(now.getDate() - diff);
+  monday.setDate(baseDate.getDate() - diff);
   
   const weekDates = [];
   for (let i = 0; i < 7; i++) {
@@ -69,60 +215,19 @@ const formatDate = (date) => {
   return `${date.getDate()} ${months[date.getMonth()]}`;
 };
 
-// Профессиональный компонент фильтров
-const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, currentWeek }) => {
-  const [showWeekPicker, setShowWeekPicker] = useState(false);
-  const [tempWeekOffset, setTempWeekOffset] = useState(0);
-  
-  const weekDates = getWeekDates();
-  const weekStart = weekDates[0];
-  const weekEnd = weekDates[6];
-  
-  const weekNumber = (date) => {
-    const d = new Date(date);
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  };
-  
-  const goToPreviousWeek = () => {
-    const newOffset = (filters.weekOffset || 0) - 1;
-    onFilterChange('weekOffset', newOffset);
-  };
-  
-  const goToNextWeek = () => {
-    const newOffset = (filters.weekOffset || 0) + 1;
-    onFilterChange('weekOffset', newOffset);
-  };
-  
-  const goToCurrentWeek = () => {
-    onFilterChange('weekOffset', 0);
-  };
-  
+// Компонент фильтров
+const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate }) => {
   return (
     <div className="filter-bar">
       <div className="filter-bar-header">
-        <div className="week-navigation">
-          <button className="week-nav-btn" onClick={goToPreviousWeek} title="Предыдущая неделя">
-            <i className="fas fa-chevron-left"></i>
-          </button>
-          <div className="week-display">
-            <i className="fas fa-calendar-week"></i>
-            <span>
-              {formatDate(weekStart)} - {formatDate(weekEnd)}
+        <button className="calendar-icon-btn" onClick={onOpenCalendar} title="Выбрать дату">
+          <i className="fas fa-calendar-alt"></i>
+          {selectedDate && (
+            <span className="selected-date-badge">
+              {selectedDate.getDate()}.{selectedDate.getMonth() + 1}
             </span>
-            <span className="week-number">({weekNumber(weekStart)} неделя)</span>
-          </div>
-          <button className="week-nav-btn" onClick={goToNextWeek} title="Следующая неделя">
-            <i className="fas fa-chevron-right"></i>
-          </button>
-          {(filters.weekOffset !== 0) && (
-            <button className="week-today-btn" onClick={goToCurrentWeek} title="Текущая неделя">
-              <i className="fas fa-calendar-day"></i> Сегодня
-            </button>
           )}
-        </div>
+        </button>
         <button className="reset-filters-btn" onClick={onReset}>
           <i className="fas fa-undo-alt"></i> Сбросить фильтры
         </button>
@@ -216,8 +321,8 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
   );
 };
 
-// Профессиональная сетка расписания
-const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates }) => {
+// Сетка расписания
+const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill(null));
     if (Array.isArray(data)) {
@@ -231,15 +336,6 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
     }
     return matrix;
   }, [data]);
-
-  const getStatusColor = (lesson) => {
-    if (!lesson) return '';
-    const now = new Date();
-    const lessonDate = weekDates[lesson.day_of_week - 1];
-    const isToday = lessonDate.toDateString() === now.toDateString();
-    if (isToday) return 'today';
-    return '';
-  };
 
   return (
     <div className="schedule-grid-wrapper">
@@ -255,9 +351,10 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
             {DAYS.map((day, idx) => {
               const date = weekDates[idx];
               const isToday = date && date.toDateString() === new Date().toDateString();
+              const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
               const isWeekend = idx === 5 || idx === 6;
               return (
-                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}>
                   <div className="day-header-content">
                     <span className="day-name">{day}</span>
                     <span className="day-date">{date ? formatDate(date) : ''}</span>
@@ -279,11 +376,13 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
               {DAYS.map((_, dayIndex) => {
                 const lesson = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLesson = lesson !== null;
-                const isToday = weekDates[dayIndex]?.toDateString() === new Date().toDateString();
+                const date = weekDates[dayIndex];
+                const isToday = date && date.toDateString() === new Date().toDateString();
+                const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLesson ? (
                       <div className="lesson-card-modern">
                         <div className="lesson-header">
@@ -349,35 +448,20 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// Публичный просмотр с фильтрацией
+// Публичный просмотр
 const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [filters, setFilters] = useState({
     groupId: '',
     teacherId: '',
     subjectId: '',
     dayOfWeek: '',
     pairNumber: '',
-    classroomId: '',
-    weekOffset: 0
+    classroomId: ''
   });
 
-  const getWeekDatesWithOffset = (offset) => {
-    const now = new Date();
-    const currentDay = now.getDay();
-    const monday = new Date(now);
-    const diff = currentDay === 0 ? 6 : currentDay - 1;
-    monday.setDate(now.getDate() - diff + (offset * 7));
-    
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      weekDates.push(date);
-    }
-    return weekDates;
-  };
-
-  const weekDates = getWeekDatesWithOffset(filters.weekOffset || 0);
+  const weekDates = getWeekDates(selectedDate);
 
   const filteredSchedule = useMemo(() => {
     let filtered = [...schedule];
@@ -415,9 +499,13 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
       subjectId: '',
       dayOfWeek: '',
       pairNumber: '',
-      classroomId: '',
-      weekOffset: 0
+      classroomId: ''
     });
+    setSelectedDate(null);
+  };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
   };
 
   if (loading) {
@@ -439,8 +527,20 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         subjects={subjects}
         classrooms={classrooms}
         onReset={resetFilters}
-        currentWeek={weekDates}
+        onOpenCalendar={() => setShowCalendar(true)}
+        selectedDate={selectedDate}
       />
+      
+      {showCalendar && createPortal(
+        <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
+          <DatePicker 
+            onDateSelect={handleDateSelect}
+            onClose={() => setShowCalendar(false)}
+            selectedDate={selectedDate}
+          />
+        </div>,
+        document.body
+      )}
       
       {filteredSchedule.length === 0 ? (
         <div className="empty-state">
@@ -452,14 +552,15 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
           data={filteredSchedule} 
           canEdit={false} 
           weekDates={weekDates}
+          selectedDate={selectedDate}
         />
       )}
     </div>
   );
 };
 
-// Teacher Panel Component (остается без изменений в функционале)
-const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, weekDates }) => {
+// Панель преподавателя
+const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, weekDates, selectedDate }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill(null));
     if (Array.isArray(data)) {
@@ -488,9 +589,10 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
             {DAYS.map((day, idx) => {
               const date = weekDates[idx];
               const isToday = date && date.toDateString() === new Date().toDateString();
+              const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
               const isWeekend = idx === 5 || idx === 6;
               return (
-                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}>
                   <div className="day-header-content">
                     <span className="day-name">{day}</span>
                     <span className="day-date">{date ? formatDate(date) : ''}</span>
@@ -515,11 +617,13 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 const currentData = hasLesson ? (localData[lesson.id] || { notes: lesson.notes || '' }) : null;
                 const isChanged = hasLesson ? hasChanges[lesson.id] : false;
                 const isSaving = hasLesson ? saving[lesson.id] : false;
-                const isToday = weekDates[dayIndex]?.toDateString() === new Date().toDateString();
+                const date = weekDates[dayIndex];
+                const isToday = date && date.toDateString() === new Date().toDateString();
+                const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLesson ? (
                       <div className="teacher-lesson-card">
                         <div className="lesson-header">
@@ -568,7 +672,6 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
-// HomeContent component continues...
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
   const [schedule, setSchedule] = useState([]);
@@ -584,7 +687,8 @@ function HomeContent() {
   const [notification, setNotification] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('schedule');
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [showCalendar, setShowCalendar] = useState(false);
   
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
@@ -607,24 +711,6 @@ function HomeContent() {
   const [localData, setLocalData] = useState({});
   const [hasChanges, setHasChanges] = useState({});
   const [saving, setSaving] = useState({});
-
-  const getWeekDatesWithOffset = (offset) => {
-    const now = new Date();
-    const currentDay = now.getDay();
-    const monday = new Date(now);
-    const diff = currentDay === 0 ? 6 : currentDay - 1;
-    monday.setDate(now.getDate() - diff + (offset * 7));
-    
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      weekDates.push(date);
-    }
-    return weekDates;
-  };
-
-  const currentWeekDates = getWeekDatesWithOffset(weekOffset);
 
   const showNotification = (msg, type) => {
     setNotification({ msg, type });
@@ -1060,6 +1146,7 @@ function HomeContent() {
   }, [schedule, isTeacher, teachers, user]);
 
   const filteredSchedule = getFilteredSchedule();
+  const weekDates = getWeekDates(selectedDate);
 
   const renderMainContent = () => {
     if (activeTab === 'schedule') {
@@ -1142,7 +1229,8 @@ function HomeContent() {
                   });
                 }
               }}
-              weekDates={currentWeekDates}
+              weekDates={weekDates}
+              selectedDate={selectedDate}
             />
           )}
         </div>
@@ -1231,7 +1319,8 @@ function HomeContent() {
                 }}
                 onDeleteClick={handleDeleteLesson}
                 onAddClick={handleAddScheduleClick}
-                weekDates={currentWeekDates}
+                weekDates={weekDates}
+                selectedDate={selectedDate}
               />
             )}
           </div>
@@ -1567,7 +1656,7 @@ function HomeContent() {
         <div className="app-content">{renderMainContent()}</div>
       </main>
 
-      {/* Modal windows remain the same */}
+      {/* Модальные окна */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
