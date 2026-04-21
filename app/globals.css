@@ -2591,3 +2591,100 @@ body {
     border: 1px solid #ddd !important;
   }
 }
+/* Multiple lessons in one cell */
+.lessons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.lesson-cell.has-lessons {
+  background: var(--surface);
+  vertical-align: top;
+  padding: 0;
+}
+
+.lesson-card-modern {
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.lesson-card-modern:hover {
+  transform: translateX(4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
+}
+
+/* Разные цвета для разных занятий в одной ячейке */
+.lessons-container .lesson-card-modern:nth-child(1) {
+  border-left: 4px solid var(--primary);
+}
+
+.lessons-container .lesson-card-modern:nth-child(2) {
+  border-left: 4px solid var(--success);
+}
+
+.lessons-container .lesson-card-modern:nth-child(3) {
+  border-left: 4px solid var(--warning);
+}
+
+.lessons-container .lesson-card-modern:nth-child(4) {
+  border-left: 4px solid var(--danger);
+}
+
+.lessons-container .lesson-card-modern:nth-child(5) {
+  border-left: 4px solid var(--accent);
+}
+
+.lessons-container .lesson-card-modern:nth-child(6) {
+  border-left: 4px solid var(--secondary);
+}
+
+/* Мини-кнопка добавления внутри контейнера */
+.add-lesson-btn-mini {
+  width: 100%;
+  padding: 0.5rem;
+  background: none;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+.add-lesson-btn-mini:hover {
+  background: var(--surface-muted);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Адаптация для мобильных */
+@media (max-width: 768px) {
+  .lessons-container {
+    max-height: 300px;
+    gap: 0.5rem;
+  }
+  
+  .lesson-card-modern {
+    padding: 0.5rem;
+  }
+  
+  .lesson-title {
+    font-size: 0.75rem;
+  }
+  
+  .lesson-info {
+    font-size: 0.7rem;
+  }
+}

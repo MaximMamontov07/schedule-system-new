@@ -339,16 +339,17 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
   );
 };
 
-// Сетка расписания
+// Сетка расписания с поддержкой нескольких занятий в одной ячейке
 const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate }) => {
+  // Создаем матрицу, где в каждой ячейке может быть МАССИВ занятий
   const scheduleMatrix = useMemo(() => {
-    const matrix = Array(7).fill().map(() => Array(6).fill(null));
+    const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
       data.forEach(lesson => {
         const dayIndex = lesson.day_of_week - 1;
         const pairIndex = lesson.pair_number - 1;
         if (dayIndex >= 0 && dayIndex < 7 && pairIndex >= 0 && pairIndex < 6) {
-          matrix[dayIndex][pairIndex] = lesson;
+          matrix[dayIndex][pairIndex].push(lesson);
         }
       });
     }
@@ -392,56 +393,69 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                 </div>
               </td>
               {DAYS.map((_, dayIndex) => {
-                const lesson = scheduleMatrix[dayIndex][pair.number - 1];
-                const hasLesson = lesson !== null;
+                const lessons = scheduleMatrix[dayIndex][pair.number - 1];
+                const hasLessons = lessons.length > 0;
                 const date = weekDates[dayIndex];
                 const isToday = date && date.toDateString() === new Date().toDateString();
                 const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
-                    {hasLesson ? (
-                      <div className="lesson-card-modern">
-                        <div className="lesson-header">
-                          <h4 className="lesson-title">{lesson.subject_name}</h4>
-                          <span className="lesson-group-tag">{lesson.group_name}</span>
-                        </div>
-                        <div className="lesson-body">
-                          <div className="lesson-info">
-                            <i className="fas fa-chalkboard-teacher"></i>
-                            <span>{lesson.teacher_name}</span>
-                          </div>
-                          {lesson.classroom_name && (
-                            <div className="lesson-info">
-                              <i className="fas fa-door-open"></i>
-                              <span>{lesson.classroom_name}</span>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                    {hasLessons ? (
+                      <div className="lessons-container">
+                        {lessons.map((lesson, idx) => (
+                          <div key={lesson.id || idx} className="lesson-card-modern">
+                            <div className="lesson-header">
+                              <h4 className="lesson-title">{lesson.subject_name}</h4>
+                              <span className="lesson-group-tag">{lesson.group_name}</span>
                             </div>
-                          )}
-                          {lesson.notes && (
-                            <div className="lesson-notes-badge" title={lesson.notes}>
-                              <i className="fas fa-sticky-note"></i>
-                              <span>{lesson.notes.length > 35 ? lesson.notes.substring(0, 35) + '...' : lesson.notes}</span>
+                            <div className="lesson-body">
+                              <div className="lesson-info">
+                                <i className="fas fa-chalkboard-teacher"></i>
+                                <span>{lesson.teacher_name}</span>
+                              </div>
+                              {lesson.classroom_name && (
+                                <div className="lesson-info">
+                                  <i className="fas fa-door-open"></i>
+                                  <span>{lesson.classroom_name}</span>
+                                </div>
+                              )}
+                              {lesson.notes && (
+                                <div className="lesson-notes-badge" title={lesson.notes}>
+                                  <i className="fas fa-sticky-note"></i>
+                                  <span>{lesson.notes.length > 35 ? lesson.notes.substring(0, 35) + '...' : lesson.notes}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        {canEdit && (
-                          <div className="lesson-actions-modern">
-                            <button 
-                              className="lesson-action-btn edit" 
-                              onClick={() => onEditClick(lesson)} 
-                              title="Редактировать"
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button 
-                              className="lesson-action-btn delete" 
-                              onClick={() => onDeleteClick(lesson.id)} 
-                              title="Удалить"
-                            >
-                              <i className="fas fa-trash-alt"></i>
-                            </button>
+                            {canEdit && (
+                              <div className="lesson-actions-modern">
+                                <button 
+                                  className="lesson-action-btn edit" 
+                                  onClick={() => onEditClick(lesson)} 
+                                  title="Редактировать"
+                                >
+                                  <i className="fas fa-edit"></i>
+                                </button>
+                                <button 
+                                  className="lesson-action-btn delete" 
+                                  onClick={() => onDeleteClick(lesson.id)} 
+                                  title="Удалить"
+                                >
+                                  <i className="fas fa-trash-alt"></i>
+                                </button>
+                              </div>
+                            )}
                           </div>
+                        ))}
+                        {canEdit && onAddClick && lessons.length < 6 && (
+                          <button 
+                            className="add-lesson-btn-mini"
+                            onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number })}
+                            title="Добавить занятие"
+                          >
+                            <i className="fas fa-plus"></i>
+                          </button>
                         )}
                       </div>
                     ) : (
