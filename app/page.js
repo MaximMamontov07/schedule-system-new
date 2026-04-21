@@ -46,7 +46,101 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', methodist: 'Методист', teacher: 'Преподаватель', student: 'Студент' };
 
-const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick }) => {
+// Компонент фильтров - ИСПРАВЛЕН
+const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset }) => {
+  return (
+    <div className="filter-bar">
+      <div className="filter-row">
+        <div className="filter-group">
+          <label><i className="fas fa-users"></i> Группа</label>
+          <select 
+            value={filters.groupId} 
+            onChange={(e) => onFilterChange('groupId', e.target.value)}
+          >
+            <option value="">Все группы</option>
+            {groups?.map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
+          <select 
+            value={filters.teacherId} 
+            onChange={(e) => onFilterChange('teacherId', e.target.value)}
+          >
+            <option value="">Все преподаватели</option>
+            {teachers?.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label><i className="fas fa-book"></i> Предмет</label>
+          <select 
+            value={filters.subjectId} 
+            onChange={(e) => onFilterChange('subjectId', e.target.value)}
+          >
+            <option value="">Все предметы</option>
+            {subjects?.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="filter-row">
+        <div className="filter-group">
+          <label><i className="fas fa-calendar-day"></i> День недели</label>
+          <select 
+            value={filters.dayOfWeek} 
+            onChange={(e) => onFilterChange('dayOfWeek', e.target.value)}
+          >
+            <option value="">Все дни</option>
+            {DAYS.map((day, idx) => (
+              <option key={idx + 1} value={idx + 1}>{day}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label><i className="fas fa-clock"></i> Пара</label>
+          <select 
+            value={filters.pairNumber} 
+            onChange={(e) => onFilterChange('pairNumber', e.target.value)}
+          >
+            <option value="">Все пары</option>
+            {PAIRS.map(p => (
+              <option key={p.number} value={p.number}>{p.name} ({p.time})</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label><i className="fas fa-door-open"></i> Аудитория</label>
+          <select 
+            value={filters.classroomId} 
+            onChange={(e) => onFilterChange('classroomId', e.target.value)}
+          >
+            <option value="">Все аудитории</option>
+            {classrooms?.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <button className="reset-filters-btn" onClick={onReset}>
+          <i className="fas fa-undo-alt"></i> Сбросить
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Компонент для отображения расписания (общий для всех)
+const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, showGroupColumn = false }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(6).fill().map(() => Array(6).fill(null));
     if (Array.isArray(data)) {
@@ -91,7 +185,9 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                       <div className="lesson-card">
                         <div className="lesson-card-header">
                           <span className="lesson-subject">{lesson.subject_name}</span>
-                          <span className="lesson-group-badge">{lesson.group_name}</span>
+                          {showGroupColumn && (
+                            <span className="lesson-group-badge">{lesson.group_name}</span>
+                          )}
                         </div>
                         <div className="lesson-details">
                           <div className="lesson-detail">
@@ -139,6 +235,162 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
           ))}
         </tbody>
       </table>
+    </div>
+  );
+};
+
+// Компонент для отображения расписания в виде списка
+const ScheduleListView = ({ data, onEditClick, onDeleteClick, canEdit }) => {
+  if (data.length === 0) {
+    return (
+      <div className="empty-state">
+        <i className="fas fa-info-circle"></i>
+        <p>Нет занятий по выбранным фильтрам</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="schedule-list-view">
+      <table className="schedule-list-table">
+        <thead>
+          <tr>
+            <th>День</th>
+            <th>Пара</th>
+            <th>Группа</th>
+            <th>Предмет</th>
+            <th>Преподаватель</th>
+            <th>Аудитория</th>
+            <th>Заметки</th>
+            {canEdit && <th>Действия</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(lesson => (
+            <tr key={lesson.id}>
+              <td>{DAYS[lesson.day_of_week - 1]}</td>
+              <td>{PAIRS[lesson.pair_number - 1]?.name} ({PAIRS[lesson.pair_number - 1]?.time})</td>
+              <td>{lesson.group_name}</td>
+              <td>{lesson.subject_name}</td>
+              <td>{lesson.teacher_name}</td>
+              <td>{lesson.classroom_name || '—'}</td>
+              <td className="notes-cell">{lesson.notes || '—'}</td>
+              {canEdit && (
+                <td className="actions-cell">
+                  <button className="action-btn edit-btn" onClick={() => onEditClick(lesson)}>
+                    <i className="fas fa-edit"></i>
+                  </button>
+                  <button className="action-btn delete-btn" onClick={() => onDeleteClick(lesson.id)}>
+                    <i className="fas fa-trash-alt"></i>
+                  </button>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// Компонент для публичного просмотра с фильтрацией
+const PublicScheduleWithFilters = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
+  const [viewMode, setViewMode] = useState('grid');
+  const [filters, setFilters] = useState({
+    groupId: '',
+    teacherId: '',
+    subjectId: '',
+    dayOfWeek: '',
+    pairNumber: '',
+    classroomId: ''
+  });
+
+  const filteredSchedule = useMemo(() => {
+    let filtered = [...schedule];
+    
+    if (filters.groupId) {
+      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
+    }
+    if (filters.teacherId) {
+      filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
+    }
+    if (filters.subjectId) {
+      filtered = filtered.filter(s => s.subject_id === parseInt(filters.subjectId));
+    }
+    if (filters.dayOfWeek) {
+      filtered = filtered.filter(s => s.day_of_week === parseInt(filters.dayOfWeek));
+    }
+    if (filters.pairNumber) {
+      filtered = filtered.filter(s => s.pair_number === parseInt(filters.pairNumber));
+    }
+    if (filters.classroomId) {
+      filtered = filtered.filter(s => s.classroom_id === parseInt(filters.classroomId));
+    }
+    
+    return filtered;
+  }, [schedule, filters]);
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      groupId: '',
+      teacherId: '',
+      subjectId: '',
+      dayOfWeek: '',
+      pairNumber: '',
+      classroomId: ''
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-state">
+        <div className="spinner"></div>
+        <p>Загрузка расписания...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="public-schedule-container">
+      <FilterBar 
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        groups={groups}
+        teachers={teachers}
+        subjects={subjects}
+        classrooms={classrooms}
+        onReset={resetFilters}
+      />
+      
+      <div className="view-mode-toggle">
+        <button 
+          className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+          onClick={() => setViewMode('grid')}
+        >
+          <i className="fas fa-calendar-alt"></i> Сетка
+        </button>
+        <button 
+          className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
+          onClick={() => setViewMode('list')}
+        >
+          <i className="fas fa-list"></i> Список
+        </button>
+      </div>
+
+      {filteredSchedule.length === 0 ? (
+        <div className="empty-state">
+          <i className="fas fa-search"></i>
+          <p>Нет занятий по выбранным фильтрам</p>
+        </div>
+      ) : viewMode === 'grid' ? (
+        <ScheduleGrid data={filteredSchedule} showGroupColumn={!filters.groupId} />
+      ) : (
+        <ScheduleListView data={filteredSchedule} canEdit={false} />
+      )}
     </div>
   );
 };
@@ -701,11 +953,6 @@ function HomeContent() {
   }, [schedule, isTeacher]);
 
   const filteredSchedule = getFilteredSchedule();
-  const availableUsers = users.filter(u => {
-    if (u.role !== 'teacher') return false;
-    const isAlreadyLinked = teachers.some(t => t.user_id === u.id);
-    return !isAlreadyLinked;
-  });
 
   const renderMainContent = () => {
     if (activeTab === 'schedule') {
@@ -714,12 +961,6 @@ function HomeContent() {
           <div className="content-header">
             <div className="header-left">
               <h2><i className="fas fa-calendar-alt"></i> Расписание занятий</h2>
-              {(user?.role === 'methodist' || user?.role === 'admin') && (
-                <select value={selectedGroupFilter} onChange={(e) => setSelectedGroupFilter(e.target.value)} className="group-filter">
-                  <option value="">Все группы</option>
-                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </select>
-              )}
             </div>
             <div className="header-actions">
               <button className="action-button export-excel" onClick={exportToExcel}>
@@ -733,10 +974,15 @@ function HomeContent() {
           
           {loading ? (
             <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
-          ) : filteredSchedule.length === 0 ? (
-            <div className="empty-state"><i className="fas fa-calendar-times"></i><p>Нет занятий для отображения</p></div>
           ) : (
-            <ScheduleGrid data={filteredSchedule} canEdit={false} />
+            <PublicScheduleWithFilters 
+              schedule={schedule}
+              groups={groups}
+              teachers={teachers}
+              subjects={subjects}
+              classrooms={classrooms}
+              loading={loading}
+            />
           )}
         </div>
       );
@@ -1009,7 +1255,9 @@ function HomeContent() {
                       <div className="link-controls">
                         <select className="user-select" id={`teacher-select-${teacher.id}`} defaultValue="">
                           <option value="" disabled>Выберите пользователя...</option>
-                          {availableUsers.map(u => <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>)}
+                          {users.filter(u => u.role === 'teacher' && !teachers.some(t => t.user_id === u.id)).map(u => (
+                            <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>
+                          ))}
                         </select>
                         <button onClick={() => {
                           const select = document.getElementById(`teacher-select-${teacher.id}`);
@@ -1051,6 +1299,20 @@ function HomeContent() {
                 <button className="btn-primary" onClick={() => setShowLogin(true)}><i className="fas fa-sign-in-alt"></i> Войти в систему</button>
               </div>
             </div>
+            
+            <div className="public-schedule-section">
+              <h2 className="section-title">
+                <i className="fas fa-calendar-alt"></i> Расписание занятий
+              </h2>
+              <PublicScheduleWithFilters 
+                schedule={schedule}
+                groups={groups}
+                teachers={teachers}
+                subjects={subjects}
+                classrooms={classrooms}
+                loading={loading}
+              />
+            </div>
           </div>
         </div>
         
@@ -1077,10 +1339,6 @@ function HomeContent() {
   return (
     <div className="app-container">
       {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
-      
-      <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
-        <i className=""></i>
-      </button>
       
       <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
@@ -1141,25 +1399,25 @@ function HomeContent() {
       
       <main className="app-main">
         <header className="app-header">
-  <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}>
-    <i className="fas fa-bars"></i>
-  </button>
-  <div className="header-title">
-    <h1>
-      {activeTab === 'schedule' && 'Расписание занятий'}
-      {activeTab === 'my-lessons' && 'Мои занятия'}
-      {activeTab === 'manage-schedule' && 'Управление расписанием'}
-      {activeTab === 'directories' && 'Справочники'}
-      {activeTab === 'users' && 'Управление пользователями'}
-    </h1>
-  </div>
-  <div className="header-actions-right">
-    <button className="theme-toggle-header" onClick={toggleTheme}>
-      <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-    </button>
-    <div className="role-badge">{ROLES[user.role]}</div>
-  </div>
-</header>
+          <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}>
+            <i className="fas fa-bars"></i>
+          </button>
+          <div className="header-title">
+            <h1>
+              {activeTab === 'schedule' && 'Расписание занятий'}
+              {activeTab === 'my-lessons' && 'Мои занятия'}
+              {activeTab === 'manage-schedule' && 'Управление расписанием'}
+              {activeTab === 'directories' && 'Справочники'}
+              {activeTab === 'users' && 'Управление пользователями'}
+            </h1>
+          </div>
+          <div className="header-actions-right">
+            <button className="theme-toggle-header" onClick={toggleTheme}>
+              <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+            </button>
+            <div className="role-badge">{ROLES[user.role]}</div>
+          </div>
+        </header>
         
         <div className="app-content">{renderMainContent()}</div>
       </main>
