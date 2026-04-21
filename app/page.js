@@ -46,6 +46,19 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', methodist: 'Методист', teacher: 'Преподаватель', student: 'Студент' };
 
+const formatDate = (date) => {
+  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  return `${date.getDate()} ${months[date.getMonth()]}`;
+};
+
+const getWeekNumber = (date) => {
+  const d = new Date(date);
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+};
+
 // Компонент календаря
 const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -58,8 +71,7 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
     
     const days = [];
@@ -194,21 +206,8 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   );
 };
 
-const formatDate = (date) => {
-  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-  return `${date.getDate()} ${months[date.getMonth()]}`;
-};
-
-const getWeekNumber = (date) => {
-  const d = new Date(date);
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-};
-
-// Компонент фильтров с навигацией по неделям
-const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek }) => {
+// Компонент фильтров
+const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, isStudent }) => {
   const weekStart = weekDates[0];
   const weekEnd = weekDates[6];
   
@@ -239,11 +238,9 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
             <button onClick={onNextWeek} className="week-nav-btn" title="Следующая неделя">
               <i className="fas fa-chevron-right"></i>
             </button>
-            {(filters.weekOffset !== 0) && (
-              <button onClick={onCurrentWeek} className="week-today-btn" title="Текущая неделя">
-                <i className="fas fa-calendar-day"></i> Сегодня
-              </button>
-            )}
+            <button onClick={onCurrentWeek} className="week-today-btn" title="Текущая неделя">
+              <i className="fas fa-calendar-day"></i> Сегодня
+            </button>
           </div>
         </div>
         <button className="reset-filters-btn" onClick={onReset}>
@@ -251,19 +248,21 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
         </button>
       </div>
       <div className="filter-grid">
-        <div className="filter-group">
-          <label><i className="fas fa-users"></i> Группа</label>
-          <select 
-            value={filters.groupId} 
-            onChange={(e) => onFilterChange('groupId', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Все группы</option>
-            {groups?.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-        </div>
+        {!isStudent && (
+          <div className="filter-group">
+            <label><i className="fas fa-users"></i> Группа</label>
+            <select 
+              value={filters.groupId} 
+              onChange={(e) => onFilterChange('groupId', e.target.value)}
+              className="filter-select"
+            >
+              <option value="">Все группы</option>
+              {groups?.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="filter-group">
           <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
@@ -339,9 +338,8 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
   );
 };
 
-// Сетка расписания с поддержкой нескольких занятий в одной ячейке
+// Сетка расписания с поддержкой нескольких занятий
 const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate }) => {
-  // Создаем матрицу, где в каждой ячейке может быть МАССИВ занятий
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
@@ -480,13 +478,13 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// Публичный просмотр с фильтрацией и навигацией
-const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
+// Компонент для отображения расписания с учетом роли пользователя
+const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [filters, setFilters] = useState({
-    groupId: '',
+    groupId: userRole === 'student' && userGroupId ? String(userGroupId) : '',
     teacherId: '',
     subjectId: '',
     dayOfWeek: '',
@@ -543,7 +541,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 
   const resetFilters = () => {
     setFilters({
-      groupId: '',
+      groupId: userRole === 'student' && userGroupId ? String(userGroupId) : '',
       teacherId: '',
       subjectId: '',
       dayOfWeek: '',
@@ -574,6 +572,9 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     setSelectedDate(null);
   };
 
+  const isStudent = userRole === 'student';
+  const availableGroups = isStudent ? groups.filter(g => g.id === userGroupId) : groups;
+
   if (loading) {
     return (
       <div className="loading-state">
@@ -588,7 +589,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
       <FilterBar 
         filters={filters}
         onFilterChange={handleFilterChange}
-        groups={groups}
+        groups={availableGroups}
         teachers={teachers}
         subjects={subjects}
         classrooms={classrooms}
@@ -599,6 +600,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         onPrevWeek={handlePrevWeek}
         onNextWeek={handleNextWeek}
         onCurrentWeek={handleCurrentWeek}
+        isStudent={isStudent}
       />
       
       {showCalendar && createPortal(
@@ -629,8 +631,26 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   );
 };
 
-// Teacher Panel Component
-const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, weekDates, selectedDate }) => {
+// Панель преподавателя
+const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
+  const getWeekDates = () => {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const monday = new Date(now);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(now.getDate() - diff);
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      weekDates.push(date);
+    }
+    return weekDates;
+  };
+
+  const weekDates = getWeekDates();
+  
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill(null));
     if (Array.isArray(data)) {
@@ -659,10 +679,9 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
             {DAYS.map((day, idx) => {
               const date = weekDates[idx];
               const isToday = date && date.toDateString() === new Date().toDateString();
-              const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
               const isWeekend = idx === 5 || idx === 6;
               return (
-                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
                   <div className="day-header-content">
                     <span className="day-name">{day}</span>
                     <span className="day-date">{date ? formatDate(date) : ''}</span>
@@ -689,11 +708,10 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 const isSaving = hasLesson ? saving[lesson.id] : false;
                 const date = weekDates[dayIndex];
                 const isToday = date && date.toDateString() === new Date().toDateString();
-                const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLesson ? (
                       <div className="teacher-lesson-card">
                         <div className="lesson-header">
@@ -742,7 +760,6 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
-// HomeContent component (сокращен для краткости, основные функции остаются)
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
   const [schedule, setSchedule] = useState([]);
@@ -791,15 +808,38 @@ function HomeContent() {
   const isTeacher = user && user.role === 'teacher';
 
   const exportToExcel = () => {
-    const exportData = filteredSchedule.map(lesson => ({
-      'День недели': DAYS[lesson.day_of_week - 1],
-      'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-      'Группа': lesson.group_name,
-      'Предмет': lesson.subject_name,
-      'Преподаватель': lesson.teacher_name,
-      'Аудитория': lesson.classroom_name || '—',
-      'Заметки': lesson.notes || '—'
-    }));
+    let exportData = [];
+    
+    if (user && user.role === 'student' && user.groupId) {
+      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (selectedGroupFilter) {
+      exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)).map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else {
+      exportData = schedule.map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    }
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -811,6 +851,16 @@ function HomeContent() {
   const exportToPDF = async () => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
+      let exportData = [];
+      
+      if (user && user.role === 'student' && user.groupId) {
+        exportData = schedule.filter(s => s.group_id === user.groupId);
+      } else if (selectedGroupFilter) {
+        exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter));
+      } else {
+        exportData = schedule;
+      }
+      
       const element = document.createElement('div');
       element.innerHTML = `
         <html>
@@ -818,13 +868,13 @@ function HomeContent() {
           <body>
             <h1>Расписание занятий</h1>
             <table border="1" cellpadding="8">
-              <thead><tr><th>День</th><th>Время</th><th>Группа</th><th>Предмет</th><th>Преподаватель</th><th>Аудитория</th></tr></thead>
+              <thead><tr><th>День</th><th>Время</th>${user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th></tr></thead>
               <tbody>
-                ${filteredSchedule.map(lesson => `
+                ${exportData.map(lesson => `
                   <tr>
                     <td>${DAYS[lesson.day_of_week - 1]}</td>
                     <td>${PAIRS[lesson.pair_number - 1].time}</td>
-                    <td>${lesson.group_name}</td>
+                    ${user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
                     <td>${lesson.subject_name}</td>
                     <td>${lesson.teacher_name}</td>
                     <td>${lesson.classroom_name || '—'}</td>
@@ -1218,11 +1268,22 @@ function HomeContent() {
 
   const renderMainContent = () => {
     if (activeTab === 'schedule') {
+      let displaySchedule = schedule;
+      
+      if (user && user.role === 'student' && user.groupId) {
+        displaySchedule = schedule.filter(s => s.group_id === user.groupId);
+      }
+      
       return (
         <div className="content-card">
           <div className="content-header">
             <div className="header-left">
               <h2><i className="fas fa-calendar-alt"></i> Расписание занятий</h2>
+              {user && user.role === 'student' && user.groupId && (
+                <div className="student-group-badge">
+                  <i className="fas fa-users"></i> Группа: {groups.find(g => g.id === user.groupId)?.name || '...'}
+                </div>
+              )}
             </div>
             <div className="header-actions">
               <button className="action-button export-excel" onClick={exportToExcel}>
@@ -1237,13 +1298,15 @@ function HomeContent() {
           {loading ? (
             <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
           ) : (
-            <PublicScheduleView 
-              schedule={schedule}
+            <ScheduleView 
+              schedule={displaySchedule}
               groups={groups}
               teachers={teachers}
               subjects={subjects}
               classrooms={classrooms}
               loading={loading}
+              userRole={user?.role}
+              userGroupId={user?.groupId}
             />
           )}
         </div>
@@ -1297,8 +1360,6 @@ function HomeContent() {
                   });
                 }
               }}
-              weekDates={[]}
-              selectedDate={null}
             />
           )}
         </div>
@@ -1306,6 +1367,8 @@ function HomeContent() {
     }
     
     if (activeTab === 'manage-schedule' && canEditSchedule) {
+      const displaySchedule = selectedGroupFilter ? schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)) : schedule;
+      
       return (
         <div className="content-card">
           <div className="content-header">
@@ -1375,11 +1438,11 @@ function HomeContent() {
             <h3><i className="fas fa-edit"></i> Редактирование расписания</h3>
             {loading ? (
               <div className="loading-state"><div className="spinner"></div></div>
-            ) : filteredSchedule.length === 0 ? (
+            ) : displaySchedule.length === 0 ? (
               <div className="empty-state"><i className="fas fa-calendar-times"></i><p>Нет занятий</p></div>
             ) : (
               <ScheduleGrid 
-                data={filteredSchedule} 
+                data={displaySchedule} 
                 canEdit={true}
                 onEditClick={(lesson) => {
                   setEditingLesson(lesson);
@@ -1596,13 +1659,15 @@ function HomeContent() {
               <h2 className="section-title">
                 <i className="fas fa-calendar-alt"></i> Расписание занятий
               </h2>
-              <PublicScheduleView 
+              <ScheduleView 
                 schedule={schedule}
                 groups={groups}
                 teachers={teachers}
                 subjects={subjects}
                 classrooms={classrooms}
                 loading={loading}
+                userRole={null}
+                userGroupId={null}
               />
             </div>
           </div>
@@ -1724,7 +1789,7 @@ function HomeContent() {
         <div className="app-content">{renderMainContent()}</div>
       </main>
 
-      {/* Modal windows remain the same */}
+      {/* Modal windows */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
