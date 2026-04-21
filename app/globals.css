@@ -2705,3 +2705,140 @@ body {
 .student-group-badge i {
   font-size: 0.9rem;
 }
+/* Teacher Panel - Multiple Lessons Container */
+.teacher-lessons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.teacher-lesson-card {
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.teacher-lesson-card:hover {
+  transform: translateX(4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
+}
+
+/* Разные цвета для разных занятий */
+.teacher-lessons-container .teacher-lesson-card:nth-child(1) {
+  border-left: 4px solid var(--primary);
+}
+
+.teacher-lessons-container .teacher-lesson-card:nth-child(2) {
+  border-left: 4px solid var(--success);
+}
+
+.teacher-lessons-container .teacher-lesson-card:nth-child(3) {
+  border-left: 4px solid var(--warning);
+}
+
+.teacher-lessons-container .teacher-lesson-card:nth-child(4) {
+  border-left: 4px solid var(--danger);
+}
+
+.teacher-lessons-container .teacher-lesson-card:nth-child(5) {
+  border-left: 4px solid var(--accent);
+}
+
+.teacher-lessons-container .teacher-lesson-card:nth-child(6) {
+  border-left: 4px solid var(--secondary);
+}
+
+/* Стили для заметок преподавателя внутри карточки */
+.teacher-lesson-card .teacher-notes-textarea {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: var(--transition);
+  margin-top: 0.5rem;
+}
+
+.teacher-lesson-card .teacher-notes-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.1);
+}
+
+.teacher-lesson-card .teacher-actions-modern {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.teacher-lesson-card .teacher-action-btn {
+  padding: 0.4rem 0.8rem;
+  border-radius: 2rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.teacher-lesson-card .teacher-action-btn.cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.teacher-lesson-card .teacher-action-btn.cancel:hover {
+  background: rgba(193, 102, 107, 0.1);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.teacher-lesson-card .teacher-action-btn.save {
+  background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.teacher-lesson-card .teacher-action-btn.save:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Адаптация для мобильных */
+@media (max-width: 768px) {
+  .teacher-lessons-container {
+    max-height: 350px;
+    gap: 0.5rem;
+  }
+  
+  .teacher-lesson-card {
+    padding: 0.5rem;
+  }
+  
+  .teacher-lesson-card .lesson-title {
+    font-size: 0.8rem;
+  }
+  
+  .teacher-lesson-card .lesson-info {
+    font-size: 0.7rem;
+  }
+  
+  .teacher-lesson-card .teacher-notes-textarea {
+    font-size: 0.75rem;
+  }
+}

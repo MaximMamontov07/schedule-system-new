@@ -631,7 +631,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   );
 };
 
-// Панель преподавателя
+// Панель преподавателя с поддержкой нескольких занятий
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const getWeekDates = () => {
     const now = new Date();
@@ -651,14 +651,15 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
 
   const weekDates = getWeekDates();
   
+  // Матрица с массивами занятий
   const scheduleMatrix = useMemo(() => {
-    const matrix = Array(7).fill().map(() => Array(6).fill(null));
+    const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
       data.forEach(lesson => {
         const dayIndex = lesson.day_of_week - 1;
         const pairIndex = lesson.pair_number - 1;
         if (dayIndex >= 0 && dayIndex < 7 && pairIndex >= 0 && pairIndex < 6) {
-          matrix[dayIndex][pairIndex] = lesson;
+          matrix[dayIndex][pairIndex].push(lesson);
         }
       });
     }
@@ -701,50 +702,57 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 </div>
               </td>
               {DAYS.map((_, dayIndex) => {
-                const lesson = scheduleMatrix[dayIndex][pair.number - 1];
-                const hasLesson = lesson !== null;
-                const currentData = hasLesson ? (localData[lesson.id] || { notes: lesson.notes || '' }) : null;
-                const isChanged = hasLesson ? hasChanges[lesson.id] : false;
-                const isSaving = hasLesson ? saving[lesson.id] : false;
+                const lessons = scheduleMatrix[dayIndex][pair.number - 1];
+                const hasLessons = lessons.length > 0;
                 const date = weekDates[dayIndex];
                 const isToday = date && date.toDateString() === new Date().toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLesson ? 'has-lesson' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
-                    {hasLesson ? (
-                      <div className="teacher-lesson-card">
-                        <div className="lesson-header">
-                          <h4 className="lesson-title">{lesson.subject_name}</h4>
-                          <div className="lesson-badges">
-                            <span className="lesson-group-tag">{lesson.group_name}</span>
-                            {isChanged && <span className="unsaved-badge"><i className="fas fa-circle"></i> Не сохранено</span>}
-                          </div>
-                        </div>
-                        <div className="lesson-body">
-                          <div className="lesson-info">
-                            <i className="fas fa-door-open"></i>
-                            <span>{lesson.classroom_name || 'Аудитория не указана'}</span>
-                          </div>
-                          <textarea 
-                            placeholder="Заметки (домашнее задание, материалы...)"
-                            value={currentData?.notes || ''}
-                            onChange={(e) => onNotesChange(lesson.id, e.target.value)}
-                            rows="3"
-                            disabled={isSaving}
-                            className="teacher-notes-textarea"
-                          />
-                          {isChanged && (
-                            <div className="teacher-actions-modern">
-                              <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="teacher-action-btn cancel">
-                                <i className="fas fa-times"></i> Отмена
-                              </button>
-                              <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="teacher-action-btn save">
-                                {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
-                              </button>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                    {hasLessons ? (
+                      <div className="teacher-lessons-container">
+                        {lessons.map((lesson, idx) => {
+                          const currentData = localData[lesson.id] || { notes: lesson.notes || '' };
+                          const isChanged = hasChanges[lesson.id] || false;
+                          const isSaving = saving[lesson.id] || false;
+                          
+                          return (
+                            <div key={lesson.id || idx} className="teacher-lesson-card">
+                              <div className="lesson-header">
+                                <h4 className="lesson-title">{lesson.subject_name}</h4>
+                                <div className="lesson-badges">
+                                  <span className="lesson-group-tag">{lesson.group_name}</span>
+                                  {isChanged && <span className="unsaved-badge"><i className="fas fa-circle"></i> Не сохранено</span>}
+                                </div>
+                              </div>
+                              <div className="lesson-body">
+                                <div className="lesson-info">
+                                  <i className="fas fa-door-open"></i>
+                                  <span>{lesson.classroom_name || 'Аудитория не указана'}</span>
+                                </div>
+                                <textarea 
+                                  placeholder="Заметки (домашнее задание, материалы...)"
+                                  value={currentData.notes || ''}
+                                  onChange={(e) => onNotesChange(lesson.id, e.target.value)}
+                                  rows="2"
+                                  disabled={isSaving}
+                                  className="teacher-notes-textarea"
+                                />
+                                {isChanged && (
+                                  <div className="teacher-actions-modern">
+                                    <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="teacher-action-btn cancel">
+                                      <i className="fas fa-times"></i> Отмена
+                                    </button>
+                                    <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="teacher-action-btn save">
+                                      {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="empty-cell"></div>
