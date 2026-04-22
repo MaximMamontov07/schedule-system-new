@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { isAdmin } from '@/lib/auth';
+import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(request) {
   try {
-    if (!(await isAdmin(request))) {
-      return NextResponse.json({ error: 'Только администратор' }, { status: 403 });
+    const user = await getUserFromRequest(request);
+    if (!user || user.role !== 'admin') {
+      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 
     const db = await getDb();
@@ -26,7 +27,7 @@ export async function DELETE(request) {
   try {
     const currentUser = await getUserFromRequest(request);
     if (!currentUser || currentUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Только администратор' }, { status: 403 });
+      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

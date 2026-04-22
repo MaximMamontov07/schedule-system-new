@@ -1,11 +1,30 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { isAdmin } from '@/lib/auth';
+import { getUserFromRequest } from '@/lib/auth';
+
+export async function DELETE(request, { params }) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user || !['methodist', 'admin'].includes(user.role)) {
+      return NextResponse.json({ error: 'Нет прав' }, { status: 403 });
+    }
+
+    const db = await getDb();
+    const { id } = await params;
+    
+    await db.query('DELETE FROM schedule WHERE id = $1', [id]);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Schedule DELETE error:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+  }
+}
 
 export async function PUT(request, { params }) {
   try {
-    if (!(await isAdmin(request))) {
-      return NextResponse.json({ error: 'Только администратор' }, { status: 403 });
+    const user = await getUserFromRequest(request);
+    if (!user || !['methodist', 'admin'].includes(user.role)) {
+      return NextResponse.json({ error: 'Нет прав' }, { status: 403 });
     }
 
     const db = await getDb();
@@ -22,23 +41,6 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Schedule PUT error:', error);
-    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
-  }
-}
-
-export async function DELETE(request, { params }) {
-  try {
-    if (!(await isAdmin(request))) {
-      return NextResponse.json({ error: 'Только администратор' }, { status: 403 });
-    }
-
-    const db = await getDb();
-    const { id } = await params;
-    
-    await db.query('DELETE FROM schedule WHERE id = $1', [id]);
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Schedule DELETE error:', error);
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
