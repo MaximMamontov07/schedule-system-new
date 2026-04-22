@@ -206,10 +206,12 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   );
 };
 
-// Компонент фильтров (без "Все ..." значений)
-const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, hasActiveFilters }) => {
+// Компонент фильтров
+const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, hasActiveFilters, showGroupFilter = true, isStudent = false }) => {
   const weekStart = weekDates[0];
   const weekEnd = weekDates[6];
+  
+  const areControlsDisabled = !hasActiveFilters && !isStudent;
   
   return (
     <div className="filter-section">
@@ -219,8 +221,8 @@ const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, cl
             className="calendar-icon-btn" 
             onClick={onOpenCalendar} 
             title="Выбрать дату"
-            disabled={!hasActiveFilters}
-            style={{ opacity: !hasActiveFilters ? 0.5 : 1, cursor: !hasActiveFilters ? 'not-allowed' : 'pointer' }}
+            disabled={areControlsDisabled}
+            style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
           >
             <i className="fas fa-calendar-alt"></i>
             {selectedDate && (
@@ -235,8 +237,8 @@ const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, cl
               onClick={onPrevWeek} 
               className="week-nav-btn" 
               title="Предыдущая неделя"
-              disabled={!hasActiveFilters}
-              style={{ opacity: !hasActiveFilters ? 0.5 : 1, cursor: !hasActiveFilters ? 'not-allowed' : 'pointer' }}
+              disabled={areControlsDisabled}
+              style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
             >
               <i className="fas fa-chevron-left"></i>
             </button>
@@ -251,8 +253,8 @@ const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, cl
               onClick={onNextWeek} 
               className="week-nav-btn" 
               title="Следующая неделя"
-              disabled={!hasActiveFilters}
-              style={{ opacity: !hasActiveFilters ? 0.5 : 1, cursor: !hasActiveFilters ? 'not-allowed' : 'pointer' }}
+              disabled={areControlsDisabled}
+              style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
             >
               <i className="fas fa-chevron-right"></i>
             </button>
@@ -260,8 +262,8 @@ const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, cl
               onClick={onCurrentWeek} 
               className="week-today-btn" 
               title="Текущая неделя"
-              disabled={!hasActiveFilters}
-              style={{ opacity: !hasActiveFilters ? 0.5 : 1, cursor: !hasActiveFilters ? 'not-allowed' : 'pointer' }}
+              disabled={areControlsDisabled}
+              style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
             >
               <i className="fas fa-calendar-day"></i> Сегодня
             </button>
@@ -273,19 +275,26 @@ const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, cl
       </div>
       
       <div className="filter-grid">
-        <div className="filter-group">
-          <label><i className="fas fa-users"></i> Группа</label>
-          <select 
-            value={filters.groupId} 
-            onChange={(e) => onFilterChange('groupId', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Выберите группу</option>
-            {groups?.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-        </div>
+        {showGroupFilter && (
+          <div className="filter-group">
+            <label><i className="fas fa-users"></i> Группа</label>
+            <select 
+              value={filters.groupId} 
+              onChange={(e) => onFilterChange('groupId', e.target.value)}
+              className="filter-select"
+              disabled={isStudent}
+              style={isStudent ? { opacity: 0.7, cursor: 'not-allowed', background: 'var(--surface-muted)' } : {}}
+            >
+              <option value="">Выберите группу</option>
+              {groups?.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            {isStudent && (
+              <div className="filter-hint">Ваша группа: {groups.find(g => g.id === parseInt(filters.groupId))?.name}</div>
+            )}
+          </div>
+        )}
 
         <div className="filter-group">
           <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
@@ -389,7 +398,7 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
               </div>
             </th>
             {DAYS.map((day, idx) => {
-              const date = weekDates[idx];
+              const date = weekDates?.[idx];
               const isToday = date && date.toDateString() === new Date().toDateString();
               const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
               const isWeekend = idx === 5 || idx === 6;
@@ -416,7 +425,7 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
               {DAYS.map((_, dayIndex) => {
                 const lessons = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLessons = lessons.length > 0;
-                const date = weekDates[dayIndex];
+                const date = weekDates?.[dayIndex];
                 const isToday = date && date.toDateString() === new Date().toDateString();
                 const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
@@ -501,6 +510,192 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
+// Компонент для отображения расписания с учетом роли пользователя
+const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId }) => {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
+  
+  const isStudent = userRole === 'student';
+  const [filters, setFilters] = useState({
+    groupId: isStudent && userGroupId ? String(userGroupId) : '',
+    teacherId: '',
+    subjectId: '',
+    dayOfWeek: '',
+    pairNumber: '',
+    classroomId: ''
+  });
+
+  useEffect(() => {
+    if (isStudent && userGroupId) {
+      setHasAppliedFilter(true);
+    }
+  }, [isStudent, userGroupId]);
+
+  const getWeekDatesWithOffset = (offset, baseDate) => {
+    const date = baseDate || new Date();
+    const currentDay = date.getDay();
+    const monday = new Date(date);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(date.getDate() - diff + (offset * 7));
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDates.push(d);
+    }
+    return weekDates;
+  };
+
+  const weekDates = getWeekDatesWithOffset(weekOffset, selectedDate);
+
+  const filteredSchedule = useMemo(() => {
+    let filtered = [...schedule];
+    
+    if (filters.groupId) {
+      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
+    }
+    if (filters.teacherId) {
+      filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
+    }
+    if (filters.subjectId) {
+      filtered = filtered.filter(s => s.subject_id === parseInt(filters.subjectId));
+    }
+    if (filters.dayOfWeek) {
+      filtered = filtered.filter(s => s.day_of_week === parseInt(filters.dayOfWeek));
+    }
+    if (filters.pairNumber) {
+      filtered = filtered.filter(s => s.pair_number === parseInt(filters.pairNumber));
+    }
+    if (filters.classroomId) {
+      filtered = filtered.filter(s => s.classroom_id === parseInt(filters.classroomId));
+    }
+    
+    return filtered;
+  }, [schedule, filters]);
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setHasAppliedFilter(true);
+  };
+
+  const resetFilters = () => {
+    if (isStudent && userGroupId) {
+      setFilters({
+        groupId: String(userGroupId),
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setHasAppliedFilter(true);
+    } else {
+      setFilters({
+        groupId: '',
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setHasAppliedFilter(false);
+    }
+    setSelectedDate(null);
+    setWeekOffset(0);
+  };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setWeekOffset(0);
+  };
+
+  const handlePrevWeek = () => {
+    setWeekOffset(prev => prev - 1);
+    setSelectedDate(null);
+  };
+
+  const handleNextWeek = () => {
+    setWeekOffset(prev => prev + 1);
+    setSelectedDate(null);
+  };
+
+  const handleCurrentWeek = () => {
+    setWeekOffset(0);
+    setSelectedDate(null);
+  };
+
+  const hasActiveFilters = filters.groupId || filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId;
+  
+  const availableGroups = isStudent ? groups.filter(g => g.id === userGroupId) : groups;
+  const showGroupFilter = !isStudent;
+
+  if (loading) {
+    return (
+      <div className="loading-state">
+        <div className="spinner"></div>
+        <p>Загрузка расписания...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="schedule-container">
+      <FilterSection 
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        groups={availableGroups}
+        teachers={teachers}
+        subjects={subjects}
+        classrooms={classrooms}
+        onReset={resetFilters}
+        onOpenCalendar={() => setShowCalendar(true)}
+        selectedDate={selectedDate}
+        weekDates={weekDates}
+        onPrevWeek={handlePrevWeek}
+        onNextWeek={handleNextWeek}
+        onCurrentWeek={handleCurrentWeek}
+        hasActiveFilters={hasActiveFilters || isStudent}
+        showGroupFilter={showGroupFilter}
+        isStudent={isStudent}
+      />
+      
+      {showCalendar && createPortal(
+        <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
+          <DatePicker 
+            onDateSelect={handleDateSelect}
+            onClose={() => setShowCalendar(false)}
+            selectedDate={selectedDate}
+          />
+        </div>,
+        document.body
+      )}
+      
+      {!hasAppliedFilter && !isStudent ? (
+        <div className="filter-placeholder">
+          <i className="fas fa-filter"></i>
+          <h3>Выберите параметры для просмотра расписания</h3>
+          <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
+        </div>
+      ) : filteredSchedule.length === 0 ? (
+        <div className="empty-state">
+          <i className="fas fa-search"></i>
+          <p>Нет занятий по выбранным фильтрам</p>
+        </div>
+      ) : (
+        <ScheduleGrid 
+          data={filteredSchedule} 
+          canEdit={false} 
+          weekDates={weekDates}
+          selectedDate={selectedDate}
+        />
+      )}
+    </div>
+  );
+};
+
 // Публичный компонент для лендинга
 const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
   const [showCalendar, setShowCalendar] = useState(false);
@@ -561,7 +756,6 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-    // Автоматически применяем фильтр при любом изменении
     setHasAppliedFilter(true);
   };
 
@@ -627,6 +821,8 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         onNextWeek={handleNextWeek}
         onCurrentWeek={handleCurrentWeek}
         hasActiveFilters={hasActiveFilters}
+        showGroupFilter={true}
+        isStudent={false}
       />
       
       {showCalendar && createPortal(
@@ -640,7 +836,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         document.body
       )}
       
-      {!hasAppliedFilter || !hasActiveFilters ? (
+      {!hasAppliedFilter ? (
         <div className="filter-placeholder">
           <i className="fas fa-filter"></i>
           <h3>Выберите параметры для просмотра расписания</h3>
@@ -1360,6 +1556,12 @@ function HomeContent() {
     }
     
     if (activeTab === 'schedule') {
+      let displaySchedule = schedule;
+      
+      if (user && user.role === 'student' && user.groupId) {
+        displaySchedule = schedule.filter(s => s.group_id === user.groupId);
+      }
+      
       return (
         <div className="content-card">
           <div className="content-header">
@@ -1384,13 +1586,15 @@ function HomeContent() {
           {loading ? (
             <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
           ) : (
-            <PublicScheduleView 
-              schedule={schedule}
+            <ScheduleView 
+              schedule={displaySchedule}
               groups={groups}
               teachers={teachers}
               subjects={subjects}
               classrooms={classrooms}
               loading={loading}
+              userRole={user?.role}
+              userGroupId={user?.groupId}
             />
           )}
         </div>
