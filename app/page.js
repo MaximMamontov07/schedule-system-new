@@ -44,7 +44,7 @@ const PAIRS = [
   { number: 5, time: '15:30-17:00', name: '5 пара' },
   { number: 6, time: '17:10-18:40', name: '6 пара' }
 ];
-const ROLES = { admin: 'Администратор', methodist: 'Методист', teacher: 'Преподаватель', student: 'Студент' };
+const ROLES = { admin: 'Администратор', teacher: 'Преподаватель', student: 'Студент' };
 
 const formatDate = (date) => {
   const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -1002,6 +1002,58 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
+// Компонент для выбора учителя и отчета по часам (для администратора)
+const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [generating, setGenerating] = useState(false);
+  
+  const handleGenerate = async () => {
+    if (!selectedTeacherId) {
+      alert('Выберите преподавателя');
+      return;
+    }
+    setGenerating(true);
+    await onGenerate(selectedTeacherId);
+    setGenerating(false);
+    onClose();
+  };
+  
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="modal-container" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2><i className="fas fa-chart-line"></i> Отчет по часам преподавателя</h2>
+          <button className="modal-close" onClick={onClose}><i className="fas fa-times"></i></button>
+        </div>
+        <div className="modal-form">
+          <div className="form-group">
+            <label><i className="fas fa-chalkboard-teacher"></i> Выберите преподавателя</label>
+            <select 
+              value={selectedTeacherId} 
+              onChange={(e) => setSelectedTeacherId(e.target.value)}
+              className="filter-select"
+              style={{ width: '100%' }}
+            >
+              <option value="">-- Выберите преподавателя --</option>
+              {teachers.map(teacher => (
+                <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+              ))}
+            </select>
+          </div>
+          <button 
+            className="submit-btn" 
+            onClick={handleGenerate}
+            disabled={generating}
+          >
+            {generating ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-download"></i>}
+            {generating ? ' Формирование...' : ' Сформировать отчет'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
   const [schedule, setSchedule] = useState([]);
@@ -1017,6 +1069,7 @@ function HomeContent() {
   const [notification, setNotification] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('schedule');
+  const [showTeacherReportModal, setShowTeacherReportModal] = useState(false);
   
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
@@ -1045,104 +1098,16 @@ function HomeContent() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const canEditSchedule = user && ['methodist', 'admin'].includes(user.role);
+  const canEditSchedule = user && user.role === 'admin';
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  const exportToExcel = () => {
-    let exportData = [];
-    
-    if (activeTab === 'my-lessons' && isTeacher) {
-      const teacher = teachers.find(t => t.user_id === user.id);
-      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
-      exportData = teacherLessons.map(lesson => ({
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Группа': lesson.group_name,
-        'Предмет': lesson.subject_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
-    } else if (user && user.role === 'student' && user.groupId) {
-      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Предмет': lesson.subject_name,
-        'Преподаватель': lesson.teacher_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
-    } else {
-      exportData = schedule.map(lesson => ({
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Группа': lesson.group_name,
-        'Предмет': lesson.subject_name,
-        'Преподаватель': lesson.teacher_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
-    }
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Расписание");
-    XLSX.writeFile(wb, `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`);
-    showNotification('Excel файл сохранен', 'success');
-  };
-
-  const exportToPDF = async () => {
-    try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      let exportData = [];
-      
-      if (activeTab === 'my-lessons' && isTeacher) {
-        const teacher = teachers.find(t => t.user_id === user.id);
-        exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
-      } else if (user && user.role === 'student' && user.groupId) {
-        exportData = schedule.filter(s => s.group_id === user.groupId);
-      } else {
-        exportData = schedule;
-      }
-      
-      const element = document.createElement('div');
-      element.innerHTML = `
-        <html>
-          <head><meta charset="UTF-8"></head>
-          <body>
-            <h1>${activeTab === 'my-lessons' ? 'Мои занятия' : 'Расписание занятий'}</h1>
-            <table border="1" cellpadding="8">
-              <thead><tr><th>День</th><th>Время</th>${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
-              <tbody>
-                ${exportData.map(lesson => `
-                  <tr>
-                    <td>${DAYS[lesson.day_of_week - 1]}</td>
-                    <td>${PAIRS[lesson.pair_number - 1].time}</td>
-                    ${activeTab !== 'my-lessons' && user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
-                    <td>${lesson.subject_name}</td>
-                    <td>${lesson.teacher_name}</td>
-                    <td>${lesson.classroom_name || '—'}</td>
-                    <td>${lesson.notes || '—'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `;
-      await html2pdf().from(element).save();
-      showNotification('PDF файл сохранен', 'success');
-    } catch (error) {
-      showNotification('Ошибка экспорта PDF', 'error');
-    }
-  };
-
-  // Функция для экспорта отчета по часам для преподавателя
-  const exportTeacherHoursReport = async () => {
+  // Функция для генерации отчета по часам для любого учителя
+  const generateTeacherReport = async (teacherId) => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
       
-      const teacher = teachers.find(t => t.user_id === user.id);
+      const teacher = teachers.find(t => t.id === parseInt(teacherId));
       if (!teacher) {
         showNotification('Преподаватель не найден', 'error');
         return;
@@ -1279,15 +1244,6 @@ function HomeContent() {
                 font-size: 12px;
                 color: #94a3b8;
               }
-              .hours-badge {
-                display: inline-block;
-                background: #2c5f2d;
-                color: white;
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: bold;
-              }
             </style>
           </head>
           <body>
@@ -1330,7 +1286,7 @@ function HomeContent() {
             </table>
             
             ${Object.values(subjectsHours).map(item => `
-              <div class="subject-title">${item.name}</div>
+              <div class="subject-title">📚 ${item.name}</div>
               <table class="details-table">
                 <thead>
                   <tr>
@@ -1380,10 +1336,118 @@ function HomeContent() {
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
       }).from(element).save();
       
-      showNotification('Отчет успешно сформирован', 'success');
+      showNotification(`Отчет по преподавателю "${teacher.name}" успешно сформирован`, 'success');
     } catch (error) {
       console.error('Report error:', error);
       showNotification('Ошибка формирования отчета', 'error');
+    }
+  };
+
+  // Функция для экспорта отчета по часам для текущего преподавателя (для учителя)
+  const exportTeacherHoursReport = async () => {
+    if (!user || user.role !== 'teacher') return;
+    
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      
+      const teacher = teachers.find(t => t.user_id === user.id);
+      if (!teacher) {
+        showNotification('Преподаватель не найден', 'error');
+        return;
+      }
+      
+      await generateTeacherReport(teacher.id);
+    } catch (error) {
+      console.error('Report error:', error);
+      showNotification('Ошибка формирования отчета', 'error');
+    }
+  };
+
+  const exportToExcel = () => {
+    let exportData = [];
+    
+    if (activeTab === 'my-lessons' && isTeacher) {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      exportData = teacherLessons.map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (user && user.role === 'student' && user.groupId) {
+      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else {
+      exportData = schedule.map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    }
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Расписание");
+    XLSX.writeFile(wb, `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showNotification('Excel файл сохранен', 'success');
+  };
+
+  const exportToPDF = async () => {
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      let exportData = [];
+      
+      if (activeTab === 'my-lessons' && isTeacher) {
+        const teacher = teachers.find(t => t.user_id === user.id);
+        exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      } else if (user && user.role === 'student' && user.groupId) {
+        exportData = schedule.filter(s => s.group_id === user.groupId);
+      } else {
+        exportData = schedule;
+      }
+      
+      const element = document.createElement('div');
+      element.innerHTML = `
+        <html>
+          <head><meta charset="UTF-8"></head>
+          <body>
+            <h1>${activeTab === 'my-lessons' ? 'Мои занятия' : 'Расписание занятий'}</h1>
+            <table border="1" cellpadding="8">
+              <thead><tr><th>День</th><th>Время</th>${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
+              <tbody>
+                ${exportData.map(lesson => `
+                  <tr>
+                    <td>${DAYS[lesson.day_of_week - 1]}</td>
+                    <td>${PAIRS[lesson.pair_number - 1].time}</td>
+                    ${activeTab !== 'my-lessons' && user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
+                    <td>${lesson.subject_name}</td>
+                    <td>${lesson.teacher_name}</td>
+                    <td>${lesson.classroom_name || '—'}</td>
+                    <td>${lesson.notes || '—'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+      await html2pdf().from(element).save();
+      showNotification('PDF файл сохранен', 'success');
+    } catch (error) {
+      showNotification('Ошибка экспорта PDF', 'error');
     }
   };
 
@@ -1844,6 +1908,11 @@ function HomeContent() {
               <button className="action-button export-pdf" onClick={exportToPDF}>
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
+              {user && user.role === 'admin' && (
+                <button className="action-button report-hours" onClick={() => setShowTeacherReportModal(true)}>
+                  <i className="fas fa-chart-line"></i> Отчет по часам (учителя)
+                </button>
+              )}
             </div>
           </div>
           
@@ -2069,7 +2138,7 @@ function HomeContent() {
             <div className="users-list">
               {users.map(u => (
                 <div key={u.id} className="user-card">
-                  <div className="user-avatar"><i className={`fas ${u.role === 'admin' ? 'fa-crown' : u.role === 'methodist' ? 'fa-clipboard-list' : u.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i></div>
+                  <div className="user-avatar"><i className={`fas ${u.role === 'admin' ? 'fa-crown' : u.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i></div>
                   <div className="user-details">
                     <div className="user-name">{u.full_name}</div>
                     <div className="user-meta">@{u.username} • {ROLES[u.role]}{u.group_name && ` • Группа: ${u.group_name}`}</div>
@@ -2227,7 +2296,7 @@ function HomeContent() {
         
         <div className="sidebar-profile">
           <div className="profile-avatar">
-            <i className={`fas ${user.role === 'admin' ? 'fa-crown' : user.role === 'methodist' ? 'fa-clipboard-list' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
+            <i className={`fas ${user.role === 'admin' ? 'fa-crown' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
           </div>
           <div className="profile-info">
             <div className="profile-name">{user.fullName}</div>
@@ -2248,7 +2317,7 @@ function HomeContent() {
             </button>
           )}
           
-          {(user?.role === 'methodist' || user?.role === 'admin') && (
+          {user?.role === 'admin' && (
             <>
               <button className={`nav-item ${activeTab === 'manage-schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('manage-schedule'); setSidebarOpen(false); }}>
                 <i className="fas fa-plus-circle"></i><span>Управление</span>
@@ -2256,13 +2325,10 @@ function HomeContent() {
               <button className={`nav-item ${activeTab === 'directories' ? 'active' : ''}`} onClick={() => { setActiveTab('directories'); setSidebarOpen(false); }}>
                 <i className="fas fa-database"></i><span>Справочники</span>
               </button>
+              <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
+                <i className="fas fa-users-cog"></i><span>Пользователи</span>
+              </button>
             </>
-          )}
-          
-          {user?.role === 'admin' && (
-            <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
-              <i className="fas fa-users-cog"></i><span>Пользователи</span>
-            </button>
           )}
         </nav>
         
@@ -2315,13 +2381,16 @@ function HomeContent() {
               <div className="form-group"><label>ФИО</label><input placeholder="ФИО" value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required /></div>
               <div className="form-group"><label>Роль</label>
                 <select value={registerData.role} onChange={e => setRegisterData({...registerData, role: e.target.value})}>
-                  <option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="methodist">Методист</option><option value="admin">Администратор</option>
+                  <option value="student">Студент</option>
+                  <option value="teacher">Преподаватель</option>
+                  <option value="admin">Администратор</option>
                 </select>
               </div>
               {registerData.role === 'student' && (
                 <div className="form-group"><label>Группа</label>
                   <select value={registerData.groupId} onChange={e => setRegisterData({...registerData, groupId: e.target.value})}>
-                    <option value="">Выберите группу</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    <option value="">Выберите группу</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
               )}
@@ -2449,6 +2518,16 @@ function HomeContent() {
             </form>
           </div>
         </div>,
+        document.body
+      )}
+
+      {showTeacherReportModal && createPortal(
+        <TeacherReportModal 
+          teachers={teachers}
+          schedule={schedule}
+          onClose={() => setShowTeacherReportModal(false)}
+          onGenerate={generateTeacherReport}
+        />,
         document.body
       )}
     </div>
