@@ -701,7 +701,6 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
   const [filters, setFilters] = useState({
     groupId: '',
     teacherId: '',
@@ -754,9 +753,18 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     return filtered;
   }, [schedule, filters]);
 
+  // Проверяем, есть ли активные фильтры (не пустые значения)
+  const hasActiveFilters = filters.groupId !== '' || 
+                          filters.teacherId !== '' || 
+                          filters.subjectId !== '' || 
+                          filters.dayOfWeek !== '' || 
+                          filters.pairNumber !== '' || 
+                          filters.classroomId !== '' ||
+                          selectedDate !== null ||
+                          weekOffset !== 0;
+
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-    setHasAppliedFilter(true);
   };
 
   const resetFilters = () => {
@@ -770,7 +778,6 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     });
     setSelectedDate(null);
     setWeekOffset(0);
-    setHasAppliedFilter(false);
   };
 
   const handleDateSelect = (date) => {
@@ -792,8 +799,6 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     setWeekOffset(0);
     setSelectedDate(null);
   };
-
-  const hasActiveFilters = filters.groupId || filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId;
 
   if (loading) {
     return (
@@ -836,7 +841,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         document.body
       )}
       
-      {!hasAppliedFilter ? (
+      {!hasActiveFilters ? (
         <div className="filter-placeholder">
           <i className="fas fa-filter"></i>
           <h3>Выберите параметры для просмотра расписания</h3>
