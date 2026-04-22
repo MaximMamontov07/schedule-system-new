@@ -2934,7 +2934,15 @@ body {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
+.action-button.report-hours {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+  color: white;
+  border: none;
+}
 
+.action-button.report-hours:hover {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+}
 /* Адаптация для мобильных */
 @media (max-width: 768px) {
   .teacher-lessons-container {

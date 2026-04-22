@@ -701,6 +701,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
   const [filters, setFilters] = useState({
     groupId: '',
     teacherId: '',
@@ -753,7 +754,6 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     return filtered;
   }, [schedule, filters]);
 
-  // Проверяем, есть ли активные фильтры (не пустые значения)
   const hasActiveFilters = filters.groupId !== '' || 
                           filters.teacherId !== '' || 
                           filters.subjectId !== '' || 
@@ -765,6 +765,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    setHasAppliedFilter(true);
   };
 
   const resetFilters = () => {
@@ -778,6 +779,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     });
     setSelectedDate(null);
     setWeekOffset(0);
+    setHasAppliedFilter(false);
   };
 
   const handleDateSelect = (date) => {
@@ -841,7 +843,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         document.body
       )}
       
-      {!hasActiveFilters ? (
+      {!hasAppliedFilter ? (
         <div className="filter-placeholder">
           <i className="fas fa-filter"></i>
           <h3>Выберите параметры для просмотра расписания</h3>
@@ -1132,6 +1134,256 @@ function HomeContent() {
       showNotification('PDF файл сохранен', 'success');
     } catch (error) {
       showNotification('Ошибка экспорта PDF', 'error');
+    }
+  };
+
+  // Функция для экспорта отчета по часам для преподавателя
+  const exportTeacherHoursReport = async () => {
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      
+      const teacher = teachers.find(t => t.user_id === user.id);
+      if (!teacher) {
+        showNotification('Преподаватель не найден', 'error');
+        return;
+      }
+      
+      const teacherLessons = schedule.filter(lesson => lesson.teacher_id === teacher.id);
+      
+      const subjectsHours = {};
+      teacherLessons.forEach(lesson => {
+        const subjectName = lesson.subject_name;
+        if (!subjectsHours[subjectName]) {
+          subjectsHours[subjectName] = {
+            name: subjectName,
+            hours: 0,
+            lessons: []
+          };
+        }
+        subjectsHours[subjectName].hours += 1.5;
+        subjectsHours[subjectName].lessons.push(lesson);
+      });
+      
+      const now = new Date();
+      const currentDay = now.getDay();
+      const monday = new Date(now);
+      const diff = currentDay === 0 ? 6 : currentDay - 1;
+      monday.setDate(now.getDate() - diff);
+      
+      const weekDates = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        weekDates.push(date);
+      }
+      
+      const weekStart = weekDates[0];
+      const weekEnd = weekDates[6];
+      const weekNumber = getWeekNumber(weekStart);
+      
+      const element = document.createElement('div');
+      element.innerHTML = `
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              body {
+                font-family: 'Inter', Arial, sans-serif;
+                padding: 40px;
+                color: #1e293b;
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #2c3e66;
+              }
+              .header h1 {
+                font-size: 24px;
+                margin: 0 0 10px 0;
+                color: #2c3e66;
+              }
+              .header h2 {
+                font-size: 18px;
+                margin: 0;
+                color: #475569;
+                font-weight: normal;
+              }
+              .teacher-info {
+                background: #f8fafc;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                border: 1px solid #e2e8f0;
+              }
+              .teacher-info p {
+                margin: 5px 0;
+                font-size: 14px;
+              }
+              .teacher-info strong {
+                color: #2c3e66;
+              }
+              .summary-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+              }
+              .summary-table th,
+              .summary-table td {
+                border: 1px solid #e2e8f0;
+                padding: 12px;
+                text-align: left;
+              }
+              .summary-table th {
+                background: #2c3e66;
+                color: white;
+                font-weight: 600;
+              }
+              .summary-table tr:nth-child(even) {
+                background: #f8fafc;
+              }
+              .total-row {
+                background: #e2e8f0 !important;
+                font-weight: bold;
+              }
+              .details-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+                margin-bottom: 20px;
+              }
+              .details-table th,
+              .details-table td {
+                border: 1px solid #e2e8f0;
+                padding: 8px;
+                font-size: 12px;
+              }
+              .details-table th {
+                background: #64748b;
+                color: white;
+                font-weight: 600;
+              }
+              .subject-title {
+                font-size: 16px;
+                font-weight: bold;
+                margin: 20px 0 10px 0;
+                color: #2c3e66;
+                padding-left: 5px;
+                border-left: 4px solid #2c3e66;
+              }
+              .footer {
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e2e8f0;
+                text-align: center;
+                font-size: 12px;
+                color: #94a3b8;
+              }
+              .hours-badge {
+                display: inline-block;
+                background: #2c5f2d;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: bold;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>Отчет о нагрузке преподавателя</h1>
+              <h2>${formatDate(weekStart)} - ${formatDate(weekEnd)} (${weekNumber} неделя)</h2>
+            </div>
+            
+            <div class="teacher-info">
+              <p><strong>Преподаватель:</strong> ${teacher.name}</p>
+              <p><strong>Всего занятий за неделю:</strong> ${teacherLessons.length} пар</p>
+              <p><strong>Общая нагрузка:</strong> ${(teacherLessons.length * 1.5).toFixed(1)} академических часов</p>
+            </div>
+            
+            <h3>Сводка по предметам</h3>
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>Предмет</th>
+                  <th>Количество пар</th>
+                  <th>Часов</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Object.values(subjectsHours).map((item, idx) => `
+                  <tr>
+                    <td>${idx + 1}</td>
+                    <td><strong>${item.name}</strong></td>
+                    <td>${item.lessons.length} пар</td>
+                    <td>${item.hours.toFixed(1)} ч.</td>
+                  </tr>
+                `).join('')}
+                <tr class="total-row">
+                  <td colspan="2"><strong>ИТОГО:</strong></td>
+                  <td><strong>${teacherLessons.length} пар</strong></td>
+                  <td><strong>${(teacherLessons.length * 1.5).toFixed(1)} ч.</strong></td>
+                </tr>
+              </tbody>
+            </table>
+            
+            ${Object.values(subjectsHours).map(item => `
+              <div class="subject-title">📚 ${item.name}</div>
+              <table class="details-table">
+                <thead>
+                  <tr>
+                    <th>День недели</th>
+                    <th>Дата</th>
+                    <th>Пара</th>
+                    <th>Группа</th>
+                    <th>Аудитория</th>
+                    <th>Часы</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${item.lessons.map(lesson => {
+                    const lessonDate = weekDates[lesson.day_of_week - 1];
+                    return `
+                      <tr>
+                        <td>${DAYS[lesson.day_of_week - 1]}</td>
+                        <td>${lessonDate ? formatDate(lessonDate) : '-'}</td>
+                        <td>${lesson.pair_number} пара</td>
+                        <td>${lesson.group_name}</td>
+                        <td>${lesson.classroom_name || '—'}</td>
+                        <td>1.5 ч.</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                  <tr style="background: #f1f5f9;">
+                    <td colspan="5"><strong>Итого по предмету:</strong></td>
+                    <td><strong>${item.hours.toFixed(1)} ч.</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            `).join('')}
+            
+            <div class="footer">
+              <p>Отчет сгенерирован автоматически • Система управления расписанием</p>
+              <p>Дата формирования: ${new Date().toLocaleString('ru-RU')}</p>
+            </div>
+          </body>
+        </html>
+      `;
+      
+      await html2pdf().set({
+        margin: [0.5, 0.5, 0.5, 0.5],
+        filename: `Отчет_${teacher.name}_неделя_${weekNumber}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, letterRendering: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      }).from(element).save();
+      
+      showNotification('Отчет успешно сформирован', 'success');
+    } catch (error) {
+      console.error('Report error:', error);
+      showNotification('Ошибка формирования отчета', 'error');
     }
   };
 
@@ -1526,8 +1778,15 @@ function HomeContent() {
                   <i className="fas fa-save"></i> Сохранить все ({Object.keys(hasChanges).filter(id => hasChanges[id]).length})
                 </button>
               )}
-              <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
-              <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
+              <button className="action-button export-excel" onClick={exportToExcel}>
+                <i className="fas fa-file-excel"></i> Excel
+              </button>
+              <button className="action-button export-pdf" onClick={exportToPDF}>
+                <i className="fas fa-file-pdf"></i> PDF
+              </button>
+              <button className="action-button report-hours" onClick={exportTeacherHoursReport}>
+                <i className="fas fa-chart-line"></i> Отчет по часам
+              </button>
             </div>
           </div>
           
