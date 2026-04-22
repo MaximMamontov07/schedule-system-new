@@ -5,10 +5,8 @@ import { getUserFromRequest, isAdmin } from '@/lib/auth';
 export async function GET(request) {
   try {
     const db = await getDb();
-    const user = await getUserFromRequest(request);
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
-    const teacherId = searchParams.get('teacherId');
 
     let query = `
       SELECT 
@@ -24,18 +22,10 @@ export async function GET(request) {
       LEFT JOIN classrooms c ON s.classroom_id = c.id
     `;
     let params = [];
-    let conditions = [];
 
-    if (teacherId && user?.role === 'admin') {
-      conditions.push('s.teacher_id = $' + (params.length + 1));
-      params.push(parseInt(teacherId));
-    } else if (groupId) {
-      conditions.push('s.group_id = $' + (params.length + 1));
+    if (groupId) {
+      query += ' WHERE s.group_id = $1';
       params.push(parseInt(groupId));
-    }
-
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
     }
 
     query += ' ORDER BY s.day_of_week, s.pair_number';
