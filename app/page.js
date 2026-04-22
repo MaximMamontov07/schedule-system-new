@@ -207,7 +207,7 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
 };
 
 // Компонент фильтров
-const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, isStudent }) => {
+const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, isStudent, showGroupFilter = true }) => {
   const weekStart = weekDates[0];
   const weekEnd = weekDates[6];
   
@@ -248,7 +248,7 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
         </button>
       </div>
       <div className="filter-grid">
-        {!isStudent && (
+        {showGroupFilter && !isStudent && (
           <div className="filter-group">
             <label><i className="fas fa-users"></i> Группа</label>
             <select 
@@ -478,7 +478,7 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// Компонент для отображения расписания с учетом роли пользователя
+// Компонент для отображения расписания с фильтрацией (без автоматической сетки)
 const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -491,6 +491,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     pairNumber: '',
     classroomId: ''
   });
+  const [showResults, setShowResults] = useState(false);
 
   const getWeekDatesWithOffset = (offset, baseDate) => {
     const date = baseDate || new Date();
@@ -537,6 +538,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    setShowResults(true);
   };
 
   const resetFilters = () => {
@@ -550,30 +552,36 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     });
     setSelectedDate(null);
     setWeekOffset(0);
+    setShowResults(false);
   };
 
   const handleDateSelect = (date) => {
     setSelectedDate(date);
     setWeekOffset(0);
+    setShowResults(true);
   };
 
   const handlePrevWeek = () => {
     setWeekOffset(prev => prev - 1);
     setSelectedDate(null);
+    setShowResults(true);
   };
 
   const handleNextWeek = () => {
     setWeekOffset(prev => prev + 1);
     setSelectedDate(null);
+    setShowResults(true);
   };
 
   const handleCurrentWeek = () => {
     setWeekOffset(0);
     setSelectedDate(null);
+    setShowResults(true);
   };
 
   const isStudent = userRole === 'student';
   const availableGroups = isStudent ? groups.filter(g => g.id === userGroupId) : groups;
+  const hasActiveFilters = filters.groupId || filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId || selectedDate || weekOffset !== 0;
 
   if (loading) {
     return (
@@ -601,6 +609,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         onNextWeek={handleNextWeek}
         onCurrentWeek={handleCurrentWeek}
         isStudent={isStudent}
+        showGroupFilter={true}
       />
       
       {showCalendar && createPortal(
@@ -614,7 +623,13 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         document.body
       )}
       
-      {filteredSchedule.length === 0 ? (
+      {!hasActiveFilters ? (
+        <div className="empty-state filter-placeholder">
+          <i className="fas fa-filter"></i>
+          <h3>Выберите параметры для просмотра расписания</h3>
+          <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
+        </div>
+      ) : filteredSchedule.length === 0 ? (
         <div className="empty-state">
           <i className="fas fa-search"></i>
           <p>Нет занятий по выбранным фильтрам</p>
@@ -631,7 +646,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   );
 };
 
-// Панель преподавателя с поддержкой нескольких занятий
+// Панель преподавателя (только его занятия)
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const getWeekDates = () => {
     const now = new Date();
@@ -651,7 +666,6 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
 
   const weekDates = getWeekDates();
   
-  // Матрица с массивами занятий
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
@@ -818,20 +832,21 @@ function HomeContent() {
   const exportToExcel = () => {
     let exportData = [];
     
-    if (user && user.role === 'student' && user.groupId) {
-      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Предмет': lesson.subject_name,
-        'Преподаватель': lesson.teacher_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
-    } else if (selectedGroupFilter) {
-      exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)).map(lesson => ({
+    if (activeTab === 'my-lessons' && isTeacher) {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      exportData = teacherLessons.map(lesson => ({
         'День недели': DAYS[lesson.day_of_week - 1],
         'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
         'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (user && user.role === 'student' && user.groupId) {
+      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
         'Предмет': lesson.subject_name,
         'Преподаватель': lesson.teacher_name,
         'Аудитория': lesson.classroom_name || '—',
@@ -861,10 +876,11 @@ function HomeContent() {
       const html2pdf = (await import('html2pdf.js')).default;
       let exportData = [];
       
-      if (user && user.role === 'student' && user.groupId) {
+      if (activeTab === 'my-lessons' && isTeacher) {
+        const teacher = teachers.find(t => t.user_id === user.id);
+        exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      } else if (user && user.role === 'student' && user.groupId) {
         exportData = schedule.filter(s => s.group_id === user.groupId);
-      } else if (selectedGroupFilter) {
-        exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter));
       } else {
         exportData = schedule;
       }
@@ -874,18 +890,19 @@ function HomeContent() {
         <html>
           <head><meta charset="UTF-8"></head>
           <body>
-            <h1>Расписание занятий</h1>
+            <h1>${activeTab === 'my-lessons' ? 'Мои занятия' : 'Расписание занятий'}</h1>
             <table border="1" cellpadding="8">
-              <thead><tr><th>День</th><th>Время</th>${user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th></tr></thead>
+              <thead><tr><th>День</th><th>Время</th>${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
               <tbody>
                 ${exportData.map(lesson => `
                   <tr>
                     <td>${DAYS[lesson.day_of_week - 1]}</td>
                     <td>${PAIRS[lesson.pair_number - 1].time}</td>
-                    ${user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
+                    ${activeTab !== 'my-lessons' && user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
                     <td>${lesson.subject_name}</td>
                     <td>${lesson.teacher_name}</td>
                     <td>${lesson.classroom_name || '—'}</td>
+                    <td>${lesson.notes || '—'}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -933,18 +950,6 @@ function HomeContent() {
     } catch (e) {}
   };
 
-  const getFilteredSchedule = () => {
-    let filtered = [...schedule];
-    if (user) {
-      if (user.role === 'student' && user.groupId) {
-        filtered = filtered.filter(s => s.group_id === user.groupId);
-      } else if (selectedGroupFilter && ['methodist', 'admin'].includes(user.role)) {
-        filtered = filtered.filter(s => s.group_id === parseInt(selectedGroupFilter));
-      }
-    }
-    return filtered;
-  };
-
   const handleLogin = async (e) => {
     if (e) e.preventDefault();
     try {
@@ -963,7 +968,12 @@ function HomeContent() {
         showNotification(`Добро пожаловать, ${data.user.fullName}!`, 'success');
         await loadData();
         if (data.user.role === 'admin') await loadUsers();
-        setActiveTab('schedule');
+        // Для преподавателя сразу открываем вкладку "Мои занятия"
+        if (data.user.role === 'teacher') {
+          setActiveTab('my-lessons');
+        } else {
+          setActiveTab('schedule');
+        }
       } else {
         showNotification(data.error, 'error');
       }
@@ -1246,7 +1256,15 @@ function HomeContent() {
     const init = async () => {
       const t = localStorage.getItem('token');
       const u = localStorage.getItem('user');
-      if (t && u) { setToken(t); setUser(JSON.parse(u)); }
+      if (t && u) { 
+        setToken(t); 
+        setUser(JSON.parse(u));
+        // Если преподаватель, устанавливаем активную вкладку "Мои занятия"
+        const userData = JSON.parse(u);
+        if (userData.role === 'teacher') {
+          setActiveTab('my-lessons');
+        }
+      }
       setAuthChecking(false);
     };
     init();
@@ -1261,7 +1279,7 @@ function HomeContent() {
   }, [token, canManageUsers]);
 
   useEffect(() => {
-    if (isTeacher && schedule.length > 0) {
+    if (isTeacher && schedule.length > 0 && user) {
       const teacher = teachers.find(t => t.user_id === user.id);
       if (teacher) {
         const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
@@ -1272,57 +1290,10 @@ function HomeContent() {
     }
   }, [schedule, isTeacher, teachers, user]);
 
-  const filteredSchedule = getFilteredSchedule();
-
   const renderMainContent = () => {
-    if (activeTab === 'schedule') {
-      let displaySchedule = schedule;
-      
-      if (user && user.role === 'student' && user.groupId) {
-        displaySchedule = schedule.filter(s => s.group_id === user.groupId);
-      }
-      
-      return (
-        <div className="content-card">
-          <div className="content-header">
-            <div className="header-left">
-              <h2><i className="fas fa-calendar-alt"></i> Расписание занятий</h2>
-              {user && user.role === 'student' && user.groupId && (
-                <div className="student-group-badge">
-                  <i className="fas fa-users"></i> Группа: {groups.find(g => g.id === user.groupId)?.name || '...'}
-                </div>
-              )}
-            </div>
-            <div className="header-actions">
-              <button className="action-button export-excel" onClick={exportToExcel}>
-                <i className="fas fa-file-excel"></i> Excel
-              </button>
-              <button className="action-button export-pdf" onClick={exportToPDF}>
-                <i className="fas fa-file-pdf"></i> PDF
-              </button>
-            </div>
-          </div>
-          
-          {loading ? (
-            <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
-          ) : (
-            <ScheduleView 
-              schedule={displaySchedule}
-              groups={groups}
-              teachers={teachers}
-              subjects={subjects}
-              classrooms={classrooms}
-              loading={loading}
-              userRole={user?.role}
-              userGroupId={user?.groupId}
-            />
-          )}
-        </div>
-      );
-    }
-    
-    if (activeTab === 'my-lessons' && isTeacher) {
-      const teacher = teachers.find(t => t.user_id === user.id);
+    // Для преподавателя показываем только "Мои занятия"
+    if (isTeacher) {
+      const teacher = teachers.find(t => t.user_id === user?.id);
       const teacherLessons = teacher ? schedule.filter(lesson => lesson.teacher_id === teacher.id) : [];
       
       return (
@@ -1368,6 +1339,53 @@ function HomeContent() {
                   });
                 }
               }}
+            />
+          )}
+        </div>
+      );
+    }
+    
+    // Для остальных (админ, методист, студент) показываем расписание с фильтрацией
+    if (activeTab === 'schedule') {
+      let displaySchedule = schedule;
+      
+      if (user && user.role === 'student' && user.groupId) {
+        displaySchedule = schedule.filter(s => s.group_id === user.groupId);
+      }
+      
+      return (
+        <div className="content-card">
+          <div className="content-header">
+            <div className="header-left">
+              <h2><i className="fas fa-calendar-alt"></i> Расписание занятий</h2>
+              {user && user.role === 'student' && user.groupId && (
+                <div className="student-group-badge">
+                  <i className="fas fa-users"></i> Группа: {groups.find(g => g.id === user.groupId)?.name || '...'}
+                </div>
+              )}
+            </div>
+            <div className="header-actions">
+              <button className="action-button export-excel" onClick={exportToExcel}>
+                <i className="fas fa-file-excel"></i> Excel
+              </button>
+              <button className="action-button export-pdf" onClick={exportToPDF}>
+                <i className="fas fa-file-pdf"></i> PDF
+              </button>
+            </div>
+          </div>
+          
+          {loading ? (
+            <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
+          ) : (
+            <ScheduleView 
+              schedule={displaySchedule}
+              groups={groups}
+              teachers={teachers}
+              subjects={subjects}
+              classrooms={classrooms}
+              loading={loading}
+              userRole={user?.role}
+              userGroupId={user?.groupId}
             />
           )}
         </div>
@@ -1662,22 +1680,6 @@ function HomeContent() {
                 </button>
               </div>
             </div>
-            
-            <div className="public-schedule-section">
-              <h2 className="section-title">
-                <i className="fas fa-calendar-alt"></i> Расписание занятий
-              </h2>
-              <ScheduleView 
-                schedule={schedule}
-                groups={groups}
-                teachers={teachers}
-                subjects={subjects}
-                classrooms={classrooms}
-                loading={loading}
-                userRole={null}
-                userGroupId={null}
-              />
-            </div>
           </div>
         </div>
         
@@ -1731,9 +1733,12 @@ function HomeContent() {
         </div>
         
         <nav className="sidebar-nav">
-          <button className={`nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
-            <i className="fas fa-calendar-week"></i><span>Расписание</span>
-          </button>
+          {/* Для преподавателя показываем только "Мои занятия" */}
+          {!isTeacher && (
+            <button className={`nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
+              <i className="fas fa-calendar-week"></i><span>Расписание</span>
+            </button>
+          )}
           
           {isTeacher && (
             <button className={`nav-item ${activeTab === 'my-lessons' ? 'active' : ''}`} onClick={() => { setActiveTab('my-lessons'); setSidebarOpen(false); }}>
@@ -1779,8 +1784,8 @@ function HomeContent() {
           </button>
           <div className="header-title">
             <h1>
-              {activeTab === 'schedule' && 'Расписание занятий'}
-              {activeTab === 'my-lessons' && 'Мои занятия'}
+              {isTeacher && 'Мои занятия'}
+              {!isTeacher && activeTab === 'schedule' && 'Расписание занятий'}
               {activeTab === 'manage-schedule' && 'Управление расписанием'}
               {activeTab === 'directories' && 'Справочники'}
               {activeTab === 'users' && 'Управление пользователями'}
@@ -1797,7 +1802,7 @@ function HomeContent() {
         <div className="app-content">{renderMainContent()}</div>
       </main>
 
-      {/* Modal windows */}
+      {/* Modal windows - остаются без изменений */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
