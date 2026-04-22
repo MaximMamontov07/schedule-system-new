@@ -22,12 +22,9 @@ export async function POST(request) {
       );
     }
 
-    // Разрешенные роли: только student, teacher, admin
-    const allowedRoles = ['student', 'teacher', 'admin'];
-    const userRole = allowedRoles.includes(role) ? role : 'student';
-
     const db = await getDb();
     
+    // Проверяем существование
     const existing = await db.query('SELECT id FROM users WHERE username = $1', [username]);
     if (existing.rows.length > 0) {
       return NextResponse.json(
@@ -38,14 +35,16 @@ export async function POST(request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     
+    // Создаем пользователя
     const result = await db.query(
       'INSERT INTO users (username, password, full_name, role, group_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [username, hashedPassword, fullName, userRole, groupId || null]
+      [username, hashedPassword, fullName, role || 'student', groupId || null]
     );
     
     const userId = result.rows[0].id;
 
-    if (userRole === 'teacher') {
+    // Если роль teacher - создаем запись в teachers
+    if (role === 'teacher') {
       const existingTeacher = await db.query('SELECT id FROM teachers WHERE name = $1', [fullName]);
       if (existingTeacher.rows.length === 0) {
         await db.query(
