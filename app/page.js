@@ -206,14 +206,14 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   );
 };
 
-// Компонент фильтров
-const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, isStudent, showGroupFilter = true }) => {
+// Компонент фильтров (как на фото)
+const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek }) => {
   const weekStart = weekDates[0];
   const weekEnd = weekDates[6];
   
   return (
-    <div className="filter-bar">
-      <div className="filter-bar-header">
+    <div className="filter-section">
+      <div className="filter-section-header">
         <div className="week-navigation">
           <button className="calendar-icon-btn" onClick={onOpenCalendar} title="Выбрать дату">
             <i className="fas fa-calendar-alt"></i>
@@ -247,22 +247,21 @@ const FilterBar = ({ filters, onFilterChange, groups, teachers, subjects, classr
           <i className="fas fa-undo-alt"></i> Сбросить фильтры
         </button>
       </div>
+      
       <div className="filter-grid">
-        {showGroupFilter && !isStudent && (
-          <div className="filter-group">
-            <label><i className="fas fa-users"></i> Группа</label>
-            <select 
-              value={filters.groupId} 
-              onChange={(e) => onFilterChange('groupId', e.target.value)}
-              className="filter-select"
-            >
-              <option value="">Все группы</option>
-              {groups?.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div className="filter-group">
+          <label><i className="fas fa-users"></i> Группа</label>
+          <select 
+            value={filters.groupId} 
+            onChange={(e) => onFilterChange('groupId', e.target.value)}
+            className="filter-select"
+          >
+            <option value="">Все группы</option>
+            {groups?.map(g => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+        </div>
 
         <div className="filter-group">
           <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
@@ -478,20 +477,19 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// Компонент для отображения расписания с фильтрацией (без автоматической сетки)
-const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId }) => {
+// Публичный компонент для лендинга (с фильтрацией как на фото)
+const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [filters, setFilters] = useState({
-    groupId: userRole === 'student' && userGroupId ? String(userGroupId) : '',
+    groupId: '',
     teacherId: '',
     subjectId: '',
     dayOfWeek: '',
     pairNumber: '',
     classroomId: ''
   });
-  const [showResults, setShowResults] = useState(false);
 
   const getWeekDatesWithOffset = (offset, baseDate) => {
     const date = baseDate || new Date();
@@ -538,12 +536,11 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-    setShowResults(true);
   };
 
   const resetFilters = () => {
     setFilters({
-      groupId: userRole === 'student' && userGroupId ? String(userGroupId) : '',
+      groupId: '',
       teacherId: '',
       subjectId: '',
       dayOfWeek: '',
@@ -552,35 +549,28 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     });
     setSelectedDate(null);
     setWeekOffset(0);
-    setShowResults(false);
   };
 
   const handleDateSelect = (date) => {
     setSelectedDate(date);
     setWeekOffset(0);
-    setShowResults(true);
   };
 
   const handlePrevWeek = () => {
     setWeekOffset(prev => prev - 1);
     setSelectedDate(null);
-    setShowResults(true);
   };
 
   const handleNextWeek = () => {
     setWeekOffset(prev => prev + 1);
     setSelectedDate(null);
-    setShowResults(true);
   };
 
   const handleCurrentWeek = () => {
     setWeekOffset(0);
     setSelectedDate(null);
-    setShowResults(true);
   };
 
-  const isStudent = userRole === 'student';
-  const availableGroups = isStudent ? groups.filter(g => g.id === userGroupId) : groups;
   const hasActiveFilters = filters.groupId || filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId || selectedDate || weekOffset !== 0;
 
   if (loading) {
@@ -593,11 +583,11 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   }
 
   return (
-    <div className="schedule-container">
-      <FilterBar 
+    <div className="public-schedule-container">
+      <FilterSection 
         filters={filters}
         onFilterChange={handleFilterChange}
-        groups={availableGroups}
+        groups={groups}
         teachers={teachers}
         subjects={subjects}
         classrooms={classrooms}
@@ -608,8 +598,6 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         onPrevWeek={handlePrevWeek}
         onNextWeek={handleNextWeek}
         onCurrentWeek={handleCurrentWeek}
-        isStudent={isStudent}
-        showGroupFilter={true}
       />
       
       {showCalendar && createPortal(
@@ -624,7 +612,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
       )}
       
       {!hasActiveFilters ? (
-        <div className="empty-state filter-placeholder">
+        <div className="filter-placeholder">
           <i className="fas fa-filter"></i>
           <h3>Выберите параметры для просмотра расписания</h3>
           <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
@@ -646,7 +634,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   );
 };
 
-// Панель преподавателя (только его занятия)
+// Панель преподавателя
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const getWeekDates = () => {
     const now = new Date();
@@ -968,7 +956,6 @@ function HomeContent() {
         showNotification(`Добро пожаловать, ${data.user.fullName}!`, 'success');
         await loadData();
         if (data.user.role === 'admin') await loadUsers();
-        // Для преподавателя сразу открываем вкладку "Мои занятия"
         if (data.user.role === 'teacher') {
           setActiveTab('my-lessons');
         } else {
@@ -1258,9 +1245,8 @@ function HomeContent() {
       const u = localStorage.getItem('user');
       if (t && u) { 
         setToken(t); 
-        setUser(JSON.parse(u));
-        // Если преподаватель, устанавливаем активную вкладку "Мои занятия"
         const userData = JSON.parse(u);
+        setUser(userData);
         if (userData.role === 'teacher') {
           setActiveTab('my-lessons');
         }
@@ -1291,7 +1277,6 @@ function HomeContent() {
   }, [schedule, isTeacher, teachers, user]);
 
   const renderMainContent = () => {
-    // Для преподавателя показываем только "Мои занятия"
     if (isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
       const teacherLessons = teacher ? schedule.filter(lesson => lesson.teacher_id === teacher.id) : [];
@@ -1345,14 +1330,7 @@ function HomeContent() {
       );
     }
     
-    // Для остальных (админ, методист, студент) показываем расписание с фильтрацией
     if (activeTab === 'schedule') {
-      let displaySchedule = schedule;
-      
-      if (user && user.role === 'student' && user.groupId) {
-        displaySchedule = schedule.filter(s => s.group_id === user.groupId);
-      }
-      
       return (
         <div className="content-card">
           <div className="content-header">
@@ -1377,15 +1355,13 @@ function HomeContent() {
           {loading ? (
             <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
           ) : (
-            <ScheduleView 
-              schedule={displaySchedule}
+            <PublicScheduleView 
+              schedule={schedule}
               groups={groups}
               teachers={teachers}
               subjects={subjects}
               classrooms={classrooms}
               loading={loading}
-              userRole={user?.role}
-              userGroupId={user?.groupId}
             />
           )}
         </div>
@@ -1394,6 +1370,22 @@ function HomeContent() {
     
     if (activeTab === 'manage-schedule' && canEditSchedule) {
       const displaySchedule = selectedGroupFilter ? schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)) : schedule;
+      
+      const getWeekDatesForManage = () => {
+        const now = new Date();
+        const currentDay = now.getDay();
+        const monday = new Date(now);
+        const diff = currentDay === 0 ? 6 : currentDay - 1;
+        monday.setDate(now.getDate() - diff);
+        
+        const weekDates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(monday);
+          date.setDate(monday.getDate() + i);
+          weekDates.push(date);
+        }
+        return weekDates;
+      };
       
       return (
         <div className="content-card">
@@ -1476,7 +1468,7 @@ function HomeContent() {
                 }}
                 onDeleteClick={handleDeleteLesson}
                 onAddClick={handleAddScheduleClick}
-                weekDates={[]}
+                weekDates={getWeekDatesForManage()}
                 selectedDate={null}
               />
             )}
@@ -1680,6 +1672,20 @@ function HomeContent() {
                 </button>
               </div>
             </div>
+            
+            <div className="public-schedule-section">
+              <h2 className="section-title">
+                <i className="fas fa-calendar-alt"></i> Расписание занятий
+              </h2>
+              <PublicScheduleView 
+                schedule={schedule}
+                groups={groups}
+                teachers={teachers}
+                subjects={subjects}
+                classrooms={classrooms}
+                loading={loading}
+              />
+            </div>
           </div>
         </div>
         
@@ -1733,7 +1739,6 @@ function HomeContent() {
         </div>
         
         <nav className="sidebar-nav">
-          {/* Для преподавателя показываем только "Мои занятия" */}
           {!isTeacher && (
             <button className={`nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
               <i className="fas fa-calendar-week"></i><span>Расписание</span>
@@ -1802,7 +1807,7 @@ function HomeContent() {
         <div className="app-content">{renderMainContent()}</div>
       </main>
 
-      {/* Modal windows - остаются без изменений */}
+      {/* Modal windows */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
