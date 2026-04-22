@@ -1330,7 +1330,7 @@ function HomeContent() {
             </table>
             
             ${Object.values(subjectsHours).map(item => `
-              <div class="subject-title">📚 ${item.name}</div>
+              <div class="subject-title">${item.name}</div>
               <table class="details-table">
                 <thead>
                   <tr>
