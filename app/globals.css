@@ -2966,7 +2966,12 @@ body {
     font-size: 0.75rem;
   }
   
-/* Searchable Select Component - Enhanced */
+}
+
+/* ============================================ */
+/* Searchable Select Component - Enhanced Styles */
+/* ============================================ */
+
 .searchable-select {
   position: relative;
   display: flex;
@@ -3001,6 +3006,7 @@ body {
   border-radius: var(--radius);
   transition: all 0.2s ease;
   min-height: 48px;
+  cursor: text;
 }
 
 .searchable-select-input:hover {
@@ -3026,6 +3032,7 @@ body {
   color: var(--text-primary);
   font-family: inherit;
   min-width: 0;
+  width: 100%;
 }
 
 .searchable-select-input-field::placeholder {
@@ -3043,13 +3050,16 @@ body {
   cursor: not-allowed;
 }
 
+/* Иконки внутри поля */
 .searchable-select-icons {
   display: flex;
   align-items: center;
   gap: 0.25rem;
   padding-right: 0.75rem;
+  flex-shrink: 0;
 }
 
+/* Кнопка очистки */
 .searchable-select-clear-btn {
   background: none;
   border: none;
@@ -3071,17 +3081,23 @@ body {
   transform: scale(1.1);
 }
 
-.searchable-select-icons i {
+.searchable-select-clear-btn i {
+  font-size: 0.85rem;
+}
+
+/* Стрелка */
+.searchable-select-icons i.fa-chevron-down {
   color: var(--text-muted);
   transition: transform 0.2s ease;
   font-size: 0.85rem;
 }
 
-.searchable-select-icons i.rotated {
+.searchable-select-icons i.fa-chevron-down.rotated {
   transform: rotate(180deg);
   color: var(--primary);
 }
 
+/* Выпадающий список */
 .searchable-select-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -3107,11 +3123,32 @@ body {
   }
 }
 
+/* Контейнер с опциями */
 .searchable-select-options {
   max-height: 280px;
   overflow-y: auto;
 }
 
+/* Стили для скролла */
+.searchable-select-options::-webkit-scrollbar {
+  width: 6px;
+}
+
+.searchable-select-options::-webkit-scrollbar-track {
+  background: var(--surface-muted);
+  border-radius: 3px;
+}
+
+.searchable-select-options::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+.searchable-select-options::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-dark);
+}
+
+/* Опция выбора */
 .searchable-select-option {
   padding: 0.75rem 1rem;
   cursor: pointer;
@@ -3166,6 +3203,7 @@ body {
   color: white;
 }
 
+/* Пустое состояние */
 .searchable-select-empty {
   display: flex;
   align-items: center;
@@ -3182,32 +3220,42 @@ body {
   opacity: 0.5;
 }
 
-/* Анимация для выбранного значения */
+/* Анимация при выборе значения */
 @keyframes pulseSelect {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
+  0%, 100% { 
+    transform: scale(1); 
+  }
+  50% { 
+    transform: scale(1.02); 
+  }
 }
 
 .searchable-select-input.has-value {
   animation: pulseSelect 0.3s ease;
 }
 
-/* Стили для скролла внутри дропдауна */
-.searchable-select-options::-webkit-scrollbar {
-  width: 6px;
+/* Disabled состояние для студента */
+.filter-group .searchable-select.disabled {
+  opacity: 0.8;
 }
 
-.searchable-select-options::-webkit-scrollbar-track {
+.filter-group .searchable-select.disabled .searchable-select-input {
   background: var(--surface-muted);
-  border-radius: 3px;
+  border-color: var(--border);
 }
 
-.searchable-select-options::-webkit-scrollbar-thumb {
-  background: var(--primary);
-  border-radius: 3px;
+/* Стили для метки-подсказки */
+.filter-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+  padding-left: 0.25rem;
 }
 
-/* Responsive */
+/* ============================================ */
+/* Responsive Styles for Searchable Select */
+/* ============================================ */
+
 @media (max-width: 768px) {
   .searchable-select-dropdown {
     position: fixed;
@@ -3225,5 +3273,106 @@ body {
   .searchable-select-input-field {
     font-size: 16px !important; /* Предотвращает зум на iOS */
   }
+  
+  .searchable-select-option {
+    padding: 0.875rem 1rem;
+  }
+  
+  .searchable-select-option-label {
+    font-size: 1rem;
+  }
 }
+
+@media (max-width: 480px) {
+  .searchable-select-input {
+    min-height: 44px;
+  }
+  
+  .searchable-select-input-field {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.85rem;
+  }
+  
+  .searchable-select-option {
+    padding: 0.75rem 0.875rem;
+  }
+  
+  .searchable-select-option-label {
+    font-size: 0.85rem;
+  }
+}
+
+/* ============================================ */
+/* Touch Device Optimizations */
+/* ============================================ */
+
+@media (hover: none) and (pointer: coarse) {
+  .searchable-select-option {
+    padding: 1rem;
+  }
+  
+  .searchable-select-clear-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .searchable-select-clear-btn i {
+    font-size: 1rem;
+  }
+}
+
+/* ============================================ */
+/* Dark Theme Adjustments */
+/* ============================================ */
+
+[data-theme="dark"] .searchable-select-input.focused {
+  box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.2);
+}
+
+[data-theme="dark"] .searchable-select-option.highlighted {
+  background: linear-gradient(135deg, rgba(74, 111, 165, 0.15), rgba(74, 111, 165, 0.08));
+}
+
+[data-theme="dark"] .searchable-select-dropdown {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* ============================================ */
+/* Filter Section Additional Styles */
+/* ============================================ */
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Улучшенные стили для обычных select (в админке) */
+.filter-select {
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.filter-select:hover {
+  border-color: var(--primary-light);
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.1);
 }
