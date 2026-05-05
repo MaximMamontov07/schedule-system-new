@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, createContext, useContext } from 'react';
+import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
@@ -59,7 +59,116 @@ const getWeekNumber = (date) => {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 };
 
-// Компонент календаря
+// ============ SearchableSelect Component ============
+const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, disabled = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef(null);
+
+  const selectedOption = options.find(opt => opt.value === value);
+  
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const term = searchTerm.toLowerCase();
+    return options.filter(opt => 
+      opt.label.toLowerCase().includes(term)
+    );
+  }, [options, searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelect = (option) => {
+    onChange(option.value);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+      setSearchTerm('');
+    }
+  };
+
+  if (disabled) {
+    return (
+      <div className="searchable-select">
+        <label><i className={icon}></i> {label}</label>
+        <div className="searchable-select-input disabled">
+          <span className="selected-value">{selectedOption?.label || placeholder}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="searchable-select" ref={dropdownRef}>
+      <label><i className={icon}></i> {label}</label>
+      <div 
+        className={`searchable-select-input ${isOpen ? 'focused' : ''}`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={`selected-value ${!value ? 'placeholder' : ''}`}>
+          {selectedOption?.label || placeholder}
+        </span>
+        <i className={`fas fa-chevron-down ${isOpen ? 'rotated' : ''}`}></i>
+      </div>
+      
+      {isOpen && (
+        <div className="searchable-select-dropdown">
+          <div className="searchable-select-search">
+            <i className="fas fa-search"></i>
+            <input
+              type="text"
+              placeholder={`Поиск ${label.toLowerCase()}...`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+            />
+            {searchTerm && (
+              <button 
+                className="searchable-select-clear"
+                onClick={() => setSearchTerm('')}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            )}
+          </div>
+          <div className="searchable-select-options">
+            {filteredOptions.length === 0 ? (
+              <div className="searchable-select-empty">
+                <i className="fas fa-search"></i> Ничего не найдено
+              </div>
+            ) : (
+              filteredOptions.map(option => (
+                <div
+                  key={option.value}
+                  className={`searchable-select-option ${value === option.value ? 'selected' : ''}`}
+                  onClick={() => handleSelect(option)}
+                >
+                  <span>{option.label}</span>
+                  {value === option.value && <i className="fas fa-check"></i>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============ DatePicker Component ============
 const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState('month');
@@ -206,12 +315,19 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   );
 };
 
-// Компонент фильтров
+// ============ FilterSection Component with SearchableSelect ============
 const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, hasActiveFilters, showGroupFilter = true, isStudent = false }) => {
   const weekStart = weekDates[0];
   const weekEnd = weekDates[6];
   
   const areControlsDisabled = !hasActiveFilters && !isStudent;
+  
+  const groupOptions = groups?.map(g => ({ value: String(g.id), label: g.name })) || [];
+  const teacherOptions = teachers?.map(t => ({ value: String(t.id), label: t.name })) || [];
+  const subjectOptions = subjects?.map(s => ({ value: String(s.id), label: s.name })) || [];
+  const classroomOptions = classrooms?.map(c => ({ value: String(c.id), label: c.name })) || [];
+  const dayOptions = DAYS.map((day, idx) => ({ value: String(idx + 1), label: day }));
+  const pairOptions = PAIRS.map(p => ({ value: String(p.number), label: `${p.name} (${p.time})` }));
   
   return (
     <div className="filter-section">
@@ -275,102 +391,93 @@ const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, cl
       </div>
       
       <div className="filter-grid">
-        {showGroupFilter && (
+        {showGroupFilter && !isStudent && (
           <div className="filter-group">
-            <label><i className="fas fa-users"></i> Группа</label>
-            <select 
-              value={filters.groupId} 
-              onChange={(e) => onFilterChange('groupId', e.target.value)}
-              className="filter-select"
-              disabled={isStudent}
-              style={isStudent ? { opacity: 0.7, cursor: 'not-allowed', background: 'var(--surface-muted)' } : {}}
-            >
-              <option value="">Выберите группу</option>
-              {groups?.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-            {isStudent && (
-              <div className="filter-hint">Ваша группа: {groups.find(g => g.id === parseInt(filters.groupId))?.name}</div>
-            )}
+            <SearchableSelect
+              options={groupOptions}
+              value={filters.groupId}
+              onChange={(val) => onFilterChange('groupId', val)}
+              placeholder="Выберите группу"
+              label="Группа"
+              icon="fas fa-users"
+            />
+          </div>
+        )}
+        
+        {isStudent && filters.groupId && (
+          <div className="filter-group">
+            <SearchableSelect
+              options={groupOptions}
+              value={filters.groupId}
+              onChange={(val) => onFilterChange('groupId', val)}
+              placeholder="Выберите группу"
+              label="Группа"
+              icon="fas fa-users"
+              disabled={true}
+            />
           </div>
         )}
 
         <div className="filter-group">
-          <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
-          <select 
-            value={filters.teacherId} 
-            onChange={(e) => onFilterChange('teacherId', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Выберите преподавателя</option>
-            {teachers?.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={teacherOptions}
+            value={filters.teacherId}
+            onChange={(val) => onFilterChange('teacherId', val)}
+            placeholder="Выберите преподавателя"
+            label="Преподаватель"
+            icon="fas fa-chalkboard-teacher"
+          />
         </div>
 
         <div className="filter-group">
-          <label><i className="fas fa-book"></i> Предмет</label>
-          <select 
-            value={filters.subjectId} 
-            onChange={(e) => onFilterChange('subjectId', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Выберите предмет</option>
-            {subjects?.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={subjectOptions}
+            value={filters.subjectId}
+            onChange={(val) => onFilterChange('subjectId', val)}
+            placeholder="Выберите предмет"
+            label="Предмет"
+            icon="fas fa-book"
+          />
         </div>
 
         <div className="filter-group">
-          <label><i className="fas fa-calendar-day"></i> День недели</label>
-          <select 
-            value={filters.dayOfWeek} 
-            onChange={(e) => onFilterChange('dayOfWeek', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Выберите день</option>
-            {DAYS.map((day, idx) => (
-              <option key={idx + 1} value={idx + 1}>{day}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={dayOptions}
+            value={filters.dayOfWeek}
+            onChange={(val) => onFilterChange('dayOfWeek', val)}
+            placeholder="Выберите день"
+            label="День недели"
+            icon="fas fa-calendar-day"
+          />
         </div>
 
         <div className="filter-group">
-          <label><i className="fas fa-clock"></i> Пара</label>
-          <select 
-            value={filters.pairNumber} 
-            onChange={(e) => onFilterChange('pairNumber', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Выберите пару</option>
-            {PAIRS.map(p => (
-              <option key={p.number} value={p.number}>{p.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={pairOptions}
+            value={filters.pairNumber}
+            onChange={(val) => onFilterChange('pairNumber', val)}
+            placeholder="Выберите пару"
+            label="Пара"
+            icon="fas fa-clock"
+          />
         </div>
 
         <div className="filter-group">
-          <label><i className="fas fa-door-open"></i> Аудитория</label>
-          <select 
-            value={filters.classroomId} 
-            onChange={(e) => onFilterChange('classroomId', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Выберите аудиторию</option>
-            {classrooms?.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            options={classroomOptions}
+            value={filters.classroomId}
+            onChange={(val) => onFilterChange('classroomId', val)}
+            placeholder="Выберите аудиторию"
+            label="Аудитория"
+            icon="fas fa-door-open"
+          />
         </div>
       </div>
     </div>
   );
 };
 
-// Сетка расписания с поддержкой нескольких занятий
+// ============ ScheduleGrid Component ============
 const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
@@ -510,7 +617,7 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// Компонент для отображения расписания с учетом роли пользователя
+// ============ ScheduleView Component ============
 const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -696,7 +803,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   );
 };
 
-// Публичный компонент для лендинга
+// ============ PublicScheduleView Component ============
 const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -866,7 +973,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   );
 };
 
-// Панель преподавателя
+// ============ TeacherPanel Component ============
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const getWeekDates = () => {
     const now = new Date();
@@ -1002,10 +1109,12 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
-// Компонент для выбора учителя и отчета по часам (для администратора)
+// ============ TeacherReportModal Component ============
 const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [generating, setGenerating] = useState(false);
+  
+  const teacherOptions = teachers?.map(t => ({ value: String(t.id), label: t.name })) || [];
   
   const handleGenerate = async () => {
     if (!selectedTeacherId) {
@@ -1027,18 +1136,14 @@ const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
         </div>
         <div className="modal-form">
           <div className="form-group">
-            <label><i className="fas fa-chalkboard-teacher"></i> Выберите преподавателя</label>
-            <select 
-              value={selectedTeacherId} 
-              onChange={(e) => setSelectedTeacherId(e.target.value)}
-              className="filter-select"
-              style={{ width: '100%' }}
-            >
-              <option value="">-- Выберите преподавателя --</option>
-              {teachers.map(teacher => (
-                <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              options={teacherOptions}
+              value={selectedTeacherId}
+              onChange={setSelectedTeacherId}
+              placeholder="Выберите преподавателя"
+              label="Преподаватель"
+              icon="fas fa-chalkboard-teacher"
+            />
           </div>
           <button 
             className="submit-btn" 
@@ -1054,6 +1159,7 @@ const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
   );
 };
 
+// ============ HomeContent Component ============
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
   const [schedule, setSchedule] = useState([]);
@@ -1102,7 +1208,6 @@ function HomeContent() {
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  // Функция для генерации отчета по часам для любого учителя
   const generateTeacherReport = async (teacherId) => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
@@ -1152,98 +1257,23 @@ function HomeContent() {
           <head>
             <meta charset="UTF-8">
             <style>
-              body {
-                font-family: 'Inter', Arial, sans-serif;
-                padding: 40px;
-                color: #1e293b;
-              }
-              .header {
-                text-align: center;
-                margin-bottom: 30px;
-                padding-bottom: 20px;
-                border-bottom: 2px solid #2c3e66;
-              }
-              .header h1 {
-                font-size: 24px;
-                margin: 0 0 10px 0;
-                color: #2c3e66;
-              }
-              .header h2 {
-                font-size: 18px;
-                margin: 0;
-                color: #475569;
-                font-weight: normal;
-              }
-              .teacher-info {
-                background: #f8fafc;
-                padding: 15px;
-                border-radius: 8px;
-                margin-bottom: 20px;
-                border: 1px solid #e2e8f0;
-              }
-              .teacher-info p {
-                margin: 5px 0;
-                font-size: 14px;
-              }
-              .teacher-info strong {
-                color: #2c3e66;
-              }
-              .summary-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 30px;
-              }
-              .summary-table th,
-              .summary-table td {
-                border: 1px solid #e2e8f0;
-                padding: 12px;
-                text-align: left;
-              }
-              .summary-table th {
-                background: #2c3e66;
-                color: white;
-                font-weight: 600;
-              }
-              .summary-table tr:nth-child(even) {
-                background: #f8fafc;
-              }
-              .total-row {
-                background: #e2e8f0 !important;
-                font-weight: bold;
-              }
-              .details-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 10px;
-                margin-bottom: 20px;
-              }
-              .details-table th,
-              .details-table td {
-                border: 1px solid #e2e8f0;
-                padding: 8px;
-                font-size: 12px;
-              }
-              .details-table th {
-                background: #64748b;
-                color: white;
-                font-weight: 600;
-              }
-              .subject-title {
-                font-size: 16px;
-                font-weight: bold;
-                margin: 20px 0 10px 0;
-                color: #2c3e66;
-                padding-left: 5px;
-                border-left: 4px solid #2c3e66;
-              }
-              .footer {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #e2e8f0;
-                text-align: center;
-                font-size: 12px;
-                color: #94a3b8;
-              }
+              body { font-family: 'Inter', Arial, sans-serif; padding: 40px; color: #1e293b; }
+              .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2c3e66; }
+              .header h1 { font-size: 24px; margin: 0 0 10px 0; color: #2c3e66; }
+              .header h2 { font-size: 18px; margin: 0; color: #475569; font-weight: normal; }
+              .teacher-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+              .teacher-info p { margin: 5px 0; font-size: 14px; }
+              .teacher-info strong { color: #2c3e66; }
+              .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+              .summary-table th, .summary-table td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
+              .summary-table th { background: #2c3e66; color: white; font-weight: 600; }
+              .summary-table tr:nth-child(even) { background: #f8fafc; }
+              .total-row { background: #e2e8f0 !important; font-weight: bold; }
+              .details-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
+              .details-table th, .details-table td { border: 1px solid #e2e8f0; padding: 8px; font-size: 12px; }
+              .details-table th { background: #64748b; color: white; font-weight: 600; }
+              .subject-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; color: #2c3e66; padding-left: 5px; border-left: 4px solid #2c3e66; }
+              .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; }
             </style>
           </head>
           <body>
@@ -1251,75 +1281,34 @@ function HomeContent() {
               <h1>Отчет о нагрузке преподавателя</h1>
               <h2>${formatDate(weekStart)} - ${formatDate(weekEnd)} (${weekNumber} неделя)</h2>
             </div>
-            
             <div class="teacher-info">
               <p><strong>Преподаватель:</strong> ${teacher.name}</p>
               <p><strong>Всего занятий за неделю:</strong> ${teacherLessons.length} пар</p>
               <p><strong>Общая нагрузка:</strong> ${(teacherLessons.length * 1.5).toFixed(1)} академических часов</p>
             </div>
-            
             <h3>Сводка по предметам</h3>
             <table class="summary-table">
-              <thead>
-                <tr>
-                  <th>№</th>
-                  <th>Предмет</th>
-                  <th>Количество пар</th>
-                  <th>Часов</th>
-                </tr>
-              </thead>
+              <thead><tr><th>№</th><th>Предмет</th><th>Количество пар</th><th>Часов</th></tr></thead>
               <tbody>
                 ${Object.values(subjectsHours).map((item, idx) => `
-                  <tr>
-                    <td>${idx + 1}</td>
-                    <td><strong>${item.name}</strong></td>
-                    <td>${item.lessons.length} пар</td>
-                    <td>${item.hours.toFixed(1)} ч.</td>
-                  </tr>
+                  <tr><td>${idx + 1}</td><td><strong>${item.name}</strong></td><td>${item.lessons.length} пар</td><td>${item.hours.toFixed(1)} ч.</td></tr>
                 `).join('')}
-                <tr class="total-row">
-                  <td colspan="2"><strong>ИТОГО:</strong></td>
-                  <td><strong>${teacherLessons.length} пар</strong></td>
-                  <td><strong>${(teacherLessons.length * 1.5).toFixed(1)} ч.</strong></td>
-                </tr>
+                <tr class="total-row"><td colspan="2"><strong>ИТОГО:</strong></td><td><strong>${teacherLessons.length} пар</strong></td><td><strong>${(teacherLessons.length * 1.5).toFixed(1)} ч.</strong></td></tr>
               </tbody>
             </table>
-            
             ${Object.values(subjectsHours).map(item => `
               <div class="subject-title">📚 ${item.name}</div>
               <table class="details-table">
-                <thead>
-                  <tr>
-                    <th>День недели</th>
-                    <th>Дата</th>
-                    <th>Пара</th>
-                    <th>Группа</th>
-                    <th>Аудитория</th>
-                    <th>Часы</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>День недели</th><th>Дата</th><th>Пара</th><th>Группа</th><th>Аудитория</th><th>Часы</th></tr></thead>
                 <tbody>
                   ${item.lessons.map(lesson => {
                     const lessonDate = weekDates[lesson.day_of_week - 1];
-                    return `
-                      <tr>
-                        <td>${DAYS[lesson.day_of_week - 1]}</td>
-                        <td>${lessonDate ? formatDate(lessonDate) : '-'}</td>
-                        <td>${lesson.pair_number} пара</td>
-                        <td>${lesson.group_name}</td>
-                        <td>${lesson.classroom_name || '—'}</td>
-                        <td>1.5 ч.</td>
-                      </tr>
-                    `;
+                    return `<tr><td>${DAYS[lesson.day_of_week - 1]}</td><td>${lessonDate ? formatDate(lessonDate) : '-'}</td><td>${lesson.pair_number} пара</td><td>${lesson.group_name}</td><td>${lesson.classroom_name || '—'}</td><td>1.5 ч.</td></tr>`;
                   }).join('')}
-                  <tr style="background: #f1f5f9;">
-                    <td colspan="5"><strong>Итого по предмету:</strong></td>
-                    <td><strong>${item.hours.toFixed(1)} ч.</strong></td>
-                  </tr>
+                  <tr style="background: #f1f5f9;"><td colspan="5"><strong>Итого по предмету:</strong></td><td><strong>${item.hours.toFixed(1)} ч.</strong></td></tr>
                 </tbody>
               </table>
             `).join('')}
-            
             <div class="footer">
               <p>Отчет сгенерирован автоматически • Система управления расписанием</p>
               <p>Дата формирования: ${new Date().toLocaleString('ru-RU')}</p>
@@ -1343,19 +1332,15 @@ function HomeContent() {
     }
   };
 
-  // Функция для экспорта отчета по часам для текущего преподавателя (для учителя)
   const exportTeacherHoursReport = async () => {
     if (!user || user.role !== 'teacher') return;
     
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      
       const teacher = teachers.find(t => t.user_id === user.id);
       if (!teacher) {
         showNotification('Преподаватель не найден', 'error');
         return;
       }
-      
       await generateTeacherReport(teacher.id);
     } catch (error) {
       console.error('Report error:', error);
@@ -1381,6 +1366,16 @@ function HomeContent() {
       exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
         'День недели': DAYS[lesson.day_of_week - 1],
         'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (selectedGroupFilter) {
+      exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)).map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
         'Предмет': lesson.subject_name,
         'Преподаватель': lesson.teacher_name,
         'Аудитория': lesson.classroom_name || '—',
@@ -1415,6 +1410,8 @@ function HomeContent() {
         exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
       } else if (user && user.role === 'student' && user.groupId) {
         exportData = schedule.filter(s => s.group_id === user.groupId);
+      } else if (selectedGroupFilter) {
+        exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter));
       } else {
         exportData = schedule;
       }
@@ -2156,6 +2153,9 @@ function HomeContent() {
                 const linkedUser = users.find(u => u.id === teacher.user_id);
                 const isLinked = teacher.user_id !== null;
                 
+                const availableUsers = users.filter(u => u.role === 'teacher' && !teachers.some(t => t.user_id === u.id));
+                const userOptions = availableUsers.map(u => ({ value: String(u.id), label: `${u.full_name} (@${u.username})` }));
+                
                 return (
                   <div key={teacher.id} className="teacher-link-card">
                     <div className="teacher-info">
@@ -2169,18 +2169,16 @@ function HomeContent() {
                     
                     {!isLinked ? (
                       <div className="link-controls">
-                        <select className="user-select" id={`teacher-select-${teacher.id}`} defaultValue="">
-                          <option value="" disabled>Выберите пользователя...</option>
-                          {users.filter(u => u.role === 'teacher' && !teachers.some(t => t.user_id === u.id)).map(u => (
-                            <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>
-                          ))}
-                        </select>
-                        <button onClick={() => {
-                          const select = document.getElementById(`teacher-select-${teacher.id}`);
-                          const userId = select.value;
-                          if (userId) linkTeacherToUser(teacher.id, parseInt(userId));
-                          else showNotification('Выберите пользователя', 'error');
-                        }} className="link-button"><i className="fas fa-link"></i> Привязать</button>
+                        <SearchableSelect
+                          options={userOptions}
+                          value=""
+                          onChange={(val) => {
+                            if (val) linkTeacherToUser(teacher.id, parseInt(val));
+                          }}
+                          placeholder="Выберите пользователя"
+                          label=""
+                          icon="fas fa-user"
+                        />
                       </div>
                     ) : (
                       <button onClick={() => unlinkTeacher(teacher.id)} className="unlink-button"><i className="fas fa-unlink"></i> Отвязать</button>
