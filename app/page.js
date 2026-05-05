@@ -59,14 +59,26 @@ const getWeekNumber = (date) => {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 };
 
-// ============ SearchableSelect Component ============
+// ============ SearchableSelect Component with improved styling ============
 const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const inputRef = useRef(null);
   const dropdownRef = useRef(null);
 
   const selectedOption = options.find(opt => opt.value === value);
   
+  // При открытии устанавливаем поисковый запрос как текущее значение
+  useEffect(() => {
+    if (isOpen && selectedOption) {
+      setSearchTerm(selectedOption.label);
+    } else if (!isOpen) {
+      setSearchTerm('');
+      setHighlightedIndex(-1);
+    }
+  }, [isOpen, selectedOption]);
+
   const filteredOptions = useMemo(() => {
     if (!searchTerm.trim()) return options;
     const term = searchTerm.toLowerCase();
@@ -75,33 +87,86 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
     );
   }, [options, searchTerm]);
 
+  // Навигация с клавиатуры
+  const handleKeyDown = (e) => {
+    if (disabled) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (!isOpen) {
+          setIsOpen(true);
+        } else {
+          setHighlightedIndex(prev => 
+            prev < filteredOptions.length - 1 ? prev + 1 : prev
+          );
+        }
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (isOpen && highlightedIndex >= 0 && filteredOptions[highlightedIndex]) {
+          handleSelect(filteredOptions[highlightedIndex]);
+        } else if (isOpen && filteredOptions.length === 1) {
+          handleSelect(filteredOptions[0]);
+        } else if (!isOpen) {
+          setIsOpen(true);
+        }
+        break;
+      case 'Escape':
+        setIsOpen(false);
+        setSearchTerm('');
+        setHighlightedIndex(-1);
+        if (inputRef.current) inputRef.current.blur();
+        break;
+      case 'Tab':
+        setIsOpen(false);
+        break;
+      default:
+        if (!isOpen && e.key.length === 1) {
+          setIsOpen(true);
+        }
+    }
+  };
+
+  const handleSelect = (option) => {
+    onChange(option.value);
+    setIsOpen(false);
+    setSearchTerm('');
+    setHighlightedIndex(-1);
+  };
+
+  const handleInputChange = (e) => {
+    setSearchTerm(e.target.value);
+    if (!isOpen) setIsOpen(true);
+    setHighlightedIndex(-1);
+  };
+
+  // Закрываем дропдаун при клике вне
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
         setSearchTerm('');
+        setHighlightedIndex(-1);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = (option) => {
-    onChange(option.value);
-    setIsOpen(false);
-    setSearchTerm('');
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape') {
-      setIsOpen(false);
-      setSearchTerm('');
-    }
+  // Получаем отображаемое значение
+  const getDisplayValue = () => {
+    if (isOpen) return searchTerm;
+    return selectedOption?.label || '';
   };
 
   if (disabled) {
     return (
-      <div className="searchable-select">
+      <div className="searchable-select disabled">
         <label><i className={icon}></i> {label}</label>
         <div className="searchable-select-input disabled">
           <span className="selected-value">{selectedOption?.label || placeholder}</span>
@@ -113,51 +178,62 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
   return (
     <div className="searchable-select" ref={dropdownRef}>
       <label><i className={icon}></i> {label}</label>
-      <div 
-        className={`searchable-select-input ${isOpen ? 'focused' : ''}`}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <span className={`selected-value ${!value ? 'placeholder' : ''}`}>
-          {selectedOption?.label || placeholder}
-        </span>
-        <i className={`fas fa-chevron-down ${isOpen ? 'rotated' : ''}`}></i>
+      <div className={`searchable-select-input ${isOpen ? 'focused' : ''} ${value ? 'has-value' : ''}`}>
+        <input
+          ref={inputRef}
+          type="text"
+          className="searchable-select-input-field"
+          placeholder={placeholder}
+          value={getDisplayValue()}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(true);
+          }}
+        />
+        <div className="searchable-select-icons">
+          {value && (
+            <button 
+              className="searchable-select-clear-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+                setSearchTerm('');
+              }}
+              title="Очистить"
+            >
+              <i className="fas fa-times-circle"></i>
+            </button>
+          )}
+          <i className={`fas fa-chevron-down ${isOpen ? 'rotated' : ''}`}></i>
+        </div>
       </div>
       
       {isOpen && (
         <div className="searchable-select-dropdown">
-          <div className="searchable-select-search">
-            <i className="fas fa-search"></i>
-            <input
-              type="text"
-              placeholder={`Поиск ${label.toLowerCase()}...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyDown}
-              autoFocus
-            />
-            {searchTerm && (
-              <button 
-                className="searchable-select-clear"
-                onClick={() => setSearchTerm('')}
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            )}
-          </div>
           <div className="searchable-select-options">
             {filteredOptions.length === 0 ? (
               <div className="searchable-select-empty">
                 <i className="fas fa-search"></i> Ничего не найдено
               </div>
             ) : (
-              filteredOptions.map(option => (
+              filteredOptions.map((option, idx) => (
                 <div
                   key={option.value}
-                  className={`searchable-select-option ${value === option.value ? 'selected' : ''}`}
+                  className={`searchable-select-option ${value === option.value ? 'selected' : ''} ${highlightedIndex === idx ? 'highlighted' : ''}`}
                   onClick={() => handleSelect(option)}
+                  onMouseEnter={() => setHighlightedIndex(idx)}
                 >
-                  <span>{option.label}</span>
-                  {value === option.value && <i className="fas fa-check"></i>}
+                  <div className="searchable-select-option-content">
+                    <span className="searchable-select-option-label">{option.label}</span>
+                    {value === option.value && (
+                      <span className="searchable-select-option-check">
+                        <i className="fas fa-check"></i>
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))
             )}
