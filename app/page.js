@@ -18,7 +18,9 @@ import { TeacherReportModal } from './components/TeacherReportModal';
 import { useSchedule } from './components/hooks/useSchedule';
 import { ScheduleService, DateUtils, DAYS, PAIRS, ROLES } from '@/lib/schedule-service';
 
-// ============ Компонент управления справочниками ============
+// ============================================
+// КОМПОНЕНТ УПРАВЛЕНИЯ СПРАВОЧНИКАМИ
+// ============================================
 const DirectoriesManager = ({ groups, teachers, subjects, classrooms, onAdd, onDelete, canEdit }) => {
   const [showModal, setShowModal] = useState(null);
   const [newItemName, setNewItemName] = useState('');
@@ -96,7 +98,9 @@ const DirectoriesManager = ({ groups, teachers, subjects, classrooms, onAdd, onD
   );
 };
 
-// ============ Компонент управления пользователями ============
+// ============================================
+// КОМПОНЕНТ УПРАВЛЕНИЯ ПОЛЬЗОВАТЕЛЯМИ
+// ============================================
 const UsersManager = ({ users, teachers, groups, onDelete, onLink, onUnlink, canEdit, currentUserId }) => {
   const [showRegister, setShowRegister] = useState(false);
   const [registerData, setRegisterData] = useState({
@@ -253,11 +257,13 @@ const UsersManager = ({ users, teachers, groups, onDelete, onLink, onUnlink, can
   );
 };
 
-// ============ Главный компонент приложения ============
+// ============================================
+// ОСНОВНОЙ КОМПОНЕНТ ПРИЛОЖЕНИЯ
+// ============================================
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
   
-  // Состояния
+  // ========== СОСТОЯНИЯ ==========
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -266,6 +272,7 @@ function HomeContent() {
   const [showLogin, setShowLogin] = useState(false);
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [notification, setNotification] = useState(null);
+  const [showCalendar, setShowCalendar] = useState(false);
   
   // Справочники
   const [groups, setGroups] = useState([]);
@@ -279,16 +286,16 @@ function HomeContent() {
   const [editingLesson, setEditingLesson] = useState(null);
   const [showTeacherReportModal, setShowTeacherReportModal] = useState(false);
 
-  // Хук для работы с расписанием
+  // ========== ХУК ДЛЯ РАБОТЫ С РАСПИСАНИЕМ ==========
   const scheduleHook = useSchedule(token, user?.role === 'student' ? user?.groupId : null);
 
-  // Показ уведомлений
+  // ========== УТИЛИТЫ ==========
   const showNotification = useCallback((msg, type = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3000);
   }, []);
 
-  // Загрузка справочников
+  // ========== ЗАГРУЗКА ДАННЫХ ==========
   const loadDirectories = useCallback(async () => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     try {
@@ -307,7 +314,6 @@ function HomeContent() {
     }
   }, [token]);
 
-  // Загрузка пользователей
   const loadUsers = useCallback(async () => {
     if (!token || user?.role !== 'admin') return;
     try {
@@ -318,15 +324,16 @@ function HomeContent() {
     }
   }, [token, user]);
 
-  // Эффекты
+  // ========== ЭФФЕКТЫ ==========
   useEffect(() => {
     const init = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        if (JSON.parse(storedUser).role === 'teacher') {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        if (userData.role === 'teacher') {
           setActiveTab('my-lessons');
         }
       }
@@ -342,7 +349,7 @@ function HomeContent() {
     }
   }, [authChecking, token, loadDirectories, loadUsers]);
 
-  // Обработчики
+  // ========== ОБРАБОТЧИКИ АВТОРИЗАЦИИ ==========
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -376,9 +383,10 @@ function HomeContent() {
     setActiveTab('schedule');
   };
 
+  // ========== ОБРАБОТЧИКИ РАСПИСАНИЯ ==========
   const handleSaveLesson = async (formData) => {
     try {
-      if (editingLesson) {
+      if (editingLesson?.id) {
         await scheduleHook.updateLesson(editingLesson.id, formData);
         showNotification('Занятие обновлено');
       } else {
@@ -403,6 +411,7 @@ function HomeContent() {
     }
   };
 
+  // ========== ОБРАБОТЧИКИ СПРАВОЧНИКОВ ==========
   const handleAddDirectory = async (type, name) => {
     try {
       const res = await fetch(`/api/${type}`, {
@@ -436,6 +445,7 @@ function HomeContent() {
     }
   };
 
+  // ========== ОБРАБОТЧИКИ ПОЛЬЗОВАТЕЛЕЙ ==========
   const handleDeleteUser = async (userId) => {
     if (!confirm('Удалить пользователя?')) return;
     try {
@@ -485,6 +495,7 @@ function HomeContent() {
     }
   };
 
+  // ========== ЭКСПОРТ ==========
   const exportToExcel = () => {
     const exportData = scheduleHook.schedule.map(lesson => ({
       'День недели': DAYS.find(d => d.value === lesson.day_of_week)?.name || '-',
@@ -515,7 +526,12 @@ function HomeContent() {
             <h1>Расписание занятий</h1>
             <p>Неделя: ${DateUtils.formatDate(scheduleHook.weekDates[0])} - ${DateUtils.formatDate(scheduleHook.weekDates[6])}</p>
             <table border="1" cellpadding="8">
-              <thead><tr><th>День</th><th>Дата</th><th>Время</th><th>Группа</th><th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>День</th><th>Дата</th><th>Время</th><th>Группа</th>
+                  <th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th>
+                </tr>
+              </thead>
               <tbody>
                 ${scheduleHook.schedule.map(lesson => `
                   <tr>
@@ -541,11 +557,12 @@ function HomeContent() {
     }
   };
 
+  // ========== ПЕРЕМЕННЫЕ ДЛЯ РЕНДЕРА ==========
   const isTeacher = user?.role === 'teacher';
   const isAdmin = user?.role === 'admin';
   const canEdit = isAdmin;
 
-  // Рендер сайдбара
+  // ========== РЕНДЕР САЙДБАРА ==========
   const renderSidebar = () => (
     <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-brand">
@@ -606,8 +623,9 @@ function HomeContent() {
     </aside>
   );
 
-  // Рендер контента в зависимости от вкладки
+  // ========== РЕНДЕР КОНТЕНТА ==========
   const renderContent = () => {
+    // Панель преподавателя
     if (isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
       const teacherLessons = teacher ? scheduleHook.allSchedule.filter(l => l.teacher_id === teacher.id) : [];
@@ -637,6 +655,7 @@ function HomeContent() {
       );
     }
 
+    // Расписание
     if (activeTab === 'schedule') {
       return (
         <div className="content-card">
@@ -693,6 +712,7 @@ function HomeContent() {
       );
     }
 
+    // Управление расписанием (только админ)
     if (activeTab === 'manage-schedule' && isAdmin) {
       return (
         <div className="content-card">
@@ -726,6 +746,7 @@ function HomeContent() {
       );
     }
 
+    // Справочники (только админ)
     if (activeTab === 'directories' && isAdmin) {
       return (
         <div className="content-card">
@@ -748,6 +769,7 @@ function HomeContent() {
       );
     }
 
+    // Пользователи (только админ)
     if (activeTab === 'users' && isAdmin) {
       return (
         <UsersManager
@@ -766,7 +788,7 @@ function HomeContent() {
     return null;
   };
 
-  // Состояние загрузки
+  // ========== ЭКРАН ЗАГРУЗКИ ==========
   if (authChecking) {
     return (
       <div className="loading-screen">
@@ -780,7 +802,7 @@ function HomeContent() {
     );
   }
 
-  // Страница входа
+  // ========== СТРАНИЦА ВХОДА ==========
   if (!user) {
     return (
       <>
@@ -868,7 +890,7 @@ function HomeContent() {
     );
   }
 
-  // Основной рендер для авторизованных пользователей
+  // ========== ОСНОВНОЙ РЕНДЕР ДЛЯ АВТОРИЗОВАННЫХ ПОЛЬЗОВАТЕЛЕЙ ==========
   return (
     <div className="app-container">
       {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
@@ -901,6 +923,7 @@ function HomeContent() {
         <div className="app-content">{renderContent()}</div>
       </main>
 
+      {/* Модальное окно для занятий */}
       <LessonModal
         isOpen={showLessonModal}
         lesson={editingLesson}
@@ -916,6 +939,22 @@ function HomeContent() {
         isEditing={!!editingLesson?.id}
       />
 
+      {/* Модальное окно календаря */}
+      {showCalendar && createPortal(
+        <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
+          <DatePicker
+            onDateSelect={(date) => {
+              scheduleHook.goToDate(date);
+              setShowCalendar(false);
+            }}
+            onClose={() => setShowCalendar(false)}
+            selectedDate={scheduleHook.currentDate}
+          />
+        </div>,
+        document.body
+      )}
+
+      {/* Модальное окно отчета по часам */}
       {showTeacherReportModal && createPortal(
         <TeacherReportModal
           teachers={teachers}
@@ -928,7 +967,9 @@ function HomeContent() {
   );
 }
 
-// Экспорт главного компонента
+// ============================================
+// ЭКСПОРТ ГЛАВНОГО КОМПОНЕНТА
+// ============================================
 export default function Home() {
   return (
     <ThemeProvider>
