@@ -1298,24 +1298,24 @@ function HomeContent() {
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-// Функция для загрузки расписания за конкретную неделю
-const loadScheduleForWeek = async (startDate, endDate) => {
-  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-  
-  let url = '/api/schedule';
-  if (startDate && endDate) {
-    url += `?weekStart=${startDate}&weekEnd=${endDate}`;
-  }
-  
-  try {
-    const scheduleRes = await fetch(url, { headers });
-    const scheduleData = await scheduleRes.json();
-    setSchedule(scheduleData);
-  } catch (e) {
-    console.error(e);
-    showNotification('Ошибка загрузки расписания', 'error');
-  }
-};
+  // Функция для загрузки расписания за конкретную неделю
+  const loadScheduleForWeek = async (startDate, endDate) => {
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    
+    let url = '/api/schedule';
+    if (startDate && endDate) {
+      url += `?weekStart=${startDate}&weekEnd=${endDate}`;
+    }
+    
+    try {
+      const scheduleRes = await fetch(url, { headers });
+      const scheduleData = await scheduleRes.json();
+      setSchedule(scheduleData);
+    } catch (e) {
+      console.error(e);
+      showNotification('Ошибка загрузки расписания', 'error');
+    }
+  };
 
   
   const loadData = async () => {

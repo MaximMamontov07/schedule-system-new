@@ -15,12 +15,14 @@ export async function POST(request) {
     
     const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date } = body;
 
+    // Если есть date, используем её, иначе NULL
     const query = `
       INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id
     `;
     
-    const result = await db.run(query, [
+    const result = await db.query(query, [
       group_id, 
       teacher_id, 
       subject_id, 
@@ -32,7 +34,7 @@ export async function POST(request) {
 
     return NextResponse.json({ 
       success: true, 
-      id: result.lastID 
+      id: result.rows[0].id 
     });
   } catch (error) {
     console.error('Schedule POST error:', error);
@@ -47,8 +49,8 @@ export async function GET(request) {
     const db = await getDb();
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
-    const weekStart = searchParams.get('weekStart');
-    const weekEnd = searchParams.get('weekEnd');
+    const weekStart = searchParams.get('weekStart'); // дата начала недели (понедельник)
+    const weekEnd = searchParams.get('weekEnd');     // дата конца недели (воскресенье)
 
     let query = `
       SELECT 
@@ -65,22 +67,26 @@ export async function GET(request) {
       WHERE 1=1
     `;
     let params = [];
+    let paramIndex = 1;
 
     if (groupId) {
-      query += ` AND s.group_id = ?`;
+      query += ` AND s.group_id = $${paramIndex}`;
       params.push(parseInt(groupId));
+      paramIndex++;
     }
 
+    // Фильтрация по диапазону дат
     if (weekStart && weekEnd) {
-      query += ` AND (s.date BETWEEN ? AND ? OR s.date IS NULL)`;
+      query += ` AND (s.date BETWEEN $${paramIndex} AND $${paramIndex + 1} OR s.date IS NULL)`;
       params.push(weekStart, weekEnd);
+      paramIndex += 2;
     }
 
     query += ' ORDER BY s.date, s.day_of_week, s.pair_number';
     
-    const result = await db.all(query, params);
+    const result = await db.query(query, params);
     
-    return NextResponse.json(result || []);
+    return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('Schedule GET error:', error);
     return NextResponse.json([], { status: 200 });
@@ -103,20 +109,20 @@ export async function PATCH(request) {
     const db = await getDb();
     
     if (user.role === 'teacher') {
-      const teacher = await db.get('SELECT id FROM teachers WHERE user_id = ?', [user.id]);
-      if (teacher) {
-        const lessonCheck = await db.get(
-          'SELECT id FROM schedule WHERE id = ? AND teacher_id = ?',
-          [id, teacher.id]
+      const teacher = await db.query('SELECT id FROM teachers WHERE user_id = $1', [user.id]);
+      if (teacher.rows.length > 0) {
+        const lessonCheck = await db.query(
+          'SELECT id FROM schedule WHERE id = $1 AND teacher_id = $2',
+          [id, teacher.rows[0].id]
         );
-        if (!lessonCheck) {
+        if (lessonCheck.rows.length === 0) {
           return NextResponse.json({ error: 'Это не ваше занятие' }, { status: 403 });
         }
       }
     }
     
-    await db.run(
-      'UPDATE schedule SET notes = ?, status = ? WHERE id = ?',
+    await db.query(
+      'UPDATE schedule SET notes = $1, status = $2 WHERE id = $3',
       [notes || null, status || 'planned', id]
     );
     

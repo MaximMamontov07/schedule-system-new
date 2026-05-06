@@ -12,7 +12,7 @@ export async function DELETE(request, { params }) {
     const db = await getDb();
     const { id } = await params;
     
-    await db.run('DELETE FROM schedule WHERE id = ?', [id]);
+    await db.query('DELETE FROM schedule WHERE id = $1', [id]);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Schedule DELETE error:', error);
@@ -31,10 +31,10 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date } = await request.json();
 
-    await db.run(
+    await db.query(
       `UPDATE schedule 
-       SET group_id = ?, teacher_id = ?, subject_id = ?, classroom_id = ?, pair_number = ?, day_of_week = ?, date = ?
-       WHERE id = ?`,
+       SET group_id = $1, teacher_id = $2, subject_id = $3, classroom_id = $4, pair_number = $5, day_of_week = $6, date = $7
+       WHERE id = $8`,
       [group_id, teacher_id, subject_id, classroom_id || null, pair_number, day_of_week, date || null, id]
     );
 
