@@ -5,6 +5,7 @@ import { getUserFromRequest } from '@/lib/auth';
 export async function POST(request) {
   try {
     const user = await getUserFromRequest(request);
+    console.log('User in POST:', user);
     
     if (!user) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
@@ -12,13 +13,13 @@ export async function POST(request) {
 
     const db = await getDb();
     const body = await request.json();
+    console.log('Request body:', body);
     
-    const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date } = body;
+    const { group_id, teacher_id, subject_id, pair_number, day_of_week } = body;
 
-    // Если есть date, используем её, иначе NULL
     const query = `
-      INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO schedule (group_id, teacher_id, subject_id, pair_number, day_of_week) 
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING id
     `;
     
@@ -26,11 +27,11 @@ export async function POST(request) {
       group_id, 
       teacher_id, 
       subject_id, 
-      classroom_id || null, 
       pair_number, 
-      day_of_week,
-      date || null
+      day_of_week
     ]);
+
+    console.log('Created schedule id:', result.rows[0].id);
 
     return NextResponse.json({ 
       success: true, 
@@ -49,8 +50,6 @@ export async function GET(request) {
     const db = await getDb();
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
-    const weekStart = searchParams.get('weekStart'); // дата начала недели (понедельник)
-    const weekEnd = searchParams.get('weekEnd');     // дата конца недели (воскресенье)
 
     let query = `
       SELECT 
@@ -64,25 +63,15 @@ export async function GET(request) {
       JOIN teachers t ON s.teacher_id = t.id
       JOIN subjects sub ON s.subject_id = sub.id
       LEFT JOIN classrooms c ON s.classroom_id = c.id
-      WHERE 1=1
     `;
     let params = [];
-    let paramIndex = 1;
 
     if (groupId) {
-      query += ` AND s.group_id = $${paramIndex}`;
+      query += ' WHERE s.group_id = $1';
       params.push(parseInt(groupId));
-      paramIndex++;
     }
 
-    // Фильтрация по диапазону дат
-    if (weekStart && weekEnd) {
-      query += ` AND (s.date BETWEEN $${paramIndex} AND $${paramIndex + 1} OR s.date IS NULL)`;
-      params.push(weekStart, weekEnd);
-      paramIndex += 2;
-    }
-
-    query += ' ORDER BY s.date, s.day_of_week, s.pair_number';
+    query += ' ORDER BY s.day_of_week, s.pair_number';
     
     const result = await db.query(query, params);
     
@@ -92,7 +81,6 @@ export async function GET(request) {
     return NextResponse.json([], { status: 200 });
   }
 }
-
 export async function PATCH(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -108,6 +96,7 @@ export async function PATCH(request) {
 
     const db = await getDb();
     
+    // Проверяем права для преподавателя
     if (user.role === 'teacher') {
       const teacher = await db.query('SELECT id FROM teachers WHERE user_id = $1', [user.id]);
       if (teacher.rows.length > 0) {
@@ -121,6 +110,7 @@ export async function PATCH(request) {
       }
     }
     
+    // Обновляем заметки
     await db.query(
       'UPDATE schedule SET notes = $1, status = $2 WHERE id = $3',
       [notes || null, status || 'planned', id]
