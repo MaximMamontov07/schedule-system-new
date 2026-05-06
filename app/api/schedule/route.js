@@ -14,13 +14,24 @@ export async function POST(request) {
     const db = await getDb();
     const body = await request.json();
     
+    console.log('Received POST data:', body); // Отладка
+    
     const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date } = body;
 
+    // Проверка обязательных полей
     if (!group_id || !teacher_id || !subject_id || !pair_number || !day_of_week) {
-      return NextResponse.json({ error: 'Не все обязательные поля заполнены' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Не все обязательные поля заполнены',
+        received: { group_id, teacher_id, subject_id, pair_number, day_of_week }
+      }, { status: 400 });
     }
 
-    // Вставляем занятие (date может быть null)
+    // Проверка даты
+    if (!date) {
+      return NextResponse.json({ error: 'Дата занятия обязательна' }, { status: 400 });
+    }
+
+    // Вставляем занятие
     const query = `
       INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -34,8 +45,10 @@ export async function POST(request) {
       classroom_id ? parseInt(classroom_id) : null, 
       parseInt(pair_number), 
       parseInt(day_of_week),
-      date || null
+      date
     ]);
+
+    console.log('Created schedule id:', result.rows[0].id);
 
     return NextResponse.json({ 
       success: true, 

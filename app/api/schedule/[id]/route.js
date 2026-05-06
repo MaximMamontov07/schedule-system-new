@@ -31,6 +31,10 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date } = await request.json();
 
+    if (!date) {
+      return NextResponse.json({ error: 'Дата занятия обязательна' }, { status: 400 });
+    }
+
     await db.query(
       `UPDATE schedule 
        SET group_id = $1, teacher_id = $2, subject_id = $3, classroom_id = $4, 
@@ -43,8 +47,8 @@ export async function PUT(request, { params }) {
         classroom_id ? parseInt(classroom_id) : null, 
         parseInt(pair_number), 
         parseInt(day_of_week), 
-        date || null,
-        id
+        date,
+        parseInt(id)
       ]
     );
 
