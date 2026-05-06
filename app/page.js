@@ -2413,7 +2413,7 @@ const handleUpdateLesson = async (e) => {
                 <span className="gradient-highlight">Колледжа</span>
               </h1>
               <p className="hero-description">
-                Современная платформа для просмотра расписания в колледже
+               Платформа для просмотра расписания в колледже
               </p>
               <div className="hero-buttons">
                 <button className="btn-primary" onClick={() => setShowLogin(true)}>
