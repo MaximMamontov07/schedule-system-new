@@ -2,36 +2,40 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
+// POST - создание занятия
 export async function POST(request) {
   try {
     const user = await getUserFromRequest(request);
-    console.log('User in POST:', user);
     
-    if (!user) {
-      return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+    if (!user || !['admin', 'methodist'].includes(user.role)) {
+      return NextResponse.json({ error: 'Нет прав' }, { status: 403 });
     }
 
     const db = await getDb();
     const body = await request.json();
-    console.log('Request body:', body);
     
-    const { group_id, teacher_id, subject_id, pair_number, day_of_week } = body;
+    const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date } = body;
 
+    if (!group_id || !teacher_id || !subject_id || !pair_number || !day_of_week) {
+      return NextResponse.json({ error: 'Не все обязательные поля заполнены' }, { status: 400 });
+    }
+
+    // Вставляем занятие (date может быть null)
     const query = `
-      INSERT INTO schedule (group_id, teacher_id, subject_id, pair_number, day_of_week) 
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `;
     
     const result = await db.query(query, [
-      group_id, 
-      teacher_id, 
-      subject_id, 
-      pair_number, 
-      day_of_week
+      parseInt(group_id), 
+      parseInt(teacher_id), 
+      parseInt(subject_id), 
+      classroom_id ? parseInt(classroom_id) : null, 
+      parseInt(pair_number), 
+      parseInt(day_of_week),
+      date || null
     ]);
-
-    console.log('Created schedule id:', result.rows[0].id);
 
     return NextResponse.json({ 
       success: true, 
@@ -45,11 +49,14 @@ export async function POST(request) {
   }
 }
 
+// GET - получение расписания
 export async function GET(request) {
   try {
     const db = await getDb();
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
+    const weekStart = searchParams.get('weekStart');
+    const weekEnd = searchParams.get('weekEnd');
 
     let query = `
       SELECT 
@@ -63,15 +70,23 @@ export async function GET(request) {
       JOIN teachers t ON s.teacher_id = t.id
       JOIN subjects sub ON s.subject_id = sub.id
       LEFT JOIN classrooms c ON s.classroom_id = c.id
+      WHERE 1=1
     `;
     let params = [];
+    let paramIndex = 1;
 
     if (groupId) {
-      query += ' WHERE s.group_id = $1';
+      query += ` AND s.group_id = $${paramIndex++}`;
       params.push(parseInt(groupId));
     }
 
-    query += ' ORDER BY s.day_of_week, s.pair_number';
+    // Фильтрация по диапазону дат (неделя)
+    if (weekStart && weekEnd) {
+      query += ` AND s.date >= $${paramIndex++} AND s.date <= $${paramIndex++}`;
+      params.push(weekStart, weekEnd);
+    }
+
+    query += ' ORDER BY s.date, s.day_of_week, s.pair_number';
     
     const result = await db.query(query, params);
     
@@ -81,6 +96,8 @@ export async function GET(request) {
     return NextResponse.json([], { status: 200 });
   }
 }
+
+// PATCH - обновление заметок
 export async function PATCH(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -110,7 +127,6 @@ export async function PATCH(request) {
       }
     }
     
-    // Обновляем заметки
     await db.query(
       'UPDATE schedule SET notes = $1, status = $2 WHERE id = $3',
       [notes || null, status || 'planned', id]
