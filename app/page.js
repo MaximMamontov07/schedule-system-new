@@ -1,60 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } from 'react';
+import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
-// ============ КОНСТАНТЫ ============
-const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-const PAIRS = [
-  { number: 1, time: '8:30-10:00', name: '1 пара' },
-  { number: 2, time: '10:10-11:40', name: '2 пара' },
-  { number: 3, time: '12:10-13:40', name: '3 пара' },
-  { number: 4, time: '13:50-15:20', name: '4 пара' },
-  { number: 5, time: '15:30-17:00', name: '5 пара' },
-  { number: 6, time: '17:10-18:40', name: '6 пара' }
-];
-const ROLES = { admin: 'Администратор', teacher: 'Преподаватель', student: 'Студент' };
-
-// ============ УТИЛИТЫ ============
-const formatDate = (date) => {
-  if (!date) return '';
-  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
-  return `${date.getDate()} ${months[date.getMonth()]}`;
-};
-
-const formatDateISO = (date) => {
-  return date.toISOString().split('T')[0];
-};
-
-const getMonday = (date) => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - diff);
-  return d;
-};
-
-const getWeekDates = (date) => {
-  const monday = getMonday(date);
-  const dates = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    dates.push(d);
-  }
-  return dates;
-};
-
-const getWeekNumber = (date) => {
-  const d = new Date(date);
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-};
-
-// ============ THEME PROVIDER ============
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
 
 const ThemeProvider = ({ children }) => {
@@ -86,7 +35,31 @@ const ThemeProvider = ({ children }) => {
 
 const useTheme = () => useContext(ThemeContext);
 
-// ============ SEARCHABLE SELECT ============
+const DAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+const PAIRS = [
+  { number: 1, time: '8:30-10:00', name: '1 пара' },
+  { number: 2, time: '10:10-11:40', name: '2 пара' },
+  { number: 3, time: '12:10-13:40', name: '3 пара' },
+  { number: 4, time: '13:50-15:20', name: '4 пара' },
+  { number: 5, time: '15:30-17:00', name: '5 пара' },
+  { number: 6, time: '17:10-18:40', name: '6 пара' }
+];
+const ROLES = { admin: 'Администратор', teacher: 'Преподаватель', student: 'Студент' };
+
+const formatDate = (date) => {
+  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  return `${date.getDate()} ${months[date.getMonth()]}`;
+};
+
+const getWeekNumber = (date) => {
+  const d = new Date(date);
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+};
+
+// ============ SearchableSelect Component ============
 const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,8 +81,54 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
   const filteredOptions = useMemo(() => {
     if (!searchTerm.trim()) return options;
     const term = searchTerm.toLowerCase();
-    return options.filter(opt => opt.label.toLowerCase().includes(term));
+    return options.filter(opt => 
+      opt.label.toLowerCase().includes(term)
+    );
   }, [options, searchTerm]);
+
+  const handleKeyDown = (e) => {
+    if (disabled) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (!isOpen) {
+          setIsOpen(true);
+        } else {
+          setHighlightedIndex(prev => 
+            prev < filteredOptions.length - 1 ? prev + 1 : prev
+          );
+        }
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (isOpen && highlightedIndex >= 0 && filteredOptions[highlightedIndex]) {
+          handleSelect(filteredOptions[highlightedIndex]);
+        } else if (isOpen && filteredOptions.length === 1) {
+          handleSelect(filteredOptions[0]);
+        } else if (!isOpen) {
+          setIsOpen(true);
+        }
+        break;
+      case 'Escape':
+        setIsOpen(false);
+        setSearchTerm('');
+        setHighlightedIndex(-1);
+        if (inputRef.current) inputRef.current.blur();
+        break;
+      case 'Tab':
+        setIsOpen(false);
+        break;
+      default:
+        if (!isOpen && e.key.length === 1) {
+          setIsOpen(true);
+        }
+    }
+  };
 
   const handleSelect = (option) => {
     onChange(option.value);
@@ -118,20 +137,33 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
     setHighlightedIndex(-1);
   };
 
+  const handleInputChange = (e) => {
+    setSearchTerm(e.target.value);
+    if (!isOpen) setIsOpen(true);
+    setHighlightedIndex(-1);
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
+        setSearchTerm('');
+        setHighlightedIndex(-1);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const getDisplayValue = () => {
+    if (isOpen) return searchTerm;
+    return selectedOption?.label || '';
+  };
+
   if (disabled) {
     return (
       <div className="searchable-select disabled">
-        {label && <label><i className={icon}></i> {label}</label>}
+        <label><i className={icon}></i> {label}</label>
         <div className="searchable-select-input disabled">
           <span className="selected-value">{selectedOption?.label || placeholder}</span>
         </div>
@@ -141,27 +173,33 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
 
   return (
     <div className="searchable-select" ref={dropdownRef}>
-      {label && <label><i className={icon}></i> {label}</label>}
+      <label><i className={icon}></i> {label}</label>
       <div className={`searchable-select-input ${isOpen ? 'focused' : ''} ${value ? 'has-value' : ''}`}>
         <input
           ref={inputRef}
           type="text"
           className="searchable-select-input-field"
           placeholder={placeholder}
-          value={isOpen ? searchTerm : (selectedOption?.label || '')}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            if (!isOpen) setIsOpen(true);
-          }}
+          value={getDisplayValue()}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
           onFocus={() => setIsOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(true);
+          }}
         />
         <div className="searchable-select-icons">
           {value && (
-            <button className="searchable-select-clear-btn" onClick={(e) => {
-              e.stopPropagation();
-              onChange('');
-              setSearchTerm('');
-            }}>
+            <button 
+              className="searchable-select-clear-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+                setSearchTerm('');
+              }}
+              title="Очистить"
+            >
               <i className="fas fa-times-circle"></i>
             </button>
           )}
@@ -202,8 +240,317 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
   );
 };
 
-// ============ SCHEDULE GRID (С ПОДДЕРЖКОЙ ДАТ) ============
-const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates }) => {
+// ============ DatePicker Component ============
+const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [viewMode, setViewMode] = useState('month');
+  
+  const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    
+    const days = [];
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      days.push({
+        date: new Date(year, month, -i),
+        isCurrentMonth: false,
+        day: prevMonthLastDay - i
+      });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true,
+        day: i
+      });
+    }
+    const remainingDays = 42 - days.length;
+    for (let i = 1; i <= remainingDays; i++) {
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false,
+        day: i
+      });
+    }
+    
+    return days;
+  };
+  
+  const changeMonth = (delta) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1));
+  };
+  
+  const isToday = (date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
+  
+  const isSelected = (date) => {
+    return selectedDate && 
+           date.getDate() === selectedDate.getDate() &&
+           date.getMonth() === selectedDate.getMonth() &&
+           date.getFullYear() === selectedDate.getFullYear();
+  };
+  
+  const handleDateClick = (date) => {
+    onDateSelect(date);
+    onClose();
+  };
+  
+  const years = [];
+  const currentYear = currentMonth.getFullYear();
+  for (let i = currentYear - 5; i <= currentYear + 5; i++) {
+    years.push(i);
+  }
+  
+  return (
+    <div className="datepicker-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="datepicker-header">
+        <div className="datepicker-nav">
+          <button onClick={() => changeMonth(-1)} className="datepicker-nav-btn">
+            <i className="fas fa-chevron-left"></i>
+          </button>
+          <button 
+            className="datepicker-month-year"
+            onClick={() => setViewMode(viewMode === 'month' ? 'year' : 'month')}
+          >
+            {viewMode === 'month' ? (
+              <span>{months[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
+            ) : (
+              <span>{currentMonth.getFullYear()}</span>
+            )}
+            <i className="fas fa-chevron-down"></i>
+          </button>
+          <button onClick={() => changeMonth(1)} className="datepicker-nav-btn">
+            <i className="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <button className="datepicker-close" onClick={onClose}>
+          <i className="fas fa-times"></i>
+        </button>
+      </div>
+      
+      {viewMode === 'month' ? (
+        <>
+          <div className="datepicker-weekdays">
+            {weekdays.map(day => (
+              <div key={day} className="datepicker-weekday">{day}</div>
+            ))}
+          </div>
+          <div className="datepicker-days">
+            {getDaysInMonth(currentMonth).map((day, idx) => (
+              <button
+                key={idx}
+                className={`datepicker-day ${!day.isCurrentMonth ? 'other-month' : ''} ${isToday(day.date) ? 'today' : ''} ${isSelected(day.date) ? 'selected' : ''}`}
+                onClick={() => handleDateClick(day.date)}
+              >
+                {day.day}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="datepicker-years">
+          {years.map(year => (
+            <button
+              key={year}
+              className={`datepicker-year ${year === currentMonth.getFullYear() ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
+                setViewMode('month');
+              }}
+            >
+              {year}
+            </button>
+          ))}
+        </div>
+      )}
+      
+      <div className="datepicker-footer">
+        <button className="datepicker-today-btn" onClick={() => {
+          const today = new Date();
+          handleDateClick(today);
+        }}>
+          <i className="fas fa-calendar-day"></i> Сегодня
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============ FilterSection Component ============
+const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, selectedDate, weekDates, onPrevWeek, onNextWeek, onCurrentWeek, hasActiveFilters, showGroupFilter = true, isStudent = false }) => {
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[6];
+  
+  const areControlsDisabled = !hasActiveFilters && !isStudent;
+  
+  const groupOptions = groups?.map(g => ({ value: String(g.id), label: g.name })) || [];
+  const teacherOptions = teachers?.map(t => ({ value: String(t.id), label: t.name })) || [];
+  const subjectOptions = subjects?.map(s => ({ value: String(s.id), label: s.name })) || [];
+  const classroomOptions = classrooms?.map(c => ({ value: String(c.id), label: c.name })) || [];
+  const dayOptions = DAYS.map((day, idx) => ({ value: String(idx + 1), label: day }));
+  const pairOptions = PAIRS.map(p => ({ value: String(p.number), label: `${p.name} (${p.time})` }));
+  
+  return (
+    <div className="filter-section">
+      <div className="filter-section-header">
+        <div className="week-navigation">
+          <button 
+            className="calendar-icon-btn" 
+            onClick={onOpenCalendar} 
+            title="Выбрать дату"
+            disabled={areControlsDisabled}
+            style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
+          >
+            <i className="fas fa-calendar-alt"></i>
+            {selectedDate && (
+              <span className="selected-date-badge">
+                {selectedDate.getDate()}.{selectedDate.getMonth() + 1}
+              </span>
+            )}
+          </button>
+          
+          <div className="week-controls">
+            <button 
+              onClick={onPrevWeek} 
+              className="week-nav-btn" 
+              title="Предыдущая неделя"
+              disabled={areControlsDisabled}
+              style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
+            >
+              <i className="fas fa-chevron-left"></i>
+            </button>
+            <div className="week-display">
+              <i className="fas fa-calendar-week"></i>
+              <span>
+                {formatDate(weekStart)} - {formatDate(weekEnd)}
+              </span>
+              <span className="week-number">({getWeekNumber(weekStart)} неделя)</span>
+            </div>
+            <button 
+              onClick={onNextWeek} 
+              className="week-nav-btn" 
+              title="Следующая неделя"
+              disabled={areControlsDisabled}
+              style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
+            >
+              <i className="fas fa-chevron-right"></i>
+            </button>
+            <button 
+              onClick={onCurrentWeek} 
+              className="week-today-btn" 
+              title="Текущая неделя"
+              disabled={areControlsDisabled}
+              style={{ opacity: areControlsDisabled ? 0.5 : 1, cursor: areControlsDisabled ? 'not-allowed' : 'pointer' }}
+            >
+              <i className="fas fa-calendar-day"></i> Сегодня
+            </button>
+          </div>
+        </div>
+        <button className="reset-filters-btn" onClick={onReset}>
+          <i className="fas fa-undo-alt"></i> Сбросить фильтры
+        </button>
+      </div>
+      
+      <div className="filter-grid">
+        {showGroupFilter && !isStudent && (
+          <div className="filter-group">
+            <SearchableSelect
+              options={groupOptions}
+              value={filters.groupId}
+              onChange={(val) => onFilterChange('groupId', val)}
+              placeholder="Выберите группу"
+              label="Группа"
+              icon="fas fa-users"
+            />
+          </div>
+        )}
+        
+        {isStudent && filters.groupId && (
+          <div className="filter-group">
+            <SearchableSelect
+              options={groupOptions}
+              value={filters.groupId}
+              onChange={(val) => onFilterChange('groupId', val)}
+              placeholder="Выберите группу"
+              label="Группа"
+              icon="fas fa-users"
+              disabled={true}
+            />
+          </div>
+        )}
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={teacherOptions}
+            value={filters.teacherId}
+            onChange={(val) => onFilterChange('teacherId', val)}
+            placeholder="Выберите преподавателя"
+            label="Преподаватель"
+            icon="fas fa-chalkboard-teacher"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={subjectOptions}
+            value={filters.subjectId}
+            onChange={(val) => onFilterChange('subjectId', val)}
+            placeholder="Выберите предмет"
+            label="Предмет"
+            icon="fas fa-book"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={dayOptions}
+            value={filters.dayOfWeek}
+            onChange={(val) => onFilterChange('dayOfWeek', val)}
+            placeholder="Выберите день"
+            label="День недели"
+            icon="fas fa-calendar-day"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={pairOptions}
+            value={filters.pairNumber}
+            onChange={(val) => onFilterChange('pairNumber', val)}
+            placeholder="Выберите пару"
+            label="Пара"
+            icon="fas fa-clock"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={classroomOptions}
+            value={filters.classroomId}
+            onChange={(val) => onFilterChange('classroomId', val)}
+            placeholder="Выберите аудиторию"
+            label="Аудитория"
+            icon="fas fa-door-open"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============ ScheduleGrid Component ============
+const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
@@ -232,6 +579,538 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
             {DAYS.map((day, idx) => {
               const date = weekDates?.[idx];
               const isToday = date && date.toDateString() === new Date().toDateString();
+              const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
+              const isWeekend = idx === 5 || idx === 6;
+              return (
+                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                  <div className="day-header-content">
+                    <span className="day-name">{day}</span>
+                    <span className="day-date">{date ? formatDate(date) : ''}</span>
+                  </div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {PAIRS.map(pair => (
+            <tr key={pair.number}>
+              <td className="time-slot">
+                <div className="time-slot-card">
+                  <span className="pair-number">{pair.name}</span>
+                  <span className="pair-time">{pair.time}</span>
+                </div>
+              </td>
+              {DAYS.map((_, dayIndex) => {
+                const lessons = scheduleMatrix[dayIndex][pair.number - 1];
+                const hasLessons = lessons.length > 0;
+                const date = weekDates?.[dayIndex];
+                const isToday = date && date.toDateString() === new Date().toDateString();
+                const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
+                const isWeekend = dayIndex === 5 || dayIndex === 6;
+                
+                return (
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                    {hasLessons ? (
+                      <div className="lessons-container">
+                        {lessons.map((lesson, idx) => (
+                          <div key={lesson.id || idx} className="lesson-card-modern">
+                            <div className="lesson-header">
+                              <h4 className="lesson-title">{lesson.subject_name}</h4>
+                              <span className="lesson-group-tag">{lesson.group_name}</span>
+                            </div>
+                            <div className="lesson-body">
+                              <div className="lesson-info">
+                                <i className="fas fa-chalkboard-teacher"></i>
+                                <span>{lesson.teacher_name}</span>
+                              </div>
+                              {lesson.classroom_name && (
+                                <div className="lesson-info">
+                                  <i className="fas fa-door-open"></i>
+                                  <span>{lesson.classroom_name}</span>
+                                </div>
+                              )}
+                              {lesson.notes && (
+                                <div className="lesson-notes-badge" title={lesson.notes}>
+                                  <i className="fas fa-sticky-note"></i>
+                                  <span>{lesson.notes.length > 35 ? lesson.notes.substring(0, 35) + '...' : lesson.notes}</span>
+                                </div>
+                              )}
+                            </div>
+                            {canEdit && (
+                              <div className="lesson-actions-modern">
+                                <button 
+                                  className="lesson-action-btn edit" 
+                                  onClick={() => onEditClick(lesson)} 
+                                  title="Редактировать"
+                                >
+                                  <i className="fas fa-edit"></i>
+                                </button>
+                                <button 
+                                  className="lesson-action-btn delete" 
+                                  onClick={() => onDeleteClick(lesson.id)} 
+                                  title="Удалить"
+                                >
+                                  <i className="fas fa-trash-alt"></i>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {canEdit && onAddClick && lessons.length < 6 && (
+                          <button 
+                            className="add-lesson-btn-mini"
+                            onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number })}
+                            title="Добавить занятие"
+                          >
+                            <i className="fas fa-plus"></i>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      canEdit && onAddClick && (
+                        <button 
+                          className="add-lesson-btn"
+                          onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number })}
+                          title="Добавить занятие"
+                        >
+                          <i className="fas fa-plus"></i>
+                        </button>
+                      )
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// ============ ScheduleView Component ============
+const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId, loadScheduleForWeek }) => {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
+  
+  const isStudent = userRole === 'student';
+  const [filters, setFilters] = useState({
+    groupId: isStudent && userGroupId ? String(userGroupId) : '',
+    teacherId: '',
+    subjectId: '',
+    dayOfWeek: '',
+    pairNumber: '',
+    classroomId: ''
+  });
+
+  useEffect(() => {
+    if (isStudent && userGroupId) {
+      setHasAppliedFilter(true);
+    }
+  }, [isStudent, userGroupId]);
+
+  const getWeekDatesWithOffset = (offset, baseDate) => {
+    const date = baseDate || new Date();
+    const currentDay = date.getDay();
+    const monday = new Date(date);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(date.getDate() - diff + (offset * 7));
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDates.push(d);
+    }
+    return weekDates;
+  };
+
+  const weekDates = getWeekDatesWithOffset(weekOffset, selectedDate);
+
+  // Загружаем расписание при смене недели
+  useEffect(() => {
+    if (weekDates.length > 0 && loadScheduleForWeek) {
+      const startDate = weekDates[0].toISOString().split('T')[0];
+      const endDate = weekDates[6].toISOString().split('T')[0];
+      loadScheduleForWeek(startDate, endDate);
+    }
+  }, [weekDates, loadScheduleForWeek]);
+
+  const filteredSchedule = useMemo(() => {
+    let filtered = [...schedule];
+    
+    if (filters.groupId) {
+      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
+    }
+    if (filters.teacherId) {
+      filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
+    }
+    if (filters.subjectId) {
+      filtered = filtered.filter(s => s.subject_id === parseInt(filters.subjectId));
+    }
+    if (filters.dayOfWeek) {
+      filtered = filtered.filter(s => s.day_of_week === parseInt(filters.dayOfWeek));
+    }
+    if (filters.pairNumber) {
+      filtered = filtered.filter(s => s.pair_number === parseInt(filters.pairNumber));
+    }
+    if (filters.classroomId) {
+      filtered = filtered.filter(s => s.classroom_id === parseInt(filters.classroomId));
+    }
+    
+    return filtered;
+  }, [schedule, filters]);
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setHasAppliedFilter(true);
+  };
+
+  const resetFilters = () => {
+    if (isStudent && userGroupId) {
+      setFilters({
+        groupId: String(userGroupId),
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setHasAppliedFilter(true);
+    } else {
+      setFilters({
+        groupId: '',
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setHasAppliedFilter(false);
+    }
+    setSelectedDate(null);
+    setWeekOffset(0);
+  };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setWeekOffset(0);
+  };
+
+  const handlePrevWeek = () => {
+    setWeekOffset(prev => prev - 1);
+    setSelectedDate(null);
+  };
+
+  const handleNextWeek = () => {
+    setWeekOffset(prev => prev + 1);
+    setSelectedDate(null);
+  };
+
+  const handleCurrentWeek = () => {
+    setWeekOffset(0);
+    setSelectedDate(null);
+  };
+
+  const hasActiveFilters = filters.groupId || filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId;
+  
+  const availableGroups = isStudent ? groups.filter(g => g.id === userGroupId) : groups;
+  const showGroupFilter = !isStudent;
+
+  if (loading) {
+    return (
+      <div className="loading-state">
+        <div className="spinner"></div>
+        <p>Загрузка расписания...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="schedule-container">
+      <FilterSection 
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        groups={availableGroups}
+        teachers={teachers}
+        subjects={subjects}
+        classrooms={classrooms}
+        onReset={resetFilters}
+        onOpenCalendar={() => setShowCalendar(true)}
+        selectedDate={selectedDate}
+        weekDates={weekDates}
+        onPrevWeek={handlePrevWeek}
+        onNextWeek={handleNextWeek}
+        onCurrentWeek={handleCurrentWeek}
+        hasActiveFilters={hasActiveFilters || isStudent}
+        showGroupFilter={showGroupFilter}
+        isStudent={isStudent}
+      />
+      
+      {showCalendar && createPortal(
+        <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
+          <DatePicker 
+            onDateSelect={handleDateSelect}
+            onClose={() => setShowCalendar(false)}
+            selectedDate={selectedDate}
+          />
+        </div>,
+        document.body
+      )}
+      
+      {!hasAppliedFilter && !isStudent ? (
+        <div className="filter-placeholder">
+          <i className="fas fa-filter"></i>
+          <h3>Выберите параметры для просмотра расписания</h3>
+          <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
+        </div>
+      ) : filteredSchedule.length === 0 ? (
+        <div className="empty-state">
+          <i className="fas fa-search"></i>
+          <p>Нет занятий по выбранным фильтрам</p>
+        </div>
+      ) : (
+        <ScheduleGrid 
+          data={filteredSchedule} 
+          canEdit={false} 
+          weekDates={weekDates}
+          selectedDate={selectedDate}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============ PublicScheduleView Component ============
+const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, loadScheduleForWeek }) => {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
+  const [filters, setFilters] = useState({
+    groupId: '',
+    teacherId: '',
+    subjectId: '',
+    dayOfWeek: '',
+    pairNumber: '',
+    classroomId: ''
+  });
+
+  const getWeekDatesWithOffset = (offset, baseDate) => {
+    const date = baseDate || new Date();
+    const currentDay = date.getDay();
+    const monday = new Date(date);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(date.getDate() - diff + (offset * 7));
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDates.push(d);
+    }
+    return weekDates;
+  };
+
+  const weekDates = getWeekDatesWithOffset(weekOffset, selectedDate);
+
+  // Загружаем расписание при смене недели
+  useEffect(() => {
+    if (weekDates.length > 0 && loadScheduleForWeek) {
+      const startDate = weekDates[0].toISOString().split('T')[0];
+      const endDate = weekDates[6].toISOString().split('T')[0];
+      loadScheduleForWeek(startDate, endDate);
+    }
+  }, [weekDates, loadScheduleForWeek]);
+
+  const filteredSchedule = useMemo(() => {
+    let filtered = [...schedule];
+    
+    if (filters.groupId) {
+      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
+    }
+    if (filters.teacherId) {
+      filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
+    }
+    if (filters.subjectId) {
+      filtered = filtered.filter(s => s.subject_id === parseInt(filters.subjectId));
+    }
+    if (filters.dayOfWeek) {
+      filtered = filtered.filter(s => s.day_of_week === parseInt(filters.dayOfWeek));
+    }
+    if (filters.pairNumber) {
+      filtered = filtered.filter(s => s.pair_number === parseInt(filters.pairNumber));
+    }
+    if (filters.classroomId) {
+      filtered = filtered.filter(s => s.classroom_id === parseInt(filters.classroomId));
+    }
+    
+    return filtered;
+  }, [schedule, filters]);
+
+  const hasActiveFilters = filters.groupId !== '' || 
+                          filters.teacherId !== '' || 
+                          filters.subjectId !== '' || 
+                          filters.dayOfWeek !== '' || 
+                          filters.pairNumber !== '' || 
+                          filters.classroomId !== '' ||
+                          selectedDate !== null ||
+                          weekOffset !== 0;
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setHasAppliedFilter(true);
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      groupId: '',
+      teacherId: '',
+      subjectId: '',
+      dayOfWeek: '',
+      pairNumber: '',
+      classroomId: ''
+    });
+    setSelectedDate(null);
+    setWeekOffset(0);
+    setHasAppliedFilter(false);
+  };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+    setWeekOffset(0);
+  };
+
+  const handlePrevWeek = () => {
+    setWeekOffset(prev => prev - 1);
+    setSelectedDate(null);
+  };
+
+  const handleNextWeek = () => {
+    setWeekOffset(prev => prev + 1);
+    setSelectedDate(null);
+  };
+
+  const handleCurrentWeek = () => {
+    setWeekOffset(0);
+    setSelectedDate(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-state">
+        <div className="spinner"></div>
+        <p>Загрузка расписания...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="public-schedule-container">
+      <FilterSection 
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        groups={groups}
+        teachers={teachers}
+        subjects={subjects}
+        classrooms={classrooms}
+        onReset={resetFilters}
+        onOpenCalendar={() => setShowCalendar(true)}
+        selectedDate={selectedDate}
+        weekDates={weekDates}
+        onPrevWeek={handlePrevWeek}
+        onNextWeek={handleNextWeek}
+        onCurrentWeek={handleCurrentWeek}
+        hasActiveFilters={hasActiveFilters}
+        showGroupFilter={true}
+        isStudent={false}
+      />
+      
+      {showCalendar && createPortal(
+        <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
+          <DatePicker 
+            onDateSelect={handleDateSelect}
+            onClose={() => setShowCalendar(false)}
+            selectedDate={selectedDate}
+          />
+        </div>,
+        document.body
+      )}
+      
+      {!hasAppliedFilter ? (
+        <div className="filter-placeholder">
+          <i className="fas fa-filter"></i>
+          <h3>Выберите параметры для просмотра расписания</h3>
+          <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
+        </div>
+      ) : filteredSchedule.length === 0 ? (
+        <div className="empty-state">
+          <i className="fas fa-search"></i>
+          <p>Нет занятий по выбранным фильтрам</p>
+        </div>
+      ) : (
+        <ScheduleGrid 
+          data={filteredSchedule} 
+          canEdit={false} 
+          weekDates={weekDates}
+          selectedDate={selectedDate}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============ TeacherPanel Component ============
+const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
+  const getWeekDates = () => {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const monday = new Date(now);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(now.getDate() - diff);
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      weekDates.push(date);
+    }
+    return weekDates;
+  };
+
+  const weekDates = getWeekDates();
+  
+  const scheduleMatrix = useMemo(() => {
+    const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
+    if (Array.isArray(data)) {
+      data.forEach(lesson => {
+        const dayIndex = lesson.day_of_week - 1;
+        const pairIndex = lesson.pair_number - 1;
+        if (dayIndex >= 0 && dayIndex < 7 && pairIndex >= 0 && pairIndex < 6) {
+          matrix[dayIndex][pairIndex].push(lesson);
+        }
+      });
+    }
+    return matrix;
+  }, [data]);
+
+  return (
+    <div className="schedule-grid-wrapper">
+      <table className="schedule-grid">
+        <thead>
+          <tr>
+            <th className="time-header">
+              <div className="time-header-content">
+                <i className="fas fa-clock"></i>
+                <span>Время</span>
+              </div>
+            </th>
+            {DAYS.map((day, idx) => {
+              const date = weekDates[idx];
+              const isToday = date && date.toDateString() === new Date().toDateString();
               const isWeekend = idx === 5 || idx === 6;
               return (
                 <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
@@ -256,76 +1135,58 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
               {DAYS.map((_, dayIndex) => {
                 const lessons = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLessons = lessons.length > 0;
-                const date = weekDates?.[dayIndex];
+                const date = weekDates[dayIndex];
                 const isToday = date && date.toDateString() === new Date().toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
                   <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLessons ? (
-                      <div className="lessons-container">
-                        {lessons.map((lesson, idx) => (
-                          <div key={lesson.id || idx} className="lesson-card-modern">
-                            <div className="lesson-header">
-                              <h4 className="lesson-title">{lesson.subject_name}</h4>
-                              <span className="lesson-group-tag">{lesson.group_name}</span>
-                            </div>
-                            <div className="lesson-body">
-                              <div className="lesson-info">
-                                <i className="fas fa-chalkboard-teacher"></i>
-                                <span>{lesson.teacher_name}</span>
+                      <div className="teacher-lessons-container">
+                        {lessons.map((lesson, idx) => {
+                          const currentData = localData[lesson.id] || { notes: lesson.notes || '' };
+                          const isChanged = hasChanges[lesson.id] || false;
+                          const isSaving = saving[lesson.id] || false;
+                          
+                          return (
+                            <div key={lesson.id || idx} className="teacher-lesson-card">
+                              <div className="lesson-header">
+                                <h4 className="lesson-title">{lesson.subject_name}</h4>
+                                <div className="lesson-badges">
+                                  <span className="lesson-group-tag">{lesson.group_name}</span>
+                                  {isChanged && <span className="unsaved-badge"><i className="fas fa-circle"></i> Не сохранено</span>}
+                                </div>
                               </div>
-                              {lesson.classroom_name && (
+                              <div className="lesson-body">
                                 <div className="lesson-info">
                                   <i className="fas fa-door-open"></i>
-                                  <span>{lesson.classroom_name}</span>
+                                  <span>{lesson.classroom_name || 'Аудитория не указана'}</span>
                                 </div>
-                              )}
-                              {lesson.date && (
-                                <div className="lesson-info">
-                                  <i className="fas fa-calendar-alt"></i>
-                                  <span>{new Date(lesson.date).toLocaleDateString('ru-RU')}</span>
-                                </div>
-                              )}
-                              {lesson.notes && (
-                                <div className="lesson-notes-badge" title={lesson.notes}>
-                                  <i className="fas fa-sticky-note"></i>
-                                  <span>{lesson.notes.length > 35 ? lesson.notes.substring(0, 35) + '...' : lesson.notes}</span>
-                                </div>
-                              )}
-                            </div>
-                            {canEdit && (
-                              <div className="lesson-actions-modern">
-                                <button className="lesson-action-btn edit" onClick={() => onEditClick(lesson)} title="Редактировать">
-                                  <i className="fas fa-edit"></i>
-                                </button>
-                                <button className="lesson-action-btn delete" onClick={() => onDeleteClick(lesson.id)} title="Удалить">
-                                  <i className="fas fa-trash-alt"></i>
-                                </button>
+                                <textarea 
+                                  placeholder="Заметки (домашнее задание, материалы...)"
+                                  value={currentData.notes || ''}
+                                  onChange={(e) => onNotesChange(lesson.id, e.target.value)}
+                                  rows="2"
+                                  disabled={isSaving}
+                                  className="teacher-notes-textarea"
+                                />
+                                {isChanged && (
+                                  <div className="teacher-actions-modern">
+                                    <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="teacher-action-btn cancel">
+                                      <i className="fas fa-times"></i> Отмена
+                                    </button>
+                                    <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="teacher-action-btn save">
+                                      {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        ))}
-                        {canEdit && onAddClick && lessons.length < 6 && (
-                          <button 
-                            className="add-lesson-btn-mini"
-                            onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: date ? formatDateISO(date) : '' })}
-                            title="Добавить занятие"
-                          >
-                            <i className="fas fa-plus"></i> Добавить
-                          </button>
-                        )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
-                      canEdit && onAddClick && (
-                        <button 
-                          className="add-lesson-btn"
-                          onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: date ? formatDateISO(date) : '' })}
-                          title="Добавить занятие"
-                        >
-                          <i className="fas fa-plus"></i>
-                        </button>
-                      )
+                      <div className="empty-cell"></div>
                     )}
                   </td>
                 );
@@ -338,61 +1199,7 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// ============ TEACHER PANEL ============
-const TeacherPanel = ({ data, onUpdateNotes }) => {
-  const [localNotes, setLocalNotes] = useState({});
-  const [saving, setSaving] = useState({});
-
-  useEffect(() => {
-    const initial = {};
-    data.forEach(lesson => { initial[lesson.id] = lesson.notes || ''; });
-    setLocalNotes(initial);
-  }, [data]);
-
-  const handleSave = async (lessonId) => {
-    setSaving(prev => ({ ...prev, [lessonId]: true }));
-    await onUpdateNotes(lessonId, localNotes[lessonId]);
-    setSaving(prev => ({ ...prev, [lessonId]: false }));
-  };
-
-  return (
-    <div className="teacher-lessons-container">
-      {data.map(lesson => (
-        <div key={lesson.id} className="teacher-lesson-card">
-          <div className="lesson-header">
-            <h4 className="lesson-title">{lesson.subject_name}</h4>
-            <span className="lesson-group-tag">{lesson.group_name}</span>
-          </div>
-          <div className="lesson-info">
-            <i className="fas fa-calendar-alt"></i> {new Date(lesson.date).toLocaleDateString('ru-RU')}
-          </div>
-          <div className="lesson-info">
-            <i className="fas fa-clock"></i> {PAIRS[lesson.pair_number - 1].name} ({PAIRS[lesson.pair_number - 1].time})
-          </div>
-          <div className="lesson-info">
-            <i className="fas fa-door-open"></i> {lesson.classroom_name || 'Аудитория не указана'}
-          </div>
-          <textarea
-            value={localNotes[lesson.id] || ''}
-            onChange={(e) => setLocalNotes(prev => ({ ...prev, [lesson.id]: e.target.value }))}
-            placeholder="Заметки (домашнее задание, материалы для подготовки...)"
-            rows="3"
-            className="teacher-notes-textarea"
-          />
-          {localNotes[lesson.id] !== lesson.notes && (
-            <div className="teacher-actions-modern">
-              <button onClick={() => handleSave(lesson.id)} disabled={saving[lesson.id]} className="teacher-action-btn save">
-                {saving[lesson.id] ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
-              </button>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// ============ TEACHER REPORT MODAL ============
+// ============ TeacherReportModal Component ============
 const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -428,7 +1235,11 @@ const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
               icon="fas fa-chalkboard-teacher"
             />
           </div>
-          <button className="submit-btn" onClick={handleGenerate} disabled={generating}>
+          <button 
+            className="submit-btn" 
+            onClick={handleGenerate}
+            disabled={generating}
+          >
             {generating ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-download"></i>}
             {generating ? ' Формирование...' : ' Сформировать отчет'}
           </button>
@@ -438,133 +1249,78 @@ const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
   );
 };
 
-// ============ FILTER SECTION ============
-const FilterSection = ({ currentDate, onPrevWeek, onNextWeek, onCurrentWeek, groups, selectedGroupId, onGroupChange, loading }) => {
-  const weekDates = getWeekDates(currentDate);
-  const weekStart = weekDates[0];
-  const weekEnd = weekDates[6];
-  
-  const groupOptions = groups?.map(g => ({ value: String(g.id), label: g.name })) || [];
-
-  return (
-    <div className="filter-section">
-      <div className="filter-section-header">
-        <div className="week-navigation">
-          <div className="week-controls">
-            <button onClick={onPrevWeek} className="week-nav-btn" disabled={loading}>
-              <i className="fas fa-chevron-left"></i>
-            </button>
-            <div className="week-display">
-              <i className="fas fa-calendar-week"></i>
-              <span>{formatDate(weekStart)} - {formatDate(weekEnd)}</span>
-              <span className="week-number">({getWeekNumber(weekStart)} неделя)</span>
-            </div>
-            <button onClick={onNextWeek} className="week-nav-btn" disabled={loading}>
-              <i className="fas fa-chevron-right"></i>
-            </button>
-            <button onClick={onCurrentWeek} className="week-today-btn" disabled={loading}>
-              <i className="fas fa-calendar-day"></i> Сегодня
-            </button>
-          </div>
-        </div>
-        
-        <div className="filter-group">
-          <SearchableSelect
-            options={groupOptions}
-            value={selectedGroupId ? String(selectedGroupId) : ''}
-            onChange={(val) => onGroupChange(val)}
-            placeholder="Все группы"
-            label="Группа"
-            icon="fas fa-users"
-            disabled={loading}
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============ HOME CONTENT ============
+// ============ HomeContent Component ============
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
-  
-  // Состояния
-  const [token, setToken] = useState(null);
-  const [user, setUser] = useState(null);
-  const [authChecking, setAuthChecking] = useState(true);
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('schedule');
-  const [showLogin, setShowLogin] = useState(false);
-  const [loginData, setLoginData] = useState({ username: '', password: '' });
-  const [notification, setNotification] = useState(null);
-  
-  // Справочники
+  const [authChecking, setAuthChecking] = useState(true);
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [groups, setGroups] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [users, setUsers] = useState([]);
+  const [notification, setNotification] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('schedule');
+  const [showTeacherReportModal, setShowTeacherReportModal] = useState(false);
   
-  // Навигация по неделям
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedGroupId, setSelectedGroupId] = useState(null);
-  
-  // Модальные окна
-  const [showLessonModal, setShowLessonModal] = useState(false);
-  const [editingLesson, setEditingLesson] = useState(null);
-  const [newLesson, setNewLesson] = useState({
-    group_id: '', teacher_id: '', subject_id: '', classroom_id: '',
-    pair_number: '1', day_of_week: '1', date: ''
-  });
-  
-  // Модалки справочников
+  const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [showSubjectModal, setShowSubjectModal] = useState(false);
   const [showClassroomModal, setShowClassroomModal] = useState(false);
-  const [showTeacherReportModal, setShowTeacherReportModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   
-  // Состояния для форм
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [registerData, setRegisterData] = useState({ username: '', password: '', fullName: '', role: 'student', groupId: '' });
+  const [newLesson, setNewLesson] = useState({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1' });
+  const [editingLesson, setEditingLesson] = useState(null);
   const [newGroup, setNewGroup] = useState('');
   const [newTeacher, setNewTeacher] = useState('');
   const [newSubject, setNewSubject] = useState('');
   const [newClassroom, setNewClassroom] = useState('');
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('');
 
-  const showNotification = (msg, type = 'success') => {
+  const [localData, setLocalData] = useState({});
+  const [hasChanges, setHasChanges] = useState({});
+  const [saving, setSaving] = useState({});
+
+  const showNotification = (msg, type) => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const isAdmin = user?.role === 'admin';
-  const isTeacher = user?.role === 'teacher';
-  const canEdit = isAdmin;
+  const canEditSchedule = user && user.role === 'admin';
+  const canManageUsers = user && user.role === 'admin';
+  const isTeacher = user && user.role === 'teacher';
 
-  // Загрузка расписания за неделю
-  const loadScheduleForWeek = useCallback(async () => {
-    const weekDates = getWeekDates(currentDate);
-    const startDate = formatDateISO(weekDates[0]);
-    const endDate = formatDateISO(weekDates[6]);
+  // Функция для загрузки расписания за конкретную неделю
+  const loadScheduleForWeek = async (startDate, endDate) => {
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     
-    let url = `/api/schedule?weekStart=${startDate}&weekEnd=${endDate}`;
-    if (selectedGroupId) {
-      url += `&groupId=${selectedGroupId}`;
+    let url = '/api/schedule';
+    if (startDate && endDate) {
+      url += `?weekStart=${startDate}&weekEnd=${endDate}`;
     }
     
     try {
-      const res = await fetch(url);
-      const data = await res.json();
-      setSchedule(data);
-    } catch (error) {
-      console.error('Error loading schedule:', error);
+      const scheduleRes = await fetch(url, { headers });
+      const scheduleData = await scheduleRes.json();
+      setSchedule(scheduleData);
+    } catch (e) {
+      console.error(e);
+      showNotification('Ошибка загрузки расписания', 'error');
     }
-  }, [currentDate, selectedGroupId]);
+  };
 
-  // Загрузка справочников
-  const loadDirectories = useCallback(async () => {
+  
+  const loadData = async () => {
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    
     try {
       const [groupsRes, teachersRes, subjectsRes, classroomsRes] = await Promise.all([
         fetch('/api/groups'),
@@ -572,304 +1328,63 @@ function HomeContent() {
         fetch('/api/subjects'),
         fetch('/api/classrooms')
       ]);
+      
       setGroups(await groupsRes.json());
       setTeachers(await teachersRes.json());
       setSubjects(await subjectsRes.json());
       setClassrooms(await classroomsRes.json());
-    } catch (error) {
-      console.error('Error loading directories:', error);
+      
+      // Загружаем расписание для текущей недели
+      const now = new Date();
+      const currentDay = now.getDay();
+      const monday = new Date(now);
+      const diff = currentDay === 0 ? 6 : currentDay - 1;
+      monday.setDate(now.getDate() - diff);
+      
+      const weekStart = monday.toISOString().split('T')[0];
+      const weekEnd = new Date(monday);
+      weekEnd.setDate(monday.getDate() + 6);
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
+      
+      await loadScheduleForWeek(weekStart, weekEndStr);
+    } catch (e) {
+      console.error(e);
+      showNotification('Ошибка загрузки данных', 'error');
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const loadUsers = useCallback(async () => {
-    if (!token || !isAdmin) return;
+  // Функция для получения дат недели со смещением
+  const getWeekDatesWithOffset = (offset, baseDate) => {
+    const date = baseDate || new Date();
+    const currentDay = date.getDay();
+    const monday = new Date(date);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(date.getDate() - diff + (offset * 7));
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDates.push(d);
+    }
+    return weekDates;
+  };
+
+  const loadUsers = async () => {
+    if (!token || !canManageUsers) return;
     try {
       const res = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setUsers(await res.json());
-    } catch (error) {
-      console.error('Error loading users:', error);
-    }
-  }, [token, isAdmin]);
-
-  // Загрузка всех данных
-  const loadAllData = useCallback(async () => {
-    setLoading(true);
-    await Promise.all([loadDirectories(), loadScheduleForWeek()]);
-    if (token && isAdmin) await loadUsers();
-    setLoading(false);
-  }, [loadDirectories, loadScheduleForWeek, loadUsers, token, isAdmin]);
-
-  // Эффекты
-  useEffect(() => {
-    const init = async () => {
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-        if (userData.role === 'teacher') setActiveTab('my-lessons');
-      }
-      setAuthChecking(false);
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
-    if (!authChecking) {
-      loadAllData();
-    }
-  }, [authChecking, loadAllData]);
-
-  useEffect(() => {
-    if (token && isAdmin) {
-      loadUsers();
-    }
-  }, [token, isAdmin, loadUsers]);
-
-  // Навигация по неделям
-  const handlePrevWeek = () => {
-    const newDate = new Date(currentDate);
-    newDate.setDate(currentDate.getDate() - 7);
-    setCurrentDate(newDate);
+    } catch (e) {}
   };
 
-  const handleNextWeek = () => {
-    const newDate = new Date(currentDate);
-    newDate.setDate(currentDate.getDate() + 7);
-    setCurrentDate(newDate);
-  };
-
-  const handleCurrentWeek = () => {
-    setCurrentDate(new Date());
-  };
-
-  // Обработчики занятий
-  const handleAddClick = (slotData) => {
-    setEditingLesson(null);
-    setNewLesson({
-      group_id: selectedGroupId || '',
-      teacher_id: '',
-      subject_id: '',
-      classroom_id: '',
-      pair_number: String(slotData.pair_number),
-      day_of_week: String(slotData.day_of_week),
-      date: slotData.date
-    });
-    setShowLessonModal(true);
-  };
-
-  const handleEditClick = (lesson) => {
-    setEditingLesson(lesson);
-    setShowLessonModal(true);
-  };
-
-  const handleAddLesson = async (e) => {
-    e.preventDefault();
-    if (!newLesson.date) {
-      showNotification('Выберите дату занятия', 'error');
-      return;
-    }
-    
-    try {
-      const res = await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(newLesson)
-      });
-      if (res.ok) {
-        showNotification('Занятие добавлено');
-        setShowLessonModal(false);
-        setNewLesson({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1', date: '' });
-        await loadScheduleForWeek();
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const handleUpdateLesson = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`/api/schedule/${editingLesson.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(editingLesson)
-      });
-      if (res.ok) {
-        showNotification('Занятие обновлено');
-        setShowLessonModal(false);
-        setEditingLesson(null);
-        await loadScheduleForWeek();
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const handleDeleteLesson = async (id) => {
-    if (!confirm('Удалить занятие?')) return;
-    try {
-      await fetch(`/api/schedule/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      showNotification('Занятие удалено');
-      await loadScheduleForWeek();
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const handleUpdateNotes = async (id, notes) => {
-    try {
-      const res = await fetch('/api/schedule', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ id, notes })
-      });
-      if (res.ok) {
-        showNotification('Заметки сохранены');
-        await loadScheduleForWeek();
-      }
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  // Обработчики справочников
-  const addDirectory = async (type, name, setShow, setValue) => {
-    if (!name.trim()) return showNotification('Введите название', 'error');
-    try {
-      const res = await fetch(`/api/${type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ name: name.trim() })
-      });
-      if (res.ok) {
-        showNotification('Добавлено');
-        setShow(false);
-        setValue('');
-        await loadDirectories();
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const deleteDirectory = async (type, id) => {
-    if (!confirm('Удалить?')) return;
-    try {
-      await fetch(`/api/${type}?id=${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      showNotification('Удалено');
-      await loadDirectories();
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const handleDeleteClassroom = async (id) => {
-    if (!confirm('Удалить аудиторию?')) return;
-    try {
-      await fetch(`/api/classrooms?id=${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      showNotification('Аудитория удалена');
-      await loadDirectories();
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  // Обработчики пользователей
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(registerData)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showNotification('Пользователь создан');
-        setShowRegister(false);
-        setRegisterData({ username: '', password: '', fullName: '', role: 'student', groupId: '' });
-        await loadUsers();
-      } else {
-        showNotification(data.error, 'error');
-      }
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const handleDeleteUser = async (userId) => {
-    if (!confirm('Удалить пользователя?')) return;
-    try {
-      await fetch(`/api/users?id=${userId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      showNotification('Пользователь удалён');
-      await loadUsers();
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const linkTeacherToUser = async (teacherId, userId) => {
-    try {
-      const res = await fetch('/api/teachers/link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ teacherId, userId })
-      });
-      if (res.ok) {
-        showNotification('Преподаватель привязан');
-        await loadDirectories();
-        await loadUsers();
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  const unlinkTeacher = async (teacherId) => {
-    if (!confirm('Отвязать преподавателя?')) return;
-    try {
-      await fetch(`/api/teachers/link?teacherId=${teacherId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      showNotification('Привязка удалена');
-      await loadDirectories();
-      await loadUsers();
-    } catch (error) {
-      showNotification('Ошибка', 'error');
-    }
-  };
-
-  // Отчет по часам
+  // Функция для генерации отчета по часам для любого учителя
   const generateTeacherReport = async (teacherId) => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
+      
       const teacher = teachers.find(t => t.id === parseInt(teacherId));
       if (!teacher) {
         showNotification('Преподаватель не найден', 'error');
@@ -882,14 +1397,32 @@ function HomeContent() {
       teacherLessons.forEach(lesson => {
         const subjectName = lesson.subject_name;
         if (!subjectsHours[subjectName]) {
-          subjectsHours[subjectName] = { name: subjectName, hours: 0, lessons: [] };
+          subjectsHours[subjectName] = {
+            name: subjectName,
+            hours: 0,
+            lessons: []
+          };
         }
         subjectsHours[subjectName].hours += 1.5;
         subjectsHours[subjectName].lessons.push(lesson);
       });
       
-      const weekDates = getWeekDates(currentDate);
-      const weekNumber = getWeekNumber(weekDates[0]);
+      const now = new Date();
+      const currentDay = now.getDay();
+      const monday = new Date(now);
+      const diff = currentDay === 0 ? 6 : currentDay - 1;
+      monday.setDate(now.getDate() - diff);
+      
+      const weekDates = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        weekDates.push(date);
+      }
+      
+      const weekStart = weekDates[0];
+      const weekEnd = weekDates[6];
+      const weekNumber = getWeekNumber(weekStart);
       
       const element = document.createElement('div');
       element.innerHTML = `
@@ -897,35 +1430,62 @@ function HomeContent() {
           <head>
             <meta charset="UTF-8">
             <style>
-              body { font-family: 'Inter', Arial, sans-serif; padding: 40px; }
-              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2c3e66; }
-              .teacher-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+              body { font-family: 'Inter', Arial, sans-serif; padding: 40px; color: #1e293b; }
+              .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #2c3e66; }
+              .header h1 { font-size: 24px; margin: 0 0 10px 0; color: #2c3e66; }
+              .header h2 { font-size: 18px; margin: 0; color: #475569; font-weight: normal; }
+              .teacher-info { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+              .teacher-info p { margin: 5px 0; font-size: 14px; }
+              .teacher-info strong { color: #2c3e66; }
               .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
               .summary-table th, .summary-table td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
-              .summary-table th { background: #2c3e66; color: white; }
-              .total-row { background: #e2e8f0; font-weight: bold; }
+              .summary-table th { background: #2c3e66; color: white; font-weight: 600; }
+              .summary-table tr:nth-child(even) { background: #f8fafc; }
+              .total-row { background: #e2e8f0 !important; font-weight: bold; }
+              .details-table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
+              .details-table th, .details-table td { border: 1px solid #e2e8f0; padding: 8px; font-size: 12px; }
+              .details-table th { background: #64748b; color: white; font-weight: 600; }
+              .subject-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; color: #2c3e66; padding-left: 5px; border-left: 4px solid #2c3e66; }
+              .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; }
             </style>
           </head>
           <body>
             <div class="header">
               <h1>Отчет о нагрузке преподавателя</h1>
-              <h2>${formatDate(weekDates[0])} - ${formatDate(weekDates[6])} (${weekNumber} неделя)</h2>
+              <h2>${formatDate(weekStart)} - ${formatDate(weekEnd)} (${weekNumber} неделя)</h2>
             </div>
             <div class="teacher-info">
               <p><strong>Преподаватель:</strong> ${teacher.name}</p>
-              <p><strong>Всего занятий:</strong> ${teacherLessons.length} пар</p>
-              <p><strong>Общая нагрузка:</strong> ${(teacherLessons.length * 1.5).toFixed(1)} часов</p>
+              <p><strong>Всего занятий за неделю:</strong> ${teacherLessons.length} пар</p>
+              <p><strong>Общая нагрузка:</strong> ${(teacherLessons.length * 1.5).toFixed(1)} академических часов</p>
             </div>
             <h3>Сводка по предметам</h3>
             <table class="summary-table">
-              <thead><tr><th>№</th><th>Предмет</th><th>Кол-во пар</th><th>Часов</th></tr></thead>
+              <thead><tr><th>№</th><th>Предмет</th><th>Количество пар</th><th>Часов</th></tr></thead>
               <tbody>
                 ${Object.values(subjectsHours).map((item, idx) => `
-                  <tr><td>${idx + 1}</td><td>${item.name}</td><td>${item.lessons.length}</td><td>${item.hours.toFixed(1)}</td></tr>
+                  <tr><td>${idx + 1}</td><td><strong>${item.name}</strong></td><td>${item.lessons.length} пар</td><td>${item.hours.toFixed(1)} ч.</td></tr>
                 `).join('')}
-                <tr class="total-row"><td colspan="2"><strong>ИТОГО:</strong></td><td><strong>${teacherLessons.length}</strong></td><td><strong>${(teacherLessons.length * 1.5).toFixed(1)}</strong></td></tr>
+                <tr class="total-row"><td colspan="2"><strong>ИТОГО:</strong></td><td><strong>${teacherLessons.length} пар</strong></td><td><strong>${(teacherLessons.length * 1.5).toFixed(1)} ч.</strong></td></tr>
               </tbody>
             </table>
+            ${Object.values(subjectsHours).map(item => `
+              <div class="subject-title">📚 ${item.name}</div>
+              <table class="details-table">
+                <thead><tr><th>День недели</th><th>Дата</th><th>Пара</th><th>Группа</th><th>Аудитория</th><th>Часы</th></tr></thead>
+                <tbody>
+                  ${item.lessons.map(lesson => {
+                    const lessonDate = weekDates[lesson.day_of_week - 1];
+                    return `<tr><td>${DAYS[lesson.day_of_week - 1]}</td><td>${lessonDate ? formatDate(lessonDate) : '-'}</td><td>${lesson.pair_number} пара</td><td>${lesson.group_name}</td><td>${lesson.classroom_name || '—'}</td><td>1.5 ч.</td></tr>`;
+                  }).join('')}
+                  <tr style="background: #f1f5f9;"><td colspan="5"><strong>Итого по предмету:</strong></td><td><strong>${item.hours.toFixed(1)} ч.</strong></td></tr>
+                </tbody>
+              </table>
+            `).join('')}
+            <div class="footer">
+              <p>Отчет сгенерирован автоматически • Система управления расписанием</p>
+              <p>Дата формирования: ${new Date().toLocaleString('ru-RU')}</p>
+            </div>
           </body>
         </html>
       `;
@@ -934,55 +1494,116 @@ function HomeContent() {
         margin: [0.5, 0.5, 0.5, 0.5],
         filename: `Отчет_${teacher.name}_неделя_${weekNumber}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { scale: 2, letterRendering: true },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
       }).from(element).save();
       
-      showNotification('Отчет сформирован');
+      showNotification(`Отчет по преподавателю "${teacher.name}" успешно сформирован`, 'success');
     } catch (error) {
+      console.error('Report error:', error);
       showNotification('Ошибка формирования отчета', 'error');
     }
   };
 
-  // Экспорт
+  // Функция для экспорта отчета по часам для текущего преподавателя
+  const exportTeacherHoursReport = async () => {
+    if (!user || user.role !== 'teacher') return;
+    
+    try {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      if (!teacher) {
+        showNotification('Преподаватель не найден', 'error');
+        return;
+      }
+      await generateTeacherReport(teacher.id);
+    } catch (error) {
+      console.error('Report error:', error);
+      showNotification('Ошибка формирования отчета', 'error');
+    }
+  };
+
   const exportToExcel = () => {
-    const exportData = schedule.map(lesson => ({
-      'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
-      'День недели': DAYS[lesson.day_of_week - 1],
-      'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-      'Группа': lesson.group_name,
-      'Предмет': lesson.subject_name,
-      'Преподаватель': lesson.teacher_name,
-      'Аудитория': lesson.classroom_name || '—',
-      'Заметки': lesson.notes || '—'
-    }));
+    let exportData = [];
+    
+    if (activeTab === 'my-lessons' && isTeacher) {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      exportData = teacherLessons.map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (user && user.role === 'student' && user.groupId) {
+      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (selectedGroupFilter) {
+      exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)).map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else {
+      exportData = schedule.map(lesson => ({
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    }
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Расписание");
-    XLSX.writeFile(wb, `Расписание_${formatDateISO(new Date())}.xlsx`);
-    showNotification('Excel файл сохранен');
+    XLSX.writeFile(wb, `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showNotification('Excel файл сохранен', 'success');
   };
 
   const exportToPDF = async () => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
+      let exportData = [];
+      
+      if (activeTab === 'my-lessons' && isTeacher) {
+        const teacher = teachers.find(t => t.user_id === user.id);
+        exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      } else if (user && user.role === 'student' && user.groupId) {
+        exportData = schedule.filter(s => s.group_id === user.groupId);
+      } else if (selectedGroupFilter) {
+        exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter));
+      } else {
+        exportData = schedule;
+      }
+      
       const element = document.createElement('div');
       element.innerHTML = `
         <html>
           <head><meta charset="UTF-8"></head>
           <body>
-            <h1>Расписание занятий</h1>
-            <p>Неделя: ${formatDate(getWeekDates(currentDate)[0])} - ${formatDate(getWeekDates(currentDate)[6])}</p>
+            <h1>${activeTab === 'my-lessons' ? 'Мои занятия' : 'Расписание занятий'}</h1>
             <table border="1" cellpadding="8">
-              <thead><tr><th>Дата</th><th>День</th><th>Время</th><th>Группа</th><th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
+              <thead><tr><th>День</th><th>Время</th>${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
               <tbody>
-                ${schedule.map(lesson => `
-                  <tr>
-                    <td>${lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-'}</td>
+                ${exportData.map(lesson => `
+                  <td>
                     <td>${DAYS[lesson.day_of_week - 1]}</td>
                     <td>${PAIRS[lesson.pair_number - 1].time}</td>
-                    <td>${lesson.group_name}</td>
+                    ${activeTab !== 'my-lessons' && user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
                     <td>${lesson.subject_name}</td>
                     <td>${lesson.teacher_name}</td>
                     <td>${lesson.classroom_name || '—'}</td>
@@ -995,15 +1616,14 @@ function HomeContent() {
         </html>
       `;
       await html2pdf().from(element).save();
-      showNotification('PDF сохранен');
+      showNotification('PDF файл сохранен', 'success');
     } catch (error) {
-      showNotification('Ошибка PDF', 'error');
+      showNotification('Ошибка экспорта PDF', 'error');
     }
   };
 
-  // Авторизация
   const handleLogin = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -1017,13 +1637,18 @@ function HomeContent() {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         setShowLogin(false);
-        showNotification(`Добро пожаловать, ${data.user.fullName}!`);
-        await loadAllData();
-        if (data.user.role === 'teacher') setActiveTab('my-lessons');
+        showNotification(`Добро пожаловать, ${data.user.fullName}!`, 'success');
+        await loadData();
+        if (data.user.role === 'admin') await loadUsers();
+        if (data.user.role === 'teacher') {
+          setActiveTab('my-lessons');
+        } else {
+          setActiveTab('schedule');
+        }
       } else {
         showNotification(data.error, 'error');
       }
-    } catch (error) {
+    } catch (e) {
       showNotification('Ошибка входа', 'error');
     }
   };
@@ -1033,73 +1658,379 @@ function HomeContent() {
     setUser(null);
     localStorage.clear();
     showNotification('Вы вышли из системы', 'info');
+    setSchedule([]);
+    setSelectedGroupFilter('');
     setActiveTab('schedule');
   };
 
-  // Рендер сайдбара
-  const renderSidebar = () => (
-    <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
-      <div className="sidebar-brand">
-        <i className="fas fa-calendar-alt"></i>
-        <span className="brand-name">Расписание</span>
-        <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}><i className="fas fa-times"></i></button>
-      </div>
-      
-      <div className="sidebar-profile">
-        <div className="profile-avatar">
-          <i className={`fas ${isAdmin ? 'fa-crown' : isTeacher ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
-        </div>
-        <div className="profile-info">
-          <div className="profile-name">{user?.fullName}</div>
-          <div className="profile-role">{ROLES[user?.role]}</div>
-        </div>
-      </div>
-      
-      <nav className="sidebar-nav">
-        {!isTeacher && (
-          <button className={`nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
-            <i className="fas fa-calendar-week"></i><span>Расписание</span>
-          </button>
-        )}
-        
-        {isTeacher && (
-          <button className={`nav-item ${activeTab === 'my-lessons' ? 'active' : ''}`} onClick={() => { setActiveTab('my-lessons'); setSidebarOpen(false); }}>
-            <i className="fas fa-chalkboard-teacher"></i><span>Мои занятия</span>
-          </button>
-        )}
-        
-        {isAdmin && (
-          <>
-            <button className={`nav-item ${activeTab === 'manage-schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('manage-schedule'); setSidebarOpen(false); }}>
-              <i className="fas fa-plus-circle"></i><span>Управление</span>
-            </button>
-            <button className={`nav-item ${activeTab === 'directories' ? 'active' : ''}`} onClick={() => { setActiveTab('directories'); setSidebarOpen(false); }}>
-              <i className="fas fa-database"></i><span>Справочники</span>
-            </button>
-            <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
-              <i className="fas fa-users-cog"></i><span>Пользователи</span>
-            </button>
-          </>
-        )}
-      </nav>
-      
-      <div className="sidebar-footer">
-        <button className="theme-toggle-btn" onClick={toggleTheme}>
-          <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-          <span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span>
-        </button>
-        <button className="logout-btn" onClick={handleLogout}>
-          <i className="fas fa-sign-out-alt"></i><span>Выйти</span>
-        </button>
-      </div>
-    </aside>
-  );
+  const handleRegister = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(registerData)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotification('Пользователь создан', 'success');
+        setShowRegister(false);
+        setRegisterData({ username: '', password: '', fullName: '', role: 'student', groupId: '' });
+        loadUsers();
+      } else {
+        showNotification(data.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка регистрации', 'error');
+    }
+  };
 
-  // Рендер контента
-  const renderContent = () => {
+  const handleDeleteUser = async (userId) => {
+    if (!confirm('Удалить пользователя?')) return;
+    try {
+      await fetch(`/api/users?id=${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      showNotification('Пользователь удалён', 'success');
+      loadUsers();
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const linkTeacherToUser = async (teacherId, userId) => {
+    try {
+      const res = await fetch('/api/teachers/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ teacherId, userId })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotification('Преподаватель привязан к пользователю', 'success');
+        loadData();
+        loadUsers();
+      } else {
+        showNotification(data.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка привязки', 'error');
+    }
+  };
+
+  const unlinkTeacher = async (teacherId) => {
+    if (!confirm('Отвязать преподавателя?')) return;
+    try {
+      await fetch(`/api/teachers/link?teacherId=${teacherId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      showNotification('Привязка удалена', 'success');
+      loadData();
+      loadUsers();
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const handleAddLesson = async (e) => {
+    e.preventDefault();
+    if (!canEditSchedule) return showNotification('Нет прав', 'error');
+    
+    // Получаем текущую неделю для добавления занятия
+    const now = new Date();
+    const currentDay = now.getDay();
+    const monday = new Date(now);
+    const diff = currentDay === 0 ? 6 : currentDay - 1;
+    monday.setDate(now.getDate() - diff);
+    
+    const weekDates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      weekDates.push(date);
+    }
+    
+    const lessonDate = weekDates[parseInt(newLesson.day_of_week) - 1];
+    
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ 
+          ...newLesson, 
+          classroom_id: newLesson.classroom_id || null,
+          date: lessonDate ? lessonDate.toISOString().split('T')[0] : null
+        })
+      });
+      if (res.ok) {
+        showNotification('Занятие добавлено', 'success');
+        setNewLesson({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1' });
+        // Перезагружаем расписание за текущую неделю
+        const startDate = monday.toISOString().split('T')[0];
+        const endDate = new Date(monday);
+        endDate.setDate(monday.getDate() + 6);
+        await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+      } else {
+        const error = await res.json();
+        showNotification(error.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const handleUpdateLesson = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      // Получаем текущую неделю для редактируемого занятия
+      const now = new Date();
+      const currentDay = now.getDay();
+      const monday = new Date(now);
+      const diff = currentDay === 0 ? 6 : currentDay - 1;
+      monday.setDate(now.getDate() - diff);
+      
+      const weekDates = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        weekDates.push(date);
+      }
+      
+      const lessonDate = weekDates[parseInt(editingLesson.day_of_week) - 1];
+      
+      const res = await fetch(`/api/schedule/${editingLesson.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ 
+          ...editingLesson, 
+          classroom_id: editingLesson.classroom_id || null,
+          date: lessonDate ? lessonDate.toISOString().split('T')[0] : null
+        })
+      });
+      if (res.ok) {
+        showNotification('Занятие обновлено', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        // Перезагружаем расписание
+        const startDate = monday.toISOString().split('T')[0];
+        const endDate = new Date(monday);
+        endDate.setDate(monday.getDate() + 6);
+        await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+      } else {
+        const error = await res.json();
+        showNotification(error.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const handleDeleteLesson = async (id) => {
+    if (!canEditSchedule) return showNotification('Нет прав', 'error');
+    if (!confirm('Удалить занятие?')) return;
+    
+    try {
+      await fetch(`/api/schedule/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      showNotification('Занятие удалено', 'success');
+      // Перезагружаем расписание за текущую неделю
+      const now = new Date();
+      const currentDay = now.getDay();
+      const monday = new Date(now);
+      const diff = currentDay === 0 ? 6 : currentDay - 1;
+      monday.setDate(now.getDate() - diff);
+      const startDate = monday.toISOString().split('T')[0];
+      const endDate = new Date(monday);
+      endDate.setDate(monday.getDate() + 6);
+      await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const handleAddScheduleClick = (slotData) => {
+    setEditingLesson({
+      id: null,
+      group_id: '',
+      teacher_id: '',
+      subject_id: '',
+      classroom_id: '',
+      pair_number: slotData.pair_number,
+      day_of_week: slotData.day_of_week
+    });
+    setShowEditModal(true);
+  };
+
+  const addDirectory = async (type, name, setShow, setValue) => {
+    if (!name.trim()) return showNotification('Введите название', 'error');
+    try {
+      const res = await fetch(`/api/${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name: name.trim() })
+      });
+      if (res.ok) {
+        showNotification('Добавлено', 'success');
+        setShow(false);
+        setValue('');
+        loadData();
+      } else {
+        const error = await res.json();
+        showNotification(error.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const deleteDirectory = async (type, id) => {
+    if (!confirm('Удалить?')) return;
+    try {
+      await fetch(`/api/${type}?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      showNotification('Удалено', 'success');
+      loadData();
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const handleAddClassroom = async (e) => {
+    e.preventDefault();
+    if (!newClassroom.trim()) {
+      showNotification('Введите номер аудитории', 'error');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/classrooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name: newClassroom.trim() })
+      });
+      
+      if (res.ok) {
+        showNotification('Аудитория добавлена', 'success');
+        setShowClassroomModal(false);
+        setNewClassroom('');
+        loadData();
+      } else {
+        const error = await res.json();
+        showNotification(error.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const handleDeleteClassroom = async (id) => {
+    if (!confirm('Удалить аудиторию?')) return;
+    
+    try {
+      await fetch(`/api/classrooms?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      showNotification('Аудитория удалена', 'success');
+      loadData();
+    } catch (e) {
+      showNotification('Ошибка', 'error');
+    }
+  };
+
+  const handleNotesChange = (lessonId, value) => {
+    setLocalData(prev => ({ ...prev, [lessonId]: { ...prev[lessonId], notes: value } }));
+    setHasChanges(prev => ({ ...prev, [lessonId]: true }));
+  };
+
+  const handleSaveLesson = async (lessonId) => {
+    const data = localData[lessonId];
+    if (!data) return;
+    
+    setSaving(prev => ({ ...prev, [lessonId]: true }));
+    
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ id: lessonId, notes: data.notes })
+      });
+      
+      if (res.ok) {
+        showNotification('Изменения сохранены', 'success');
+        setHasChanges(prev => {
+          const newState = { ...prev };
+          delete newState[lessonId];
+          return newState;
+        });
+        // Перезагружаем расписание за текущую неделю
+        const now = new Date();
+        const currentDay = now.getDay();
+        const monday = new Date(now);
+        const diff = currentDay === 0 ? 6 : currentDay - 1;
+        monday.setDate(now.getDate() - diff);
+        const startDate = monday.toISOString().split('T')[0];
+        const endDate = new Date(monday);
+        endDate.setDate(monday.getDate() + 6);
+        await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+      } else {
+        const error = await res.json();
+        showNotification(error.error || 'Ошибка сохранения', 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка соединения', 'error');
+    } finally {
+      setSaving(prev => ({ ...prev, [lessonId]: false }));
+    }
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      const t = localStorage.getItem('token');
+      const u = localStorage.getItem('user');
+      if (t && u) { 
+        setToken(t); 
+        const userData = JSON.parse(u);
+        setUser(userData);
+        if (userData.role === 'teacher') {
+          setActiveTab('my-lessons');
+        }
+      }
+      setAuthChecking(false);
+    };
+    init();
+  }, []);
+
+  useEffect(() => {
+    if (!authChecking) loadData();
+  }, [authChecking, token]);
+
+  useEffect(() => {
+    if (token && canManageUsers) loadUsers();
+  }, [token, canManageUsers]);
+
+  useEffect(() => {
+    if (isTeacher && schedule.length > 0 && user) {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      if (teacher) {
+        const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
+        const initialData = {};
+        teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
+        setLocalData(initialData);
+      }
+    }
+  }, [schedule, isTeacher, teachers, user]);
+
+  const renderMainContent = () => {
     if (isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
-      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      const teacherLessons = teacher ? schedule.filter(lesson => lesson.teacher_id === teacher.id) : [];
       
       return (
         <div className="content-card">
@@ -1108,13 +2039,21 @@ function HomeContent() {
               <h2><i className="fas fa-chalkboard-teacher"></i> Мои занятия</h2>
             </div>
             <div className="header-actions">
+              {Object.keys(hasChanges).some(id => hasChanges[id]) && (
+                <button className="action-button save-all" onClick={() => {
+                  const changedIds = Object.keys(hasChanges).filter(id => hasChanges[id]);
+                  changedIds.forEach(id => handleSaveLesson(parseInt(id)));
+                }}>
+                  <i className="fas fa-save"></i> Сохранить все ({Object.keys(hasChanges).filter(id => hasChanges[id]).length})
+                </button>
+              )}
               <button className="action-button export-excel" onClick={exportToExcel}>
                 <i className="fas fa-file-excel"></i> Excel
               </button>
               <button className="action-button export-pdf" onClick={exportToPDF}>
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
-              <button className="action-button report-hours" onClick={() => setShowTeacherReportModal(true)}>
+              <button className="action-button report-hours" onClick={exportTeacherHoursReport}>
                 <i className="fas fa-chart-line"></i> Отчет по часам
               </button>
             </div>
@@ -1125,23 +2064,43 @@ function HomeContent() {
           ) : teacherLessons.length === 0 ? (
             <div className="empty-state"><i className="fas fa-info-circle"></i><p>Нет назначенных занятий</p></div>
           ) : (
-            <TeacherPanel data={teacherLessons} onUpdateNotes={handleUpdateNotes} />
+            <TeacherPanel 
+              data={teacherLessons}
+              localData={localData}
+              hasChanges={hasChanges}
+              saving={saving}
+              onNotesChange={handleNotesChange}
+              onSave={handleSaveLesson}
+              onCancel={(lessonId) => {
+                const lesson = teacherLessons.find(l => l.id === lessonId);
+                if (lesson) {
+                  setLocalData(prev => ({ ...prev, [lessonId]: { notes: lesson.notes || '' } }));
+                  setHasChanges(prev => {
+                    const newState = { ...prev };
+                    delete newState[lessonId];
+                    return newState;
+                  });
+                }
+              }}
+            />
           )}
         </div>
       );
     }
-
+    
     if (activeTab === 'schedule') {
-      const displaySchedule = (user?.role === 'student' && user?.groupId) 
-        ? schedule.filter(s => s.group_id === user.groupId)
-        : schedule;
+      let displaySchedule = schedule;
+      
+      if (user && user.role === 'student' && user.groupId) {
+        displaySchedule = schedule.filter(s => s.group_id === user.groupId);
+      }
       
       return (
         <div className="content-card">
           <div className="content-header">
             <div className="header-left">
               <h2><i className="fas fa-calendar-alt"></i> Расписание занятий</h2>
-              {user?.role === 'student' && user?.groupId && (
+              {user && user.role === 'student' && user.groupId && (
                 <div className="student-group-badge">
                   <i className="fas fa-users"></i> Группа: {groups.find(g => g.id === user.groupId)?.name || '...'}
                 </div>
@@ -1154,34 +2113,52 @@ function HomeContent() {
               <button className="action-button export-pdf" onClick={exportToPDF}>
                 <i className="fas fa-file-pdf"></i> PDF
               </button>
+              {user && user.role === 'admin' && (
+                <button className="action-button report-hours" onClick={() => setShowTeacherReportModal(true)}>
+                  <i className="fas fa-chart-line"></i> Отчет по часам (учителя)
+                </button>
+              )}
             </div>
           </div>
-          
-          <FilterSection
-            currentDate={currentDate}
-            onPrevWeek={handlePrevWeek}
-            onNextWeek={handleNextWeek}
-            onCurrentWeek={handleCurrentWeek}
-            groups={groups}
-            selectedGroupId={user?.role === 'student' ? user.groupId : selectedGroupId}
-            onGroupChange={setSelectedGroupId}
-            loading={loading}
-          />
           
           {loading ? (
             <div className="loading-state"><div className="spinner"></div><p>Загрузка расписания...</p></div>
           ) : (
-            <ScheduleGrid
-              data={displaySchedule}
-              canEdit={false}
-              weekDates={getWeekDates(currentDate)}
+            <ScheduleView 
+              schedule={displaySchedule}
+              groups={groups}
+              teachers={teachers}
+              subjects={subjects}
+              classrooms={classrooms}
+              loading={loading}
+              userRole={user?.role}
+              userGroupId={user?.groupId}
+              loadScheduleForWeek={loadScheduleForWeek}
             />
           )}
         </div>
       );
     }
-
-    if (activeTab === 'manage-schedule' && isAdmin) {
+    
+    if (activeTab === 'manage-schedule' && canEditSchedule) {
+      const displaySchedule = selectedGroupFilter ? schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)) : schedule;
+      
+      const getWeekDatesForManage = () => {
+        const now = new Date();
+        const currentDay = now.getDay();
+        const monday = new Date(now);
+        const diff = currentDay === 0 ? 6 : currentDay - 1;
+        monday.setDate(now.getDate() - diff);
+        
+        const weekDates = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(monday);
+          date.setDate(monday.getDate() + i);
+          weekDates.push(date);
+        }
+        return weekDates;
+      };
+      
       return (
         <div className="content-card">
           <div className="content-header">
@@ -1189,46 +2166,90 @@ function HomeContent() {
               <h2><i className="fas fa-plus-circle"></i> Управление расписанием</h2>
             </div>
             <div className="header-actions">
-              <button className="action-button export-excel" onClick={exportToExcel}>
-                <i className="fas fa-file-excel"></i> Excel
-              </button>
-              <button className="action-button export-pdf" onClick={exportToPDF}>
-                <i className="fas fa-file-pdf"></i> PDF
-              </button>
-              <button className="action-button report-hours" onClick={() => setShowTeacherReportModal(true)}>
-                <i className="fas fa-chart-line"></i> Отчет по часам
-              </button>
+              <select value={selectedGroupFilter} onChange={(e) => setSelectedGroupFilter(e.target.value)} className="group-filter">
+                <option value="">Все группы</option>
+                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+              <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
+              <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
             </div>
           </div>
           
-          <FilterSection
-            currentDate={currentDate}
-            onPrevWeek={handlePrevWeek}
-            onNextWeek={handleNextWeek}
-            onCurrentWeek={handleCurrentWeek}
-            groups={groups}
-            selectedGroupId={selectedGroupId}
-            onGroupChange={setSelectedGroupId}
-            loading={loading}
-          />
+          <div className="add-lesson-section">
+            <h3><i className="fas fa-plus-circle"></i> Добавить новое занятие</h3>
+            <form onSubmit={handleAddLesson} className="add-lesson-form">
+              <div className="form-grid">
+                <div className="form-field">
+                  <label><i className="fas fa-users"></i> Группа</label>
+                  <select value={newLesson.group_id} onChange={e => setNewLesson({...newLesson, group_id: e.target.value})} required>
+                    <option value="">Выберите группу</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-book"></i> Предмет</label>
+                  <select value={newLesson.subject_id} onChange={e => setNewLesson({...newLesson, subject_id: e.target.value})} required>
+                    <option value="">Выберите предмет</option>
+                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
+                  <select value={newLesson.teacher_id} onChange={e => setNewLesson({...newLesson, teacher_id: e.target.value})} required>
+                    <option value="">Выберите преподавателя</option>
+                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-door-open"></i> Аудитория</label>
+                  <select value={newLesson.classroom_id} onChange={e => setNewLesson({...newLesson, classroom_id: e.target.value})}>
+                    <option value="">Не указана</option>
+                    {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-calendar-day"></i> День недели</label>
+                  <select value={newLesson.day_of_week} onChange={e => setNewLesson({...newLesson, day_of_week: e.target.value})}>
+                    {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-clock"></i> Пара</label>
+                  <select value={newLesson.pair_number} onChange={e => setNewLesson({...newLesson, pair_number: e.target.value})}>
+                    {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
+                  </select>
+                </div>
+              </div>
+              <button type="submit" className="submit-button"><i className="fas fa-plus"></i> Добавить занятие</button>
+            </form>
+          </div>
           
-          {loading ? (
-            <div className="loading-state"><div className="spinner"></div><p>Загрузка...</p></div>
-          ) : (
-            <ScheduleGrid
-              data={schedule}
-              canEdit={true}
-              onEditClick={handleEditClick}
-              onDeleteClick={handleDeleteLesson}
-              onAddClick={handleAddClick}
-              weekDates={getWeekDates(currentDate)}
-            />
-          )}
+          <div className="schedule-editor">
+            <h3><i className="fas fa-edit"></i> Редактирование расписания</h3>
+            {loading ? (
+              <div className="loading-state"><div className="spinner"></div></div>
+            ) : displaySchedule.length === 0 ? (
+              <div className="empty-state"><i className="fas fa-calendar-times"></i><p>Нет занятий</p></div>
+            ) : (
+              <ScheduleGrid 
+                data={displaySchedule} 
+                canEdit={true}
+                onEditClick={(lesson) => {
+                  setEditingLesson(lesson);
+                  setShowEditModal(true);
+                }}
+                onDeleteClick={handleDeleteLesson}
+                onAddClick={handleAddScheduleClick}
+                weekDates={getWeekDatesForManage()}
+                selectedDate={null}
+              />
+            )}
+          </div>
         </div>
       );
     }
-
-    if (activeTab === 'directories' && isAdmin) {
+    
+    if (activeTab === 'directories' && canEditSchedule) {
       return (
         <div className="content-card">
           <div className="content-header">
@@ -1305,8 +2326,8 @@ function HomeContent() {
         </div>
       );
     }
-
-    if (activeTab === 'users' && isAdmin) {
+    
+    if (activeTab === 'users' && canManageUsers) {
       return (
         <div className="content-card">
           <div className="content-header">
@@ -1335,11 +2356,12 @@ function HomeContent() {
           </div>
           
           <div className="teachers-link-section">
-            <h3><i className="fas fa-link"></i> Привязка преподавателей</h3>
+            <h3><i className="fas fa-link"></i> Привязка преподавателей к учетным записям</h3>
             <div className="teachers-link-list">
               {teachers.map(teacher => {
                 const linkedUser = users.find(u => u.id === teacher.user_id);
                 const isLinked = teacher.user_id !== null;
+                
                 const availableUsers = users.filter(u => u.role === 'teacher' && !teachers.some(t => t.user_id === u.id));
                 const userOptions = availableUsers.map(u => ({ value: String(u.id), label: `${u.full_name} (@${u.username})` }));
                 
@@ -1353,12 +2375,15 @@ function HomeContent() {
                         <span className="unlinked-badge"><i className="fas fa-exclamation-triangle"></i> Не привязан</span>
                       )}
                     </div>
+                    
                     {!isLinked ? (
                       <div className="link-controls">
                         <SearchableSelect
                           options={userOptions}
                           value=""
-                          onChange={(val) => val && linkTeacherToUser(teacher.id, parseInt(val))}
+                          onChange={(val) => {
+                            if (val) linkTeacherToUser(teacher.id, parseInt(val));
+                          }}
                           placeholder="Выберите пользователя"
                           label=""
                           icon="fas fa-user"
@@ -1375,11 +2400,10 @@ function HomeContent() {
         </div>
       );
     }
-
+    
     return null;
   };
 
-  // Экран загрузки
   if (authChecking) {
     return (
       <div className="loading-screen">
@@ -1392,8 +2416,7 @@ function HomeContent() {
       </div>
     );
   }
-
-  // Страница входа
+  
   if (!user) {
     return (
       <>
@@ -1427,20 +2450,14 @@ function HomeContent() {
               <h2 className="section-title">
                 <i className="fas fa-calendar-alt"></i> Расписание занятий
               </h2>
-              <FilterSection
-                currentDate={currentDate}
-                onPrevWeek={handlePrevWeek}
-                onNextWeek={handleNextWeek}
-                onCurrentWeek={handleCurrentWeek}
+              <PublicScheduleView 
+                schedule={schedule}
                 groups={groups}
-                selectedGroupId={selectedGroupId}
-                onGroupChange={setSelectedGroupId}
+                teachers={teachers}
+                subjects={subjects}
+                classrooms={classrooms}
                 loading={loading}
-              />
-              <ScheduleGrid
-                data={schedule}
-                canEdit={false}
-                weekDates={getWeekDates(currentDate)}
+                loadScheduleForWeek={loadScheduleForWeek}
               />
             </div>
           </div>
@@ -1456,13 +2473,15 @@ function HomeContent() {
               <form onSubmit={handleLogin} className="modal-form">
                 <div className="form-group">
                   <label><i className="fas fa-user"></i> Логин</label>
-                  <input type="text" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} required />
+                  <input type="text" placeholder="Введите логин" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} required autoFocus />
                 </div>
                 <div className="form-group">
                   <label><i className="fas fa-lock"></i> Пароль</label>
-                  <input type="password" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} required />
+                  <input type="password" placeholder="Введите пароль" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} required />
                 </div>
-                <button type="submit" className="submit-btn">Войти</button>
+                <button type="submit" className="submit-btn">
+                  <i className="fas fa-sign-in-alt"></i> Войти
+                </button>
               </form>
             </div>
           </div>,
@@ -1472,12 +2491,66 @@ function HomeContent() {
     );
   }
 
-  // Основной рендер
   return (
     <div className="app-container">
       {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
       
-      {renderSidebar()}
+      <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-brand">
+          <i className="fas fa-calendar-alt"></i>
+          <span className="brand-name">Расписание</span>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}><i className="fas fa-times"></i></button>
+        </div>
+        
+        <div className="sidebar-profile">
+          <div className="profile-avatar">
+            <i className={`fas ${user.role === 'admin' ? 'fa-crown' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
+          </div>
+          <div className="profile-info">
+            <div className="profile-name">{user.fullName}</div>
+            <div className="profile-role">{ROLES[user.role]}</div>
+          </div>
+        </div>
+        
+        <nav className="sidebar-nav">
+          {!isTeacher && (
+            <button className={`nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
+              <i className="fas fa-calendar-week"></i><span>Расписание</span>
+            </button>
+          )}
+          
+          {isTeacher && (
+            <button className={`nav-item ${activeTab === 'my-lessons' ? 'active' : ''}`} onClick={() => { setActiveTab('my-lessons'); setSidebarOpen(false); }}>
+              <i className="fas fa-chalkboard-teacher"></i><span>Мои занятия</span>
+            </button>
+          )}
+          
+          {user?.role === 'admin' && (
+            <>
+              <button className={`nav-item ${activeTab === 'manage-schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('manage-schedule'); setSidebarOpen(false); }}>
+                <i className="fas fa-plus-circle"></i><span>Управление</span>
+              </button>
+              <button className={`nav-item ${activeTab === 'directories' ? 'active' : ''}`} onClick={() => { setActiveTab('directories'); setSidebarOpen(false); }}>
+                <i className="fas fa-database"></i><span>Справочники</span>
+              </button>
+              <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
+                <i className="fas fa-users-cog"></i><span>Пользователи</span>
+              </button>
+            </>
+          )}
+        </nav>
+        
+        <div className="sidebar-footer">
+          <button className="theme-toggle-btn" onClick={toggleTheme}>
+            <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+            <span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span>
+          </button>
+          <button className="logout-btn" onClick={handleLogout}>
+            <i className="fas fa-sign-out-alt"></i><span>Выйти</span>
+          </button>
+        </div>
+      </aside>
+      
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
       
       <main className="app-main">
@@ -1502,164 +2575,19 @@ function HomeContent() {
           </div>
         </header>
         
-        <div className="app-content">{renderContent()}</div>
+        <div className="app-content">{renderMainContent()}</div>
       </main>
 
-      {/* Модальное окно добавления/редактирования занятия */}
-      {showLessonModal && createPortal(
-        <div className="modal" onClick={() => setShowLessonModal(false)}>
-          <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-calendar-plus"></i> {editingLesson ? 'Редактировать занятие' : 'Добавить занятие'}</h2>
-              <button className="modal-close" onClick={() => setShowLessonModal(false)}><i className="fas fa-times"></i></button>
-            </div>
-            <form onSubmit={editingLesson ? handleUpdateLesson : handleAddLesson} className="modal-form">
-              <div className="form-group">
-                <label><i className="fas fa-users"></i> Группа</label>
-                <select
-                  value={editingLesson?.group_id || newLesson.group_id || ''}
-                  onChange={(e) => {
-                    if (editingLesson) {
-                      setEditingLesson({...editingLesson, group_id: e.target.value});
-                    } else {
-                      setNewLesson({...newLesson, group_id: e.target.value});
-                    }
-                  }}
-                  required
-                >
-                  <option value="">Выберите группу</option>
-                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label><i className="fas fa-book"></i> Предмет</label>
-                <select
-                  value={editingLesson?.subject_id || newLesson.subject_id || ''}
-                  onChange={(e) => {
-                    if (editingLesson) {
-                      setEditingLesson({...editingLesson, subject_id: e.target.value});
-                    } else {
-                      setNewLesson({...newLesson, subject_id: e.target.value});
-                    }
-                  }}
-                  required
-                >
-                  <option value="">Выберите предмет</option>
-                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
-                <select
-                  value={editingLesson?.teacher_id || newLesson.teacher_id || ''}
-                  onChange={(e) => {
-                    if (editingLesson) {
-                      setEditingLesson({...editingLesson, teacher_id: e.target.value});
-                    } else {
-                      setNewLesson({...newLesson, teacher_id: e.target.value});
-                    }
-                  }}
-                  required
-                >
-                  <option value="">Выберите преподавателя</option>
-                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-              
-              <div className="form-group">
-                <label><i className="fas fa-door-open"></i> Аудитория</label>
-                <select
-                  value={editingLesson?.classroom_id || newLesson.classroom_id || ''}
-                  onChange={(e) => {
-                    if (editingLesson) {
-                      setEditingLesson({...editingLesson, classroom_id: e.target.value});
-                    } else {
-                      setNewLesson({...newLesson, classroom_id: e.target.value});
-                    }
-                  }}
-                >
-                  <option value="">Не выбрана</option>
-                  {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              
-              <div className="form-row">
-                <div className="form-group half">
-                  <label><i className="fas fa-calendar-day"></i> День недели</label>
-                  <select
-                    value={editingLesson?.day_of_week || newLesson.day_of_week || '1'}
-                    onChange={(e) => {
-                      if (editingLesson) {
-                        setEditingLesson({...editingLesson, day_of_week: e.target.value});
-                      } else {
-                        setNewLesson({...newLesson, day_of_week: e.target.value});
-                      }
-                    }}
-                    required
-                  >
-                    {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
-                  </select>
-                </div>
-                
-                <div className="form-group half">
-                  <label><i className="fas fa-clock"></i> Пара</label>
-                  <select
-                    value={editingLesson?.pair_number || newLesson.pair_number || '1'}
-                    onChange={(e) => {
-                      if (editingLesson) {
-                        setEditingLesson({...editingLesson, pair_number: e.target.value});
-                      } else {
-                        setNewLesson({...newLesson, pair_number: e.target.value});
-                      }
-                    }}
-                    required
-                  >
-                    {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
-                  </select>
-                </div>
-              </div>
-              
-              <div className="form-group">
-                <label><i className="fas fa-calendar-alt"></i> Дата занятия</label>
-                <input
-                  type="date"
-                  value={editingLesson?.date || newLesson.date || ''}
-                  onChange={(e) => {
-                    if (editingLesson) {
-                      setEditingLesson({...editingLesson, date: e.target.value});
-                    } else {
-                      setNewLesson({...newLesson, date: e.target.value});
-                    }
-                  }}
-                  required
-                />
-                <small className="filter-hint">Выберите конкретную дату занятия</small>
-              </div>
-              
-              <button type="submit" className="submit-btn">
-                <i className="fas fa-save"></i> {editingLesson ? ' Сохранить изменения' : ' Добавить занятие'}
-              </button>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Модальные окна справочников */}
+      {/* Modal windows */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-user-plus"></i> Создать пользователя</h2>
-              <button className="modal-close" onClick={() => setShowRegister(false)}><i className="fas fa-times"></i></button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-user-plus"></i> Создать пользователя</h2><button className="modal-close" onClick={() => setShowRegister(false)}><i className="fas fa-times"></i></button></div>
             <form onSubmit={handleRegister} className="modal-form">
-              <div className="form-group"><label><i className="fas fa-user"></i> Логин</label><input value={registerData.username} onChange={e => setRegisterData({...registerData, username: e.target.value})} required /></div>
-              <div className="form-group"><label><i className="fas fa-lock"></i> Пароль</label><input type="password" value={registerData.password} onChange={e => setRegisterData({...registerData, password: e.target.value})} required /></div>
-              <div className="form-group"><label><i className="fas fa-id-card"></i> ФИО</label><input value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required /></div>
-              <div className="form-group"><label><i className="fas fa-badge"></i> Роль</label>
+              <div className="form-group"><label>Логин</label><input placeholder="Логин" value={registerData.username} onChange={e => setRegisterData({...registerData, username: e.target.value})} required /></div>
+              <div className="form-group"><label>Пароль</label><input type="password" placeholder="Пароль" value={registerData.password} onChange={e => setRegisterData({...registerData, password: e.target.value})} required /></div>
+              <div className="form-group"><label>ФИО</label><input placeholder="ФИО" value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required /></div>
+              <div className="form-group"><label>Роль</label>
                 <select value={registerData.role} onChange={e => setRegisterData({...registerData, role: e.target.value})}>
                   <option value="student">Студент</option>
                   <option value="teacher">Преподаватель</option>
@@ -1667,7 +2595,7 @@ function HomeContent() {
                 </select>
               </div>
               {registerData.role === 'student' && (
-                <div className="form-group"><label><i className="fas fa-users"></i> Группа</label>
+                <div className="form-group"><label>Группа</label>
                   <select value={registerData.groupId} onChange={e => setRegisterData({...registerData, groupId: e.target.value})}>
                     <option value="">Выберите группу</option>
                     {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -1684,14 +2612,11 @@ function HomeContent() {
       {showGroupModal && createPortal(
         <div className="modal" onClick={() => setShowGroupModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-users"></i> Добавить группу</h2>
-              <button className="modal-close" onClick={() => setShowGroupModal(false)}><i className="fas fa-times"></i></button>
-            </div>
-            <div className="modal-form">
-              <div className="form-group"><label>Название группы</label><input value={newGroup} onChange={e => setNewGroup(e.target.value)} autoFocus /></div>
-              <button className="submit-btn" onClick={() => addDirectory('groups', newGroup, setShowGroupModal, setNewGroup)}><i className="fas fa-plus"></i> Добавить</button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-users"></i> Добавить группу</h2><button className="modal-close" onClick={() => setShowGroupModal(false)}><i className="fas fa-times"></i></button></div>
+            <form onSubmit={(e) => { e.preventDefault(); addDirectory('groups', newGroup, setShowGroupModal, setNewGroup); }} className="modal-form">
+              <div className="form-group"><label>Название группы</label><input placeholder="Например: ИС-21" value={newGroup} onChange={e => setNewGroup(e.target.value)} required autoFocus /></div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
           </div>
         </div>,
         document.body
@@ -1700,14 +2625,11 @@ function HomeContent() {
       {showTeacherModal && createPortal(
         <div className="modal" onClick={() => setShowTeacherModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-chalkboard-teacher"></i> Добавить преподавателя</h2>
-              <button className="modal-close" onClick={() => setShowTeacherModal(false)}><i className="fas fa-times"></i></button>
-            </div>
-            <div className="modal-form">
-              <div className="form-group"><label>ФИО преподавателя</label><input value={newTeacher} onChange={e => setNewTeacher(e.target.value)} autoFocus /></div>
-              <button className="submit-btn" onClick={() => addDirectory('teachers', newTeacher, setShowTeacherModal, setNewTeacher)}><i className="fas fa-plus"></i> Добавить</button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-chalkboard-teacher"></i> Добавить преподавателя</h2><button className="modal-close" onClick={() => setShowTeacherModal(false)}><i className="fas fa-times"></i></button></div>
+            <form onSubmit={(e) => { e.preventDefault(); addDirectory('teachers', newTeacher, setShowTeacherModal, setNewTeacher); }} className="modal-form">
+              <div className="form-group"><label>ФИО преподавателя</label><input placeholder="Иванов Иван Иванович" value={newTeacher} onChange={e => setNewTeacher(e.target.value)} required autoFocus /></div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
           </div>
         </div>,
         document.body
@@ -1716,14 +2638,11 @@ function HomeContent() {
       {showSubjectModal && createPortal(
         <div className="modal" onClick={() => setShowSubjectModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><i className="fas fa-book"></i> Добавить предмет</h2>
-              <button className="modal-close" onClick={() => setShowSubjectModal(false)}><i className="fas fa-times"></i></button>
-            </div>
-            <div className="modal-form">
-              <div className="form-group"><label>Название предмета</label><input value={newSubject} onChange={e => setNewSubject(e.target.value)} autoFocus /></div>
-              <button className="submit-btn" onClick={() => addDirectory('subjects', newSubject, setShowSubjectModal, setNewSubject)}><i className="fas fa-plus"></i> Добавить</button>
-            </div>
+            <div className="modal-header"><h2><i className="fas fa-book"></i> Добавить предмет</h2><button className="modal-close" onClick={() => setShowSubjectModal(false)}><i className="fas fa-times"></i></button></div>
+            <form onSubmit={(e) => { e.preventDefault(); addDirectory('subjects', newSubject, setShowSubjectModal, setNewSubject); }} className="modal-form">
+              <div className="form-group"><label>Название предмета</label><input placeholder="Например: Математика" value={newSubject} onChange={e => setNewSubject(e.target.value)} required autoFocus /></div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
           </div>
         </div>,
         document.body
@@ -1732,13 +2651,45 @@ function HomeContent() {
       {showClassroomModal && createPortal(
         <div className="modal" onClick={() => setShowClassroomModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h2><i className="fas fa-door-open"></i> Добавить аудиторию</h2><button className="modal-close" onClick={() => setShowClassroomModal(false)}><i className="fas fa-times"></i></button></div>
+            <form onSubmit={handleAddClassroom} className="modal-form">
+              <div className="form-group"><label>Номер аудитории</label><input placeholder="Например: 305" value={newClassroom} onChange={e => setNewClassroom(e.target.value)} required autoFocus /></div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showEditModal && editingLesson && createPortal(
+        <div className="modal" onClick={() => setShowEditModal(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2><i className="fas fa-door-open"></i> Добавить аудиторию</h2>
-              <button className="modal-close" onClick={() => setShowClassroomModal(false)}><i className="fas fa-times"></i></button>
+              <h2><i className="fas fa-calendar-plus"></i> {editingLesson.id ? 'Редактировать занятие' : 'Добавить занятие'}</h2>
+              <button className="modal-close" onClick={() => setShowEditModal(false)}><i className="fas fa-times"></i></button>
             </div>
-            <form className="modal-form">
-              <div className="form-group"><label>Номер аудитории</label><input value={newClassroom} onChange={e => setNewClassroom(e.target.value)} autoFocus /></div>
-              <button className="submit-btn" onClick={() => addDirectory('classrooms', newClassroom, setShowClassroomModal, setNewClassroom)}><i className="fas fa-plus"></i> Добавить</button>
+            <form onSubmit={handleUpdateLesson} className="modal-form">
+              <div className="form-group"><label>Группа</label>
+                <select value={editingLesson.group_id || ''} onChange={e => setEditingLesson({...editingLesson, group_id: e.target.value})} required>
+                  <option value="">Выберите группу</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Предмет</label>
+                <select value={editingLesson.subject_id || ''} onChange={e => setEditingLesson({...editingLesson, subject_id: e.target.value})} required>
+                  <option value="">Выберите предмет</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Преподаватель</label>
+                <select value={editingLesson.teacher_id || ''} onChange={e => setEditingLesson({...editingLesson, teacher_id: e.target.value})} required>
+                  <option value="">Выберите преподавателя</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>Аудитория</label>
+                <select value={editingLesson.classroom_id || ''} onChange={e => setEditingLesson({...editingLesson, classroom_id: e.target.value})}>
+                  <option value="">Не выбрана</option>{classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <button type="submit" className="submit-btn"><i className="fas fa-save"></i> {editingLesson.id ? 'Сохранить' : 'Добавить'}</button>
             </form>
           </div>
         </div>,
@@ -1746,7 +2697,7 @@ function HomeContent() {
       )}
 
       {showTeacherReportModal && createPortal(
-        <TeacherReportModal
+        <TeacherReportModal 
           teachers={teachers}
           schedule={schedule}
           onClose={() => setShowTeacherReportModal(false)}
