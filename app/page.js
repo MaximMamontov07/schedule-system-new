@@ -59,6 +59,14 @@ const getWeekNumber = (date) => {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 };
 
+const getMonday = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - diff);
+  return d;
+};
+
 // ============ SearchableSelect Component ============
 const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -630,6 +638,12 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                                   <span>{lesson.classroom_name}</span>
                                 </div>
                               )}
+                              {lesson.date && (
+                                <div className="lesson-info">
+                                  <i className="fas fa-calendar-alt"></i>
+                                  <span>{new Date(lesson.date).toLocaleDateString('ru-RU')}</span>
+                                </div>
+                              )}
                               {lesson.notes && (
                                 <div className="lesson-notes-badge" title={lesson.notes}>
                                   <i className="fas fa-sticky-note"></i>
@@ -1162,6 +1176,12 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                                   <i className="fas fa-door-open"></i>
                                   <span>{lesson.classroom_name || 'Аудитория не указана'}</span>
                                 </div>
+                                {lesson.date && (
+                                  <div className="lesson-info">
+                                    <i className="fas fa-calendar-alt"></i>
+                                    <span>{new Date(lesson.date).toLocaleDateString('ru-RU')}</span>
+                                  </div>
+                                )}
                                 <textarea 
                                   placeholder="Заметки (домашнее задание, материалы...)"
                                   value={currentData.notes || ''}
@@ -1188,10 +1208,10 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                     ) : (
                       <div className="empty-cell"></div>
                     )}
-                  </td>
+                   </td>
                 );
               })}
-            </tr>
+             </tr>
           ))}
         </tbody>
       </table>
@@ -1277,7 +1297,15 @@ function HomeContent() {
   
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [registerData, setRegisterData] = useState({ username: '', password: '', fullName: '', role: 'student', groupId: '' });
-  const [newLesson, setNewLesson] = useState({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1' });
+  const [newLesson, setNewLesson] = useState({ 
+    group_id: '', 
+    teacher_id: '', 
+    subject_id: '', 
+    classroom_id: '', 
+    pair_number: '1', 
+    day_of_week: '1',
+    date: ''
+  });
   const [editingLesson, setEditingLesson] = useState(null);
   const [newGroup, setNewGroup] = useState('');
   const [newTeacher, setNewTeacher] = useState('');
@@ -1302,9 +1330,9 @@ function HomeContent() {
   const loadScheduleForWeek = async (startDate, endDate) => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     
-    let url = '/api/schedule';
-    if (startDate && endDate) {
-      url += `?weekStart=${startDate}&weekEnd=${endDate}`;
+    let url = `/api/schedule?weekStart=${startDate}&weekEnd=${endDate}`;
+    if (selectedGroupFilter) {
+      url += `&groupId=${selectedGroupFilter}`;
     }
     
     try {
@@ -1317,6 +1345,16 @@ function HomeContent() {
     }
   };
 
+  // Функция для загрузки расписания за текущую неделю
+  const loadCurrentWeekSchedule = async () => {
+    const now = new Date();
+    const monday = getMonday(now);
+    const weekStart = monday.toISOString().split('T')[0];
+    const weekEnd = new Date(monday);
+    weekEnd.setDate(monday.getDate() + 6);
+    
+    await loadScheduleForWeek(weekStart, weekEnd.toISOString().split('T')[0]);
+  };
   
   const loadData = async () => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -1334,42 +1372,14 @@ function HomeContent() {
       setSubjects(await subjectsRes.json());
       setClassrooms(await classroomsRes.json());
       
-      // Загружаем расписание для текущей недели
-      const now = new Date();
-      const currentDay = now.getDay();
-      const monday = new Date(now);
-      const diff = currentDay === 0 ? 6 : currentDay - 1;
-      monday.setDate(now.getDate() - diff);
-      
-      const weekStart = monday.toISOString().split('T')[0];
-      const weekEnd = new Date(monday);
-      weekEnd.setDate(monday.getDate() + 6);
-      const weekEndStr = weekEnd.toISOString().split('T')[0];
-      
-      await loadScheduleForWeek(weekStart, weekEndStr);
+      // Загружаем расписание за текущую неделю
+      await loadCurrentWeekSchedule();
     } catch (e) {
       console.error(e);
       showNotification('Ошибка загрузки данных', 'error');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Функция для получения дат недели со смещением
-  const getWeekDatesWithOffset = (offset, baseDate) => {
-    const date = baseDate || new Date();
-    const currentDay = date.getDay();
-    const monday = new Date(date);
-    const diff = currentDay === 0 ? 6 : currentDay - 1;
-    monday.setDate(date.getDate() - diff + (offset * 7));
-    
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      weekDates.push(d);
-    }
-    return weekDates;
   };
 
   const loadUsers = async () => {
@@ -1530,6 +1540,7 @@ function HomeContent() {
       const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
       exportData = teacherLessons.map(lesson => ({
         'День недели': DAYS[lesson.day_of_week - 1],
+        'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
         'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
         'Группа': lesson.group_name,
         'Предмет': lesson.subject_name,
@@ -1539,6 +1550,7 @@ function HomeContent() {
     } else if (user && user.role === 'student' && user.groupId) {
       exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
         'День недели': DAYS[lesson.day_of_week - 1],
+        'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
         'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
         'Предмет': lesson.subject_name,
         'Преподаватель': lesson.teacher_name,
@@ -1548,6 +1560,7 @@ function HomeContent() {
     } else if (selectedGroupFilter) {
       exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)).map(lesson => ({
         'День недели': DAYS[lesson.day_of_week - 1],
+        'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
         'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
         'Группа': lesson.group_name,
         'Предмет': lesson.subject_name,
@@ -1558,6 +1571,7 @@ function HomeContent() {
     } else {
       exportData = schedule.map(lesson => ({
         'День недели': DAYS[lesson.day_of_week - 1],
+        'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
         'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
         'Группа': lesson.group_name,
         'Предмет': lesson.subject_name,
@@ -1597,11 +1611,12 @@ function HomeContent() {
           <body>
             <h1>${activeTab === 'my-lessons' ? 'Мои занятия' : 'Расписание занятий'}</h1>
             <table border="1" cellpadding="8">
-              <thead><tr><th>День</th><th>Время</th>${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
+              <thead><tr><th>День</th><th>Дата</th><th>Время</th>${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
               <tbody>
                 ${exportData.map(lesson => `
-                  <td>
+                  <tr>
                     <td>${DAYS[lesson.day_of_week - 1]}</td>
+                    <td>${lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-'}</td>
                     <td>${PAIRS[lesson.pair_number - 1].time}</td>
                     ${activeTab !== 'my-lessons' && user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
                     <td>${lesson.subject_name}</td>
@@ -1738,40 +1753,25 @@ function HomeContent() {
     e.preventDefault();
     if (!canEditSchedule) return showNotification('Нет прав', 'error');
     
-    // Получаем текущую неделю для добавления занятия
-    const now = new Date();
-    const currentDay = now.getDay();
-    const monday = new Date(now);
-    const diff = currentDay === 0 ? 6 : currentDay - 1;
-    monday.setDate(now.getDate() - diff);
-    
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      weekDates.push(date);
+    if (!newLesson.date) {
+      showNotification('Выберите дату занятия', 'error');
+      return;
     }
-    
-    const lessonDate = weekDates[parseInt(newLesson.day_of_week) - 1];
-    
+
     try {
       const res = await fetch('/api/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ 
-          ...newLesson, 
-          classroom_id: newLesson.classroom_id || null,
-          date: lessonDate ? lessonDate.toISOString().split('T')[0] : null
-        })
+        body: JSON.stringify(newLesson)
       });
       if (res.ok) {
         showNotification('Занятие добавлено', 'success');
-        setNewLesson({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1' });
-        // Перезагружаем расписание за текущую неделю
-        const startDate = monday.toISOString().split('T')[0];
-        const endDate = new Date(monday);
-        endDate.setDate(monday.getDate() + 6);
-        await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+        setNewLesson({ 
+          group_id: '', teacher_id: '', subject_id: '', classroom_id: '', 
+          pair_number: '1', day_of_week: '1', date: '' 
+        });
+        // Перезагружаем текущую неделю
+        await loadCurrentWeekSchedule();
       } else {
         const error = await res.json();
         showNotification(error.error, 'error');
@@ -1783,41 +1783,24 @@ function HomeContent() {
 
   const handleUpdateLesson = async (e) => {
     if (e) e.preventDefault();
+    
+    if (!editingLesson.date) {
+      showNotification('Выберите дату занятия', 'error');
+      return;
+    }
+    
     try {
-      // Получаем текущую неделю для редактируемого занятия
-      const now = new Date();
-      const currentDay = now.getDay();
-      const monday = new Date(now);
-      const diff = currentDay === 0 ? 6 : currentDay - 1;
-      monday.setDate(now.getDate() - diff);
-      
-      const weekDates = [];
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(monday);
-        date.setDate(monday.getDate() + i);
-        weekDates.push(date);
-      }
-      
-      const lessonDate = weekDates[parseInt(editingLesson.day_of_week) - 1];
-      
       const res = await fetch(`/api/schedule/${editingLesson.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ 
-          ...editingLesson, 
-          classroom_id: editingLesson.classroom_id || null,
-          date: lessonDate ? lessonDate.toISOString().split('T')[0] : null
-        })
+        body: JSON.stringify(editingLesson)
       });
       if (res.ok) {
         showNotification('Занятие обновлено', 'success');
         setShowEditModal(false);
         setEditingLesson(null);
-        // Перезагружаем расписание
-        const startDate = monday.toISOString().split('T')[0];
-        const endDate = new Date(monday);
-        endDate.setDate(monday.getDate() + 6);
-        await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+        // Перезагружаем текущую неделю
+        await loadCurrentWeekSchedule();
       } else {
         const error = await res.json();
         showNotification(error.error, 'error');
@@ -1837,16 +1820,8 @@ function HomeContent() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       showNotification('Занятие удалено', 'success');
-      // Перезагружаем расписание за текущую неделю
-      const now = new Date();
-      const currentDay = now.getDay();
-      const monday = new Date(now);
-      const diff = currentDay === 0 ? 6 : currentDay - 1;
-      monday.setDate(now.getDate() - diff);
-      const startDate = monday.toISOString().split('T')[0];
-      const endDate = new Date(monday);
-      endDate.setDate(monday.getDate() + 6);
-      await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+      // Перезагружаем текущую неделю
+      await loadCurrentWeekSchedule();
     } catch (e) {
       showNotification('Ошибка', 'error');
     }
@@ -1860,7 +1835,8 @@ function HomeContent() {
       subject_id: '',
       classroom_id: '',
       pair_number: slotData.pair_number,
-      day_of_week: slotData.day_of_week
+      day_of_week: slotData.day_of_week,
+      date: ''
     });
     setShowEditModal(true);
   };
@@ -1970,15 +1946,7 @@ function HomeContent() {
           return newState;
         });
         // Перезагружаем расписание за текущую неделю
-        const now = new Date();
-        const currentDay = now.getDay();
-        const monday = new Date(now);
-        const diff = currentDay === 0 ? 6 : currentDay - 1;
-        monday.setDate(now.getDate() - diff);
-        const startDate = monday.toISOString().split('T')[0];
-        const endDate = new Date(monday);
-        endDate.setDate(monday.getDate() + 6);
-        await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
+        await loadCurrentWeekSchedule();
       } else {
         const error = await res.json();
         showNotification(error.error || 'Ошибка сохранения', 'error');
@@ -2166,7 +2134,10 @@ function HomeContent() {
               <h2><i className="fas fa-plus-circle"></i> Управление расписанием</h2>
             </div>
             <div className="header-actions">
-              <select value={selectedGroupFilter} onChange={(e) => setSelectedGroupFilter(e.target.value)} className="group-filter">
+              <select value={selectedGroupFilter} onChange={(e) => {
+                setSelectedGroupFilter(e.target.value);
+                loadCurrentWeekSchedule();
+              }} className="group-filter">
                 <option value="">Все группы</option>
                 {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
@@ -2218,6 +2189,16 @@ function HomeContent() {
                   <select value={newLesson.pair_number} onChange={e => setNewLesson({...newLesson, pair_number: e.target.value})}>
                     {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
                   </select>
+                </div>
+                <div className="form-field">
+                  <label><i className="fas fa-calendar-alt"></i> Дата занятия</label>
+                  <input 
+                    type="date" 
+                    value={newLesson.date}
+                    onChange={e => setNewLesson({...newLesson, date: e.target.value})}
+                    required
+                  />
+                  <small className="filter-hint">Выберите конкретную дату занятия</small>
                 </div>
               </div>
               <button type="submit" className="submit-button"><i className="fas fa-plus"></i> Добавить занятие</button>
@@ -2688,6 +2669,15 @@ function HomeContent() {
                 <select value={editingLesson.classroom_id || ''} onChange={e => setEditingLesson({...editingLesson, classroom_id: e.target.value})}>
                   <option value="">Не выбрана</option>{classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+              <div className="form-group">
+                <label><i className="fas fa-calendar-alt"></i> Дата занятия</label>
+                <input 
+                  type="date" 
+                  value={editingLesson.date || ''}
+                  onChange={e => setEditingLesson({...editingLesson, date: e.target.value})}
+                  required
+                />
               </div>
               <button type="submit" className="submit-btn"><i className="fas fa-save"></i> {editingLesson.id ? 'Сохранить' : 'Добавить'}</button>
             </form>

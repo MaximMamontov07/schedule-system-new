@@ -71,7 +71,7 @@ const initDb = () => {
       `);
       console.log('✅ Subjects table created');
       
-      // Таблица аудиторий (НОВАЯ)
+      // Таблица аудиторий
       db.run(`
         CREATE TABLE classrooms (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,7 +85,7 @@ const initDb = () => {
       `);
       console.log('✅ Classrooms table created');
       
-      // Таблица расписания (с аудиторией)
+      // Таблица расписания (с колонкой date)
       db.run(`
         CREATE TABLE schedule (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,6 +95,7 @@ const initDb = () => {
           classroom_id INTEGER,
           pair_number INTEGER NOT NULL,
           day_of_week INTEGER NOT NULL,
+          date TEXT,
           status TEXT DEFAULT 'planned',
           notes TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -104,7 +105,11 @@ const initDb = () => {
           FOREIGN KEY (classroom_id) REFERENCES classrooms(id)
         )
       `);
-      console.log('✅ Schedule table created');
+      console.log('✅ Schedule table created with date column');
+      
+      // Создаём индекс для date
+      db.run('CREATE INDEX idx_schedule_date ON schedule(date)');
+      console.log('✅ Index on date column created');
     });
 
     // Создаём пользователей и тестовые данные
@@ -184,12 +189,20 @@ const initDb = () => {
                 db.get("SELECT id FROM subjects WHERE name = 'Программирование'", (err, subject) => {
                   db.get("SELECT id FROM classrooms WHERE name = '412'", (err, classroom) => {
                     if (group && teacher && subject && classroom) {
+                      // Получаем дату для понедельника текущей недели
+                      const now = new Date();
+                      const currentDay = now.getDay();
+                      const diff = currentDay === 0 ? 6 : currentDay - 1;
+                      const monday = new Date(now);
+                      monday.setDate(now.getDate() - diff);
+                      const date = monday.toISOString().split('T')[0];
+                      
                       db.run(
-                        `INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week) 
-                         VALUES (?, ?, ?, ?, ?, ?)`,
-                        [group.id, teacher.id, subject.id, classroom.id, 1, 1]
+                        `INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [group.id, teacher.id, subject.id, classroom.id, 1, 1, date]
                       );
-                      console.log('📅 Test schedule added');
+                      console.log('📅 Test schedule added with date:', date);
                     }
                   });
                 });
