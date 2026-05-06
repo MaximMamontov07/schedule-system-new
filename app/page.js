@@ -101,9 +101,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
   const filteredOptions = useMemo(() => {
     if (!searchTerm.trim()) return options;
     const term = searchTerm.toLowerCase();
-    return options.filter(opt => 
-      opt.label.toLowerCase().includes(term)
-    );
+    return options.filter(opt => opt.label.toLowerCase().includes(term));
   }, [options, searchTerm]);
 
   const handleKeyDown = (e) => {
@@ -115,9 +113,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
         if (!isOpen) {
           setIsOpen(true);
         } else {
-          setHighlightedIndex(prev => 
-            prev < filteredOptions.length - 1 ? prev + 1 : prev
-          );
+          setHighlightedIndex(prev => prev < filteredOptions.length - 1 ? prev + 1 : prev);
         }
         break;
       case 'ArrowUp':
@@ -637,7 +633,15 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                         {canEdit && onAddClick && lessons.length < 6 && (
                           <button 
                             className="add-lesson-btn-mini"
-                            onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: dateStr })}
+                            onClick={() => {
+                              let correctedDate = dateStr;
+                              if (correctedDate) {
+                                const selectedDateObj = new Date(correctedDate);
+                                const localDate = new Date(selectedDateObj.getTime() + selectedDateObj.getTimezoneOffset() * 60000);
+                                correctedDate = localDate.toISOString().split('T')[0];
+                              }
+                              onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: correctedDate });
+                            }}
                             title="Добавить занятие"
                           >
                             <i className="fas fa-plus"></i> Добавить
@@ -648,7 +652,15 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                       canEdit && onAddClick && (
                         <button 
                           className="add-lesson-btn"
-                          onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: dateStr })}
+                          onClick={() => {
+                            let correctedDate = dateStr;
+                            if (correctedDate) {
+                              const selectedDateObj = new Date(correctedDate);
+                              const localDate = new Date(selectedDateObj.getTime() + selectedDateObj.getTimezoneOffset() * 60000);
+                              correctedDate = localDate.toISOString().split('T')[0];
+                            }
+                            onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: correctedDate });
+                          }}
                           title="Добавить занятие"
                         >
                           <i className="fas fa-plus"></i>
@@ -1213,12 +1225,15 @@ function HomeContent() {
   const [newSubject, setNewSubject] = useState('');
   const [newClassroom, setNewClassroom] = useState('');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('');
+  
+  // Состояние для управления неделями в Управлении
+  const [manageCurrentDate, setManageCurrentDate] = useState(new Date());
 
   const [localData, setLocalData] = useState({});
   const [hasChanges, setHasChanges] = useState({});
   const [saving, setSaving] = useState({});
 
-  const showNotification = (msg, type) => {
+  const showNotification = (msg, type = 'success') => {
     setNotification({ msg, type });
     setTimeout(() => setNotification(null), 3000);
   };
@@ -1250,7 +1265,7 @@ function HomeContent() {
     }
   };
 
-  // Функция для загрузки текущей недели
+  // Функция для загрузки расписания за текущую неделю
   const loadCurrentWeekSchedule = async (groupId = null) => {
     const now = new Date();
     const monday = getMonday(now);
@@ -1258,6 +1273,14 @@ function HomeContent() {
     const weekEnd = new Date(monday);
     weekEnd.setDate(monday.getDate() + 6);
     return await loadScheduleForWeek(weekStart, weekEnd.toISOString().split('T')[0], groupId);
+  };
+  
+  // Функция для загрузки расписания для Управления (по выбранной неделе)
+  const loadScheduleForWeekForManage = async () => {
+    const weekDates = getWeekDates(manageCurrentDate);
+    const startDate = weekDates[0].toISOString().split('T')[0];
+    const endDate = weekDates[6].toISOString().split('T')[0];
+    await loadScheduleForWeek(startDate, endDate, selectedGroupFilter);
   };
   
   const loadData = async () => {
@@ -1519,7 +1542,7 @@ function HomeContent() {
   };
 
   const handleLogin = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -1533,7 +1556,7 @@ function HomeContent() {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         setShowLogin(false);
-        showNotification(`Добро пожаловать, ${data.user.fullName}!`, 'success');
+        showNotification(`Добро пожаловать, ${data.user.fullName}!`);
         await loadData();
         if (data.user.role === 'admin') await loadUsers();
         if (data.user.role === 'teacher') {
@@ -1560,7 +1583,7 @@ function HomeContent() {
   };
 
   const handleRegister = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -1634,6 +1657,13 @@ function HomeContent() {
   const handleAddScheduleClick = (slotData) => {
     console.log('📅 Добавление занятия в слот:', slotData);
     
+    let correctedDate = slotData.date;
+    if (correctedDate) {
+      const selectedDate = new Date(correctedDate);
+      const localDate = new Date(selectedDate.getTime() + selectedDate.getTimezoneOffset() * 60000);
+      correctedDate = localDate.toISOString().split('T')[0];
+    }
+    
     setEditingLesson({
       id: null,
       group_id: '',
@@ -1642,7 +1672,7 @@ function HomeContent() {
       classroom_id: '',
       pair_number: String(slotData.pair_number),
       day_of_week: String(slotData.day_of_week),
-      date: slotData.date || ''
+      date: correctedDate || ''
     });
     setShowEditModal(true);
   };
@@ -1705,7 +1735,11 @@ function HomeContent() {
         showNotification('Занятие добавлено', 'success');
         setShowEditModal(false);
         setEditingLesson(null);
-        await loadCurrentWeekSchedule(selectedGroupFilter);
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else {
+          await loadCurrentWeekSchedule(selectedGroupFilter);
+        }
       } else {
         showNotification(result.error || 'Ошибка сервера', 'error');
       }
@@ -1749,7 +1783,11 @@ function HomeContent() {
         showNotification('Занятие обновлено', 'success');
         setShowEditModal(false);
         setEditingLesson(null);
-        await loadCurrentWeekSchedule(selectedGroupFilter);
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else {
+          await loadCurrentWeekSchedule(selectedGroupFilter);
+        }
       } else {
         showNotification(result.error || 'Ошибка сервера', 'error');
       }
@@ -1769,7 +1807,11 @@ function HomeContent() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       showNotification('Занятие удалено', 'success');
-      await loadCurrentWeekSchedule(selectedGroupFilter);
+      if (activeTab === 'manage-schedule') {
+        await loadScheduleForWeekForManage();
+      } else {
+        await loadCurrentWeekSchedule(selectedGroupFilter);
+      }
     } catch (e) {
       showNotification('Ошибка', 'error');
     }
@@ -1896,6 +1938,7 @@ function HomeContent() {
     }
   };
 
+  // Эффекты
   useEffect(() => {
     const init = async () => {
       const t = localStorage.getItem('token');
@@ -1932,6 +1975,13 @@ function HomeContent() {
       }
     }
   }, [schedule, isTeacher, teachers, user]);
+
+  // Эффект для загрузки расписания в Управлении при смене недели/группы
+  useEffect(() => {
+    if (activeTab === 'manage-schedule' && token) {
+      loadScheduleForWeekForManage();
+    }
+  }, [manageCurrentDate, selectedGroupFilter, activeTab, token]);
 
   const renderMainContent = () => {
     if (isTeacher) {
@@ -2047,8 +2097,7 @@ function HomeContent() {
     }
     
     if (activeTab === 'manage-schedule' && canEditSchedule) {
-      const displaySchedule = selectedGroupFilter ? schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)) : schedule;
-      const weekDatesForManage = getWeekDates(new Date());
+      const weekDatesForManage = getWeekDates(manageCurrentDate);
       
       return (
         <div className="content-card">
@@ -2057,15 +2106,55 @@ function HomeContent() {
               <h2><i className="fas fa-plus-circle"></i> Управление расписанием</h2>
             </div>
             <div className="header-actions">
+              <div className="week-controls" style={{ marginRight: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button 
+                  onClick={() => {
+                    const newDate = new Date(manageCurrentDate);
+                    newDate.setDate(manageCurrentDate.getDate() - 7);
+                    setManageCurrentDate(newDate);
+                  }} 
+                  className="week-nav-btn"
+                >
+                  <i className="fas fa-chevron-left"></i> Пред.
+                </button>
+                <div className="week-display" style={{ background: 'var(--primary)', padding: '0.5rem 1rem', borderRadius: '2rem', color: 'white' }}>
+                  <i className="fas fa-calendar-week"></i>
+                  <span>{formatDate(weekDatesForManage[0])} - {formatDate(weekDatesForManage[6])}</span>
+                  <span className="week-number">({getWeekNumber(weekDatesForManage[0])} нед.)</span>
+                </div>
+                <button 
+                  onClick={() => {
+                    const newDate = new Date(manageCurrentDate);
+                    newDate.setDate(manageCurrentDate.getDate() + 7);
+                    setManageCurrentDate(newDate);
+                  }} 
+                  className="week-nav-btn"
+                >
+                  След. <i className="fas fa-chevron-right"></i>
+                </button>
+                <button 
+                  onClick={() => {
+                    setManageCurrentDate(new Date());
+                  }} 
+                  className="week-today-btn"
+                >
+                  <i className="fas fa-calendar-day"></i> Сегодня
+                </button>
+              </div>
+              
               <select value={selectedGroupFilter} onChange={(e) => {
                 setSelectedGroupFilter(e.target.value);
-                loadCurrentWeekSchedule(e.target.value);
               }} className="group-filter">
                 <option value="">Все группы</option>
                 {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
-              <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
-              <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
+              
+              <button className="action-button export-excel" onClick={exportToExcel}>
+                <i className="fas fa-file-excel"></i> Excel
+              </button>
+              <button className="action-button export-pdf" onClick={exportToPDF}>
+                <i className="fas fa-file-pdf"></i> PDF
+              </button>
             </div>
           </div>
           
@@ -2073,7 +2162,7 @@ function HomeContent() {
             <div className="loading-state"><div className="spinner"></div></div>
           ) : (
             <ScheduleGrid 
-              data={displaySchedule} 
+              data={schedule} 
               canEdit={true}
               onEditClick={handleEditClick}
               onDeleteClick={handleDeleteLesson}
