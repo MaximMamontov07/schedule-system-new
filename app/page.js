@@ -657,25 +657,34 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                             )}
                           </div>
                         ))}
-                        {canEdit && onAddClick && lessons.length < 6 && (
-                          <button 
-                            className="add-lesson-btn-mini"
-                            onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number })}
-                            title="Добавить занятие"
-                          >
-                            <i className="fas fa-plus"></i>
-                          </button>
-                        )}
+                        {/* Кнопка добавления внутри ячейки с занятиями */}
+{canEdit && onAddClick && lessons.length < 6 && (
+  <button 
+    className="add-lesson-btn-mini"
+    onClick={() => onAddClick({ 
+      day_of_week: dayIndex + 1, 
+      pair_number: pair.number, 
+      date: date ? date.toISOString().split('T')[0] : '' 
+    })}
+    title="Добавить занятие"
+  >
+    <i className="fas fa-plus"></i> Добавить
+  </button>
+)}
                       </div>
                     ) : (
-                      canEdit && onAddClick && (
-                        <button 
-                          className="add-lesson-btn"
-                          onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number })}
-                          title="Добавить занятие"
-                        >
-                          <i className="fas fa-plus"></i>
-                        </button>
+                      canEdit && onAddClick && lessons.length < 6 && (
+  <button 
+    className="add-lesson-btn-mini"
+    onClick={() => onAddClick({ 
+      day_of_week: dayIndex + 1, 
+      pair_number: pair.number, 
+      date: date ? date.toISOString().split('T')[0] : '' 
+    })}
+    title="Добавить занятие"
+  >
+    <i className="fas fa-plus"></i> Добавить
+  </button>
                       )
                     )}
                   </td>
@@ -1734,52 +1743,54 @@ function HomeContent() {
     }
   };
 
-  const handleAddLesson = async (e) => {
-    e.preventDefault();
-    if (!canEditSchedule) return showNotification('Нет прав', 'error');
-    
-    // Получаем текущую неделю для добавления занятия
-    const now = new Date();
-    const currentDay = now.getDay();
-    const monday = new Date(now);
-    const diff = currentDay === 0 ? 6 : currentDay - 1;
-    monday.setDate(now.getDate() - diff);
-    
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      weekDates.push(date);
-    }
-    
-    const lessonDate = weekDates[parseInt(newLesson.day_of_week) - 1];
-    
-    try {
-      const res = await fetch('/api/schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ 
-          ...newLesson, 
-          classroom_id: newLesson.classroom_id || null,
-          date: lessonDate ? lessonDate.toISOString().split('T')[0] : null
-        })
-      });
-      if (res.ok) {
-        showNotification('Занятие добавлено', 'success');
-        setNewLesson({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1' });
-        // Перезагружаем расписание за текущую неделю
-        const startDate = monday.toISOString().split('T')[0];
-        const endDate = new Date(monday);
-        endDate.setDate(monday.getDate() + 6);
-        await loadScheduleForWeek(startDate, endDate.toISOString().split('T')[0]);
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка', 'error');
-    }
+ const handleAddLesson = async (e) => {
+  e.preventDefault();
+  if (!canEditSchedule) return showNotification('Нет прав', 'error');
+  
+  // Проверяем, что дата есть
+  if (!newLesson.date && !editingLesson?.date) {
+    showNotification('Выберите дату занятия', 'error');
+    return;
+  }
+
+  // Берем данные из editingLesson или newLesson
+  const lessonToSave = editingLesson || newLesson;
+  
+  // Убеждаемся, что все ID - числа
+  const dataToSend = {
+    group_id: parseInt(lessonToSave.group_id),
+    teacher_id: parseInt(lessonToSave.teacher_id),
+    subject_id: parseInt(lessonToSave.subject_id),
+    classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
+    pair_number: parseInt(lessonToSave.pair_number),
+    day_of_week: parseInt(lessonToSave.day_of_week),
+    date: lessonToSave.date
   };
+
+  try {
+    const res = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(dataToSend)
+    });
+    
+    const result = await res.json();
+    
+    if (res.ok) {
+      showNotification('Занятие добавлено', 'success');
+      setShowEditModal(false);
+      setEditingLesson(null);
+      setNewLesson({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1', date: '' });
+      await loadScheduleForWeek(startDate, endDate);
+    } else {
+      showNotification(result.error || 'Ошибка сервера', 'error');
+      console.error('Server error:', result);
+    }
+  } catch (error) {
+    console.error('Fetch error:', error);
+    showNotification('Ошибка соединения с сервером', 'error');
+  }
+};
 
   const handleUpdateLesson = async (e) => {
     if (e) e.preventDefault();
@@ -1853,17 +1864,18 @@ function HomeContent() {
   };
 
   const handleAddScheduleClick = (slotData) => {
-    setEditingLesson({
-      id: null,
-      group_id: '',
-      teacher_id: '',
-      subject_id: '',
-      classroom_id: '',
-      pair_number: slotData.pair_number,
-      day_of_week: slotData.day_of_week
-    });
-    setShowEditModal(true);
-  };
+  setEditingLesson({
+    id: null,
+    group_id: '',
+    teacher_id: '',
+    subject_id: '',
+    classroom_id: '',
+    pair_number: slotData.pair_number,
+    day_of_week: slotData.day_of_week,
+    date: slotData.date || ''  // обязательно передаем дату
+  });
+  setShowEditModal(true);
+};
 
   const addDirectory = async (type, name, setShow, setValue) => {
     if (!name.trim()) return showNotification('Введите название', 'error');
