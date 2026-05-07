@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx';
 
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
 
