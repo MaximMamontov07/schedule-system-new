@@ -1485,60 +1485,120 @@ function HomeContent() {
   };
 
   const exportToExcel = () => {
-    let exportData = [];
+  console.log('📊 Экспорт в Excel, данных:', schedule.length);
+  
+  if (!schedule || schedule.length === 0) {
+    showNotification('Нет данных для экспорта', 'error');
+    return;
+  }
+  
+  let exportData = [];
+  
+  if (activeTab === 'my-lessons' && isTeacher) {
+    const teacher = teachers.find(t => t.user_id === user?.id);
+    const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
     
-    if (activeTab === 'my-lessons' && isTeacher) {
-      const teacher = teachers.find(t => t.user_id === user.id);
-      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
-      exportData = teacherLessons.map(lesson => ({
-        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Группа': lesson.group_name,
-        'Предмет': lesson.subject_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
-    } else if (user && user.role === 'student' && user.groupId) {
-      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
-        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Предмет': lesson.subject_name,
-        'Преподаватель': lesson.teacher_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
-    } else if (selectedGroupFilter) {
-      exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)).map(lesson => ({
-        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Группа': lesson.group_name,
-        'Предмет': lesson.subject_name,
-        'Преподаватель': lesson.teacher_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
-    } else {
-      exportData = schedule.map(lesson => ({
-        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
-        'День недели': DAYS[lesson.day_of_week - 1],
-        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
-        'Группа': lesson.group_name,
-        'Предмет': lesson.subject_name,
-        'Преподаватель': lesson.teacher_name,
-        'Аудитория': lesson.classroom_name || '—',
-        'Заметки': lesson.notes || '—'
-      }));
+    if (teacherLessons.length === 0) {
+      showNotification('Нет занятий для экспорта', 'error');
+      return;
     }
-
+    
+    exportData = teacherLessons.map(lesson => ({
+      'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
+      'День недели': DAYS[lesson.day_of_week - 1] || '-',
+      'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1]?.time || '-'})`,
+      'Группа': lesson.group_name || '-',
+      'Предмет': lesson.subject_name || '-',
+      'Аудитория': lesson.classroom_name || '-',
+      'Заметки': lesson.notes || '-'
+    }));
+    
+  } else if (user && user.role === 'student' && user.groupId) {
+    const studentLessons = schedule.filter(s => s.group_id === user.groupId);
+    
+    if (studentLessons.length === 0) {
+      showNotification('Нет занятий для экспорта', 'error');
+      return;
+    }
+    
+    exportData = studentLessons.map(lesson => ({
+      'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
+      'День недели': DAYS[lesson.day_of_week - 1] || '-',
+      'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1]?.time || '-'})`,
+      'Предмет': lesson.subject_name || '-',
+      'Преподаватель': lesson.teacher_name || '-',
+      'Аудитория': lesson.classroom_name || '-',
+      'Заметки': lesson.notes || '-'
+    }));
+    
+  } else if (selectedGroupFilter) {
+    const filteredLessons = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter));
+    
+    if (filteredLessons.length === 0) {
+      showNotification('Нет занятий для выбранной группы', 'error');
+      return;
+    }
+    
+    exportData = filteredLessons.map(lesson => ({
+      'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
+      'День недели': DAYS[lesson.day_of_week - 1] || '-',
+      'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1]?.time || '-'})`,
+      'Группа': lesson.group_name || '-',
+      'Предмет': lesson.subject_name || '-',
+      'Преподаватель': lesson.teacher_name || '-',
+      'Аудитория': lesson.classroom_name || '-',
+      'Заметки': lesson.notes || '-'
+    }));
+    
+  } else {
+    if (schedule.length === 0) {
+      showNotification('Нет занятий для экспорта', 'error');
+      return;
+    }
+    
+    exportData = schedule.map(lesson => ({
+      'Дата': lesson.date ? new Date(lesson.date).toLocaleDateString('ru-RU') : '-',
+      'День недели': DAYS[lesson.day_of_week - 1] || '-',
+      'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1]?.time || '-'})`,
+      'Группа': lesson.group_name || '-',
+      'Предмет': lesson.subject_name || '-',
+      'Преподаватель': lesson.teacher_name || '-',
+      'Аудитория': lesson.classroom_name || '-',
+      'Заметки': lesson.notes || '-'
+    }));
+  }
+  
+  console.log('📊 Экспортируемые данные:', exportData.length, 'записей');
+  
+  if (exportData.length === 0) {
+    showNotification('Нет данных для экспорта', 'error');
+    return;
+  }
+  
+  try {
     const ws = XLSX.utils.json_to_sheet(exportData);
+    // Настраиваем ширину колонок
+    ws['!cols'] = [
+      { wch: 12 }, // Дата
+      { wch: 12 }, // День недели
+      { wch: 15 }, // Пара
+      { wch: 12 }, // Группа
+      { wch: 25 }, // Предмет
+      { wch: 25 }, // Преподаватель
+      { wch: 12 }, // Аудитория
+      { wch: 30 }  // Заметки
+    ];
+    
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Расписание");
-    XLSX.writeFile(wb, `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`);
-    showNotification('Excel файл сохранен', 'success');
-  };
+    const fileName = `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showNotification(`Excel файл сохранен (${exportData.length} записей)`, 'success');
+  } catch (error) {
+    console.error('Excel export error:', error);
+    showNotification('Ошибка при создании Excel файла', 'error');
+  }
+};
 
   const exportToPDF = async () => {
     try {
