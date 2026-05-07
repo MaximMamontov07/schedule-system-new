@@ -13,13 +13,13 @@
     "@fortawesome/free-solid-svg-icons": "^7.2.0",
     "@fortawesome/react-fontawesome": "^3.3.0",
     "bcryptjs": "^2.4.3",
+    "html2pdf.js": "^0.10.1",
     "jsonwebtoken": "^9.0.2",
     "next": "14.1.0",
     "pg": "^8.11.3",
     "react": "^18",
     "react-dom": "^18",
-    "xlsx": "^0.18.5",
-    "html2pdf.js": "^0.10.1"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "eslint": "^8",
