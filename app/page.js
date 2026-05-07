@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
-// import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx';exportToExcel 
 
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
 
@@ -1497,7 +1497,7 @@ function HomeContent() {
   const exportData = schedule.map(lesson => ({
     'Дата': lesson.date || '-',
     'День недели': DAYS[(lesson.day_of_week || 1) - 1] || '-',
-    'Пара': `${lesson.pair_number || '-'} пара`,
+    'Пара': `${lesson.pair_number || '-'} пара (${PAIRS[lesson.pair_number - 1]?.time || '-'})`,
     'Группа': lesson.group_name || '-',
     'Предмет': lesson.subject_name || '-',
     'Преподаватель': lesson.teacher_name || '-',
@@ -1506,19 +1506,36 @@ function HomeContent() {
   }));
   
   console.log('Экспортируем записей:', exportData.length);
-  console.log('Пример первой записи:', exportData[0]);
   
   try {
-    // Создаем Excel файл
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    // Создаем workbook и worksheet
     const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    
+    // Настраиваем ширину колонок
+    ws['!cols'] = [
+      { wch: 12 }, // Дата
+      { wch: 12 }, // День недели
+      { wch: 20 }, // Пара
+      { wch: 12 }, // Группа
+      { wch: 25 }, // Предмет
+      { wch: 25 }, // Преподаватель
+      { wch: 12 }, // Аудитория
+      { wch: 30 }  // Заметки
+    ];
+    
+    // Добавляем лист в книгу
     XLSX.utils.book_append_sheet(wb, ws, "Расписание");
     
-    // Сохраняем
-    const fileName = `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`;
+    // Генерируем имя файла
+    const fileName = `Расписание_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
+    
+    // Сохраняем файл
     XLSX.writeFile(wb, fileName);
     
     showNotification(`✅ Экспортировано ${exportData.length} занятий`, 'success');
+    console.log('✅ Файл должен скачаться:', fileName);
+    
   } catch (error) {
     console.error('Ошибка экспорта:', error);
     showNotification('Ошибка при создании Excel файла: ' + error.message, 'error');
