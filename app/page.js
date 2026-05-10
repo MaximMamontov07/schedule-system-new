@@ -2060,70 +2060,32 @@ function HomeContent() {
   };
 
   // УДАЛЕНИЕ
-  const handleDeleteLesson = async (id, isException = false) => {
-    if (!canEditSchedule) return showNotification('Нет прав', 'error');
-    if (!confirm('Удалить занятие?')) return;
+ const handleDeleteLesson = async (id, isException = false) => {
+  if (!canEditSchedule) return showNotification('Нет прав', 'error');
+  if (!confirm('Удалить занятие?')) return;
+  
+  try {
+    // ВРЕМЕННО: всегда удаляем из шаблона, игнорируя исключения
+    const url = `/api/schedule?id=${id}&isTemplate=true`;
+    console.log('📤 Удаление из шаблона:', url);
     
-    try {
-      let url;
-      if (isException) {
-        const exceptionId = id.toString().replace('exception_added_', '').replace('exception_', '');
-        url = `/api/schedule/exceptions?id=${exceptionId}`;
-        console.log('📤 Удаление исключения:', url);
-        
-        const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-        if (res.ok) {
-          showNotification('Исключение удалено!', 'success');
-          await refreshSchedule();
-        } else {
-          showNotification('Ошибка удаления', 'error');
-        }
-        return;
-      }
-      
-      const lesson = schedule.find(l => l.id === id);
-      if (lesson && lesson.date) {
-        const lessonDate = new Date(lesson.date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        if (lessonDate < today) {
-          const res = await fetch('/api/schedule/exceptions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({
-              group_id: lesson.group_id,
-              pair_number: lesson.pair_number,
-              exception_date: lesson.date,
-              exception_type: 'canceled'
-            })
-          });
-          
-          if (res.ok) {
-            showNotification('Занятие отменено на эту дату!', 'success');
-            await refreshSchedule();
-          } else {
-            showNotification('Ошибка отмены занятия', 'error');
-          }
-          return;
-        }
-      }
-      
-      url = `/api/schedule?id=${id}&isTemplate=true`;
-      console.log('📤 Удаление из шаблона:', url);
-      
-      const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) {
-        showNotification('Занятие удалено из шаблона!', 'success');
-        await refreshSchedule();
-      } else {
-        showNotification('Ошибка удаления', 'error');
-      }
-    } catch (e) {
-      console.error('Delete error:', e);
-      showNotification('Ошибка', 'error');
+    const res = await fetch(url, { 
+      method: 'DELETE', 
+      headers: { 'Authorization': `Bearer ${token}` } 
+    });
+    
+    if (res.ok) {
+      showNotification('Занятие удалено из шаблона!', 'success');
+      await refreshSchedule();
+    } else {
+      const error = await res.json();
+      showNotification(error.error || 'Ошибка удаления', 'error');
     }
-  };
+  } catch (e) {
+    console.error('Delete error:', e);
+    showNotification('Ошибка', 'error');
+  }
+};
 
   const addDirectory = async (type, name, setShow, setValue) => {
     if (!name.trim()) return showNotification('Введите название', 'error');
