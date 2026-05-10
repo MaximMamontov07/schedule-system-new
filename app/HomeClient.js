@@ -504,7 +504,7 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   );
 };
 
-// ============ ScheduleGrid Component (Мемоизированный) ============
+// ============ ScheduleGrid Component ============
 const ScheduleGrid = React.memo(({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate, isLoading = false }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
@@ -857,31 +857,31 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   };
 
   const resetFilters = () => {
-  if (isStudent && userGroupId) {
-    setFilters({
-      groupId: String(userGroupId),
-      teacherId: '',
-      subjectId: '',
-      dayOfWeek: '',
-      pairNumber: '',
-      classroomId: ''
-    });
-    setSelectedGroupId(userGroupId);
-  } else {
-    setFilters({
-      groupId: '',
-      teacherId: '',
-      subjectId: '',
-      dayOfWeek: '',
-      pairNumber: '',
-      classroomId: ''
-    });
-    setSelectedGroupId(null);
-  }
-  setCurrentDate(new Date());
-  // Убеждаемся, что расписание загрузится
-  setHasAppliedFilter(true);
-};
+    if (isStudent && userGroupId) {
+      setFilters({
+        groupId: String(userGroupId),
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setSelectedGroupId(userGroupId);
+      setHasAppliedFilter(true);
+    } else {
+      setFilters({
+        groupId: '',
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setSelectedGroupId(null);
+      setHasAppliedFilter(true);
+    }
+    setCurrentDate(new Date());
+  };
 
   const handleDateSelect = (date) => {
     setCurrentDate(date);
@@ -1365,7 +1365,7 @@ function HomeContent() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const canEditSchedule = user && (user.role === 'admin' || user.role === 'methodist');
+  const canEditSchedule = user && user.role === 'admin';
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
@@ -1532,7 +1532,7 @@ function HomeContent() {
                   <tr>
                     <td>${idx + 1}</td>
                     <td><strong>${item.name}</strong></td>
-                    <td>${item.lessons.length} пар</td>
+                    <td>${item.lessons.length} пар</
                     <td>${item.hours.toFixed(1)} ч.</td>
                   </tr>
                 `).join('')}
