@@ -1,14 +1,17 @@
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 
 export async function GET() {
   try {
     const db = await getDb();
-    const result = await db.get('SELECT COUNT(*) as count FROM users');
+    const result = await db.query('SELECT COUNT(*) as count FROM users');
     return NextResponse.json({ 
       status: 'healthy', 
       database: 'connected',
-      usersCount: result?.count || 0
+      usersCount: result?.rows[0]?.count || 0
     });
   } catch (error) {
     console.error('Health check failed:', error);

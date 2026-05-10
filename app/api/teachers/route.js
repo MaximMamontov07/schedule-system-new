@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
@@ -32,7 +35,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Имя обязательно' }, { status: 400 });
     }
 
-    // Добавляем преподавателя, user_id может быть NULL
     const result = await db.query(
       'INSERT INTO teachers (name, user_id) VALUES ($1, $2) RETURNING id',
       [name.trim(), userId || null]

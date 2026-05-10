@@ -1,6 +1,9 @@
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 'use client';
 
-import { useState, useEffect, useMemo, useRef, createContext, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, createContext, useContext, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 

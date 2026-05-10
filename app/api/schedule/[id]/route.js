@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
@@ -35,9 +38,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Дата занятия обязательна' }, { status: 400 });
     }
 
-    // ========== ПРОВЕРКА КОНФЛИКТОВ ПРИ РЕДАКТИРОВАНИИ ==========
-    // Исключаем текущее занятие из проверки (id != $)
-    
+    // Проверка конфликтов при редактировании
     // 1. Проверяем группу
     const groupConflict = await db.query(`
       SELECT s.*, g.name as group_name, sub.name as subject_name
@@ -45,7 +46,7 @@ export async function PUT(request, { params }) {
       JOIN groups g ON s.group_id = g.id
       JOIN subjects sub ON s.subject_id = sub.id
       WHERE s.group_id = $1 
-        AND s.date = $2 
+        AND s.date = $2::date 
         AND s.pair_number = $3
         AND s.id != $4
     `, [parseInt(group_id), date, parseInt(pair_number), parseInt(id)]);
@@ -67,7 +68,7 @@ export async function PUT(request, { params }) {
       JOIN subjects sub ON s.subject_id = sub.id
       JOIN groups g ON s.group_id = g.id
       WHERE s.teacher_id = $1 
-        AND s.date = $2 
+        AND s.date = $2::date 
         AND s.pair_number = $3
         AND s.id != $4
     `, [parseInt(teacher_id), date, parseInt(pair_number), parseInt(id)]);
@@ -90,7 +91,7 @@ export async function PUT(request, { params }) {
         JOIN subjects sub ON s.subject_id = sub.id
         JOIN groups g ON s.group_id = g.id
         WHERE s.classroom_id = $1 
-          AND s.date = $2 
+          AND s.date = $2::date 
           AND s.pair_number = $3
           AND s.id != $4
       `, [parseInt(classroom_id), date, parseInt(pair_number), parseInt(id)]);
@@ -109,7 +110,7 @@ export async function PUT(request, { params }) {
     await db.query(
       `UPDATE schedule 
        SET group_id = $1, teacher_id = $2, subject_id = $3, classroom_id = $4, 
-           pair_number = $5, day_of_week = $6, date = $7
+           pair_number = $5, day_of_week = $6, date = $7::date
        WHERE id = $8`,
       [
         parseInt(group_id), 
