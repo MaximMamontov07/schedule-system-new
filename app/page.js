@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react';
+import { useState, useEffect, useMemo, useRef, createContext, useContext, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
@@ -46,37 +46,34 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', teacher: 'Преподаватель', student: 'Студент' };
 
-// ============ ФУНКЦИИ ДЛЯ КОРРЕКТНОЙ РАБОТЫ С ДАТАМИ (FIXED FOR SUPABASE) ============
+// ============ КЭШ ДЛЯ ЗАПРОСОВ РАСПИСАНИЯ ============
+const scheduleCache = new Map();
+
+// ============ ФУНКЦИИ ДЛЯ РАБОТЫ С ДАТАМИ ============
 
 const parseLocalDate = (dateString) => {
   if (!dateString) return null;
   
   try {
-    // Если это уже объект Date
     if (dateString instanceof Date) {
       return new Date(dateString.getFullYear(), dateString.getMonth(), dateString.getDate());
     }
     
-    // Преобразуем в строку
     let str = String(dateString);
     
-    // Убираем время если есть (UTC формат от Supabase)
     if (str.includes('T')) {
       str = str.split('T')[0];
     }
     
-    // Убираем миллисекунды если есть
     if (str.includes('.')) {
       str = str.split('.')[0];
     }
     
-    // Формат YYYY-MM-DD
     if (str.match(/^\d{4}-\d{2}-\d{2}$/)) {
       const [year, month, day] = str.split('-').map(Number);
       return new Date(year, month - 1, day);
     }
     
-    // Формат DD.MM.YYYY
     if (str.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
       const [day, month, year] = str.split('.').map(Number);
       return new Date(year, month - 1, day);
@@ -145,6 +142,7 @@ const getWeekNumber = (date) => {
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 };
 
 const getMonday = (date) => {
@@ -184,6 +182,15 @@ const isToday = (date) => {
   return date.getDate() === today.getDate() &&
          date.getMonth() === today.getMonth() &&
          date.getFullYear() === today.getFullYear();
+};
+
+// ============ DEBOUNCE FUNCTION ============
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
 };
 
 // ============ SearchableSelect Component ============
@@ -410,7 +417,7 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1));
   };
   
-  const isToday = (date) => {
+  const isTodayDate = (date) => {
     const today = new Date();
     return date.getDate() === today.getDate() &&
            date.getMonth() === today.getMonth() &&
@@ -473,7 +480,7 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
             {getDaysInMonth(currentMonth).map((day, idx) => (
               <button
                 key={idx}
-                className={`datepicker-day ${!day.isCurrentMonth ? 'other-month' : ''} ${isToday(day.date) ? 'today' : ''} ${isSelected(day.date) ? 'selected' : ''}`}
+                className={`datepicker-day ${!day.isCurrentMonth ? 'other-month' : ''} ${isTodayDate(day.date) ? 'today' : ''} ${isSelected(day.date) ? 'selected' : ''}`}
                 onClick={() => handleDateClick(day.date)}
               >
                 {day.day}
@@ -510,128 +517,8 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   );
 };
 
-// ============ FilterSection Component ============
-const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, currentDate, onPrevWeek, onNextWeek, onCurrentWeek, hasActiveFilters, showGroupFilter = true, isStudent = false, selectedGroupId, onGroupChange }) => {
-  const weekDates = getWeekDates(currentDate);
-  const weekStart = weekDates[0];
-  const weekEnd = weekDates[6];
-  
-  const groupOptions = groups?.map(g => ({ value: String(g.id), label: g.name })) || [];
-  const teacherOptions = teachers?.map(t => ({ value: String(t.id), label: t.name })) || [];
-  const subjectOptions = subjects?.map(s => ({ value: String(s.id), label: s.name })) || [];
-  const classroomOptions = classrooms?.map(c => ({ value: String(c.id), label: c.name })) || [];
-  const dayOptions = DAYS.map((day, idx) => ({ value: String(idx + 1), label: day }));
-  const pairOptions = PAIRS.map(p => ({ value: String(p.number), label: `${p.name} (${p.time})` }));
-  
-  return (
-    <div className="filter-section">
-      <div className="filter-section-header">
-        <div className="week-navigation">
-          <button className="calendar-icon-btn" onClick={onOpenCalendar} title="Выбрать дату">
-            <i className="fas fa-calendar-alt"></i>
-            {currentDate && <span className="selected-date-badge">{currentDate.getDate()}.{currentDate.getMonth() + 1}</span>}
-          </button>
-          
-          <div className="week-controls">
-            <button onClick={onPrevWeek} className="week-nav-btn" title="Предыдущая неделя">
-              <i className="fas fa-chevron-left"></i>
-            </button>
-            <div className="week-display">
-              <i className="fas fa-calendar-week"></i>
-              <span>{formatDate(weekStart)} - {formatDate(weekEnd)}</span>
-              <span className="week-number">({getWeekNumber(weekStart)} неделя)</span>
-            </div>
-            <button onClick={onNextWeek} className="week-nav-btn" title="Следующая неделя">
-              <i className="fas fa-chevron-right"></i>
-            </button>
-            <button onClick={onCurrentWeek} className="week-today-btn" title="Текущая неделя">
-              <i className="fas fa-calendar-day"></i> Сегодня
-            </button>
-          </div>
-        </div>
-        <button className="reset-filters-btn" onClick={onReset}>
-          <i className="fas fa-undo-alt"></i> Сбросить фильтры
-        </button>
-      </div>
-      
-      <div className="filter-grid">
-        {showGroupFilter && !isStudent && (
-          <div className="filter-group">
-            <SearchableSelect
-              options={groupOptions}
-              value={selectedGroupId ? String(selectedGroupId) : filters.groupId}
-              onChange={(val) => {
-                if (onGroupChange) onGroupChange(val);
-                onFilterChange('groupId', val);
-              }}
-              placeholder="Выберите группу"
-              label="Группа"
-              icon="fas fa-users"
-            />
-          </div>
-        )}
-
-        <div className="filter-group">
-          <SearchableSelect
-            options={teacherOptions}
-            value={filters.teacherId}
-            onChange={(val) => onFilterChange('teacherId', val)}
-            placeholder="Выберите преподавателя"
-            label="Преподаватель"
-            icon="fas fa-chalkboard-teacher"
-          />
-        </div>
-
-        <div className="filter-group">
-          <SearchableSelect
-            options={subjectOptions}
-            value={filters.subjectId}
-            onChange={(val) => onFilterChange('subjectId', val)}
-            placeholder="Выберите предмет"
-            label="Предмет"
-            icon="fas fa-book"
-          />
-        </div>
-
-        <div className="filter-group">
-          <SearchableSelect
-            options={dayOptions}
-            value={filters.dayOfWeek}
-            onChange={(val) => onFilterChange('dayOfWeek', val)}
-            placeholder="Выберите день"
-            label="День недели"
-            icon="fas fa-calendar-day"
-          />
-        </div>
-
-        <div className="filter-group">
-          <SearchableSelect
-            options={pairOptions}
-            value={filters.pairNumber}
-            onChange={(val) => onFilterChange('pairNumber', val)}
-            placeholder="Выберите пару"
-            label="Пара"
-            icon="fas fa-clock"
-          />
-        </div>
-
-        <div className="filter-group">
-          <SearchableSelect
-            options={classroomOptions}
-            value={filters.classroomId}
-            onChange={(val) => onFilterChange('classroomId', val)}
-            placeholder="Выберите аудиторию"
-            label="Аудитория"
-            icon="fas fa-door-open"
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============ ScheduleGrid Component ============
-const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate }) => {
+// ============ ScheduleGrid Component (Мемоизированный) ============
+const ScheduleGrid = React.memo(({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate, isLoading = false }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
@@ -647,7 +534,7 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   }, [data]);
 
   return (
-    <div className="schedule-grid-wrapper">
+    <div className={`schedule-grid-wrapper ${isLoading ? 'loading' : ''}`}>
       <table className="schedule-grid">
         <thead>
           <tr>
@@ -659,11 +546,11 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
             </th>
             {DAYS.map((day, idx) => {
               const date = weekDates?.[idx];
-              const isToday = date && date.toDateString() === new Date().toDateString();
+              const isTodayDate = date && date.toDateString() === new Date().toDateString();
               const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
               const isWeekend = idx === 5 || idx === 6;
               return (
-                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                <th key={day} className={`day-header ${isTodayDate ? 'today' : ''} ${isSelected ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}>
                   <div className="day-header-content">
                     <span className="day-name">{day}</span>
                     <span className="day-date">{date ? formatDate(date) : ''}</span>
@@ -686,13 +573,13 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                 const lessons = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLessons = lessons.length > 0;
                 const date = weekDates?.[dayIndex];
-                const isToday = date && date.toDateString() === new Date().toDateString();
+                const isTodayDate = date && date.toDateString() === new Date().toDateString();
                 const isSelected = selectedDate && date && date.toDateString() === selectedDate.toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 const dateStr = date ? formatForInput(date) : '';
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isTodayDate ? 'today-column' : ''} ${isSelected ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLessons ? (
                       <div className="lessons-container">
                         {lessons.map((lesson, idx) => (
@@ -779,14 +666,139 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
       </table>
     </div>
   );
+}, (prevProps, nextProps) => {
+  return prevProps.data === nextProps.data && 
+         prevProps.canEdit === nextProps.canEdit &&
+         prevProps.isLoading === nextProps.isLoading;
+});
+
+// ============ FilterSection Component ============
+const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, currentDate, onPrevWeek, onNextWeek, onCurrentWeek, hasActiveFilters, showGroupFilter = true, isStudent = false, selectedGroupId, onGroupChange, isLoading = false }) => {
+  const weekDates = getWeekDates(currentDate);
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[6];
+  
+  const groupOptions = groups?.map(g => ({ value: String(g.id), label: g.name })) || [];
+  const teacherOptions = teachers?.map(t => ({ value: String(t.id), label: t.name })) || [];
+  const subjectOptions = subjects?.map(s => ({ value: String(s.id), label: s.name })) || [];
+  const classroomOptions = classrooms?.map(c => ({ value: String(c.id), label: c.name })) || [];
+  const dayOptions = DAYS.map((day, idx) => ({ value: String(idx + 1), label: day }));
+  const pairOptions = PAIRS.map(p => ({ value: String(p.number), label: `${p.name} (${p.time})` }));
+  
+  return (
+    <div className="filter-section">
+      <div className="filter-section-header">
+        <div className="week-navigation">
+          <button className="calendar-icon-btn" onClick={onOpenCalendar} title="Выбрать дату" disabled={isLoading}>
+            <i className="fas fa-calendar-alt"></i>
+            {currentDate && <span className="selected-date-badge">{currentDate.getDate()}.{currentDate.getMonth() + 1}</span>}
+          </button>
+          
+          <div className="week-controls">
+            <button onClick={onPrevWeek} className="week-nav-btn" title="Предыдущая неделя" disabled={isLoading}>
+              {isLoading ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-chevron-left"></i>}
+            </button>
+            <div className="week-display">
+              <i className="fas fa-calendar-week"></i>
+              <span>{formatDate(weekStart)} - {formatDate(weekEnd)}</span>
+              <span className="week-number">({getWeekNumber(weekStart)} неделя)</span>
+            </div>
+            <button onClick={onNextWeek} className="week-nav-btn" title="Следующая неделя" disabled={isLoading}>
+              {isLoading ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-chevron-right"></i>}
+            </button>
+            <button onClick={onCurrentWeek} className="week-today-btn" title="Текущая неделя" disabled={isLoading}>
+              <i className="fas fa-calendar-day"></i> Сегодня
+            </button>
+          </div>
+        </div>
+        <button className="reset-filters-btn" onClick={onReset} disabled={isLoading}>
+          <i className="fas fa-undo-alt"></i> Сбросить фильтры
+        </button>
+      </div>
+      
+      <div className="filter-grid">
+        {showGroupFilter && !isStudent && (
+          <div className="filter-group">
+            <SearchableSelect
+              options={groupOptions}
+              value={selectedGroupId ? String(selectedGroupId) : filters.groupId}
+              onChange={(val) => {
+                if (onGroupChange) onGroupChange(val);
+                onFilterChange('groupId', val);
+              }}
+              placeholder="Выберите группу"
+              label="Группа"
+              icon="fas fa-users"
+            />
+          </div>
+        )}
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={teacherOptions}
+            value={filters.teacherId}
+            onChange={(val) => onFilterChange('teacherId', val)}
+            placeholder="Выберите преподавателя"
+            label="Преподаватель"
+            icon="fas fa-chalkboard-teacher"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={subjectOptions}
+            value={filters.subjectId}
+            onChange={(val) => onFilterChange('subjectId', val)}
+            placeholder="Выберите предмет"
+            label="Предмет"
+            icon="fas fa-book"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={dayOptions}
+            value={filters.dayOfWeek}
+            onChange={(val) => onFilterChange('dayOfWeek', val)}
+            placeholder="Выберите день"
+            label="День недели"
+            icon="fas fa-calendar-day"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={pairOptions}
+            value={filters.pairNumber}
+            onChange={(val) => onFilterChange('pairNumber', val)}
+            placeholder="Выберите пару"
+            label="Пара"
+            icon="fas fa-clock"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={classroomOptions}
+            value={filters.classroomId}
+            onChange={(val) => onFilterChange('classroomId', val)}
+            placeholder="Выберите аудиторию"
+            label="Аудитория"
+            icon="fas fa-door-open"
+          />
+        </div>
+      </div>
+    </div>
+  );
 };
 
-// ============ ОБНОВЛЕННЫЙ ScheduleView Component ============
+// ============ ScheduleView Component (Оптимизированный) ============
 const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId, loadScheduleForWeek }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [isDataLoaded, setIsDataLoaded] = useState(false); // Флаг загрузки данных
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState(userRole === 'student' ? userGroupId : null);
+  const [isLoadingLocal, setIsLoadingLocal] = useState(false);
   
   const isStudent = userRole === 'student';
   const [filters, setFilters] = useState({
@@ -798,28 +810,39 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     classroomId: ''
   });
 
-  // Загружаем данные ТОЛЬКО когда меняется неделя или начальная группа
   useEffect(() => {
-    if (loadScheduleForWeek) {
-      const weekDates = getWeekDates(currentDate);
+    if (isStudent && userGroupId) {
+      setHasAppliedFilter(true);
+      setSelectedGroupId(userGroupId);
+    }
+  }, [isStudent, userGroupId]);
+
+  const weekDates = getWeekDates(currentDate);
+
+  // Дебаунсированная загрузка
+  const debouncedLoadSchedule = useCallback(
+    debounce(async (start, end, groupId) => {
+      setIsLoadingLocal(true);
+      await loadScheduleForWeek(start, end, groupId);
+      setIsLoadingLocal(false);
+    }, 300),
+    [loadScheduleForWeek]
+  );
+
+  useEffect(() => {
+    if (weekDates.length > 0 && hasAppliedFilter) {
       const startDate = formatForInput(weekDates[0]);
       const endDate = formatForInput(weekDates[6]);
-      const groupId = selectedGroupId || (isStudent ? userGroupId : null);
-      
-      loadScheduleForWeek(startDate, endDate, groupId).then(() => {
-        setIsDataLoaded(true);
-      });
+      const groupId = selectedGroupId || filters.groupId;
+      debouncedLoadSchedule(startDate, endDate, groupId);
     }
-  }, [currentDate]); // ТОЛЬКО при смене недели!
+  }, [weekDates, selectedGroupId, filters.groupId, hasAppliedFilter, debouncedLoadSchedule]);
 
-  // Функция для локальной фильтрации (без запроса к серверу!)
   const filteredSchedule = useMemo(() => {
+    if (isLoadingLocal) return schedule;
+    
     let filtered = [...schedule];
     
-    // Группа уже отфильтрована в основном запросе, но если есть дополнительный фильтр
-    if (filters.groupId && filters.groupId !== (selectedGroupId || (isStudent ? userGroupId : null))) {
-      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
-    }
     if (filters.teacherId) {
       filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
     }
@@ -837,13 +860,14 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     }
     
     return filtered;
-  }, [schedule, filters, selectedGroupId, isStudent, userGroupId]);
+  }, [schedule, filters, isLoadingLocal]);
 
   const handleFilterChange = (key, value) => {
     if (key === 'groupId') {
       setSelectedGroupId(value);
     }
     setFilters(prev => ({ ...prev, [key]: value }));
+    setHasAppliedFilter(true);
   };
 
   const resetFilters = () => {
@@ -857,6 +881,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         classroomId: ''
       });
       setSelectedGroupId(userGroupId);
+      setHasAppliedFilter(true);
     } else {
       setFilters({
         groupId: '',
@@ -867,34 +892,35 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         classroomId: ''
       });
       setSelectedGroupId(null);
+      setHasAppliedFilter(false);
     }
+    setCurrentDate(new Date());
+  };
+
+  const handleDateSelect = (date) => {
+    setCurrentDate(date);
+    setShowCalendar(false);
   };
 
   const handlePrevWeek = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() - 7);
     setCurrentDate(newDate);
-    setIsDataLoaded(false); // Сбрасываем флаг, пока грузятся новые данные
   };
 
   const handleNextWeek = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() + 7);
     setCurrentDate(newDate);
-    setIsDataLoaded(false);
   };
 
   const handleCurrentWeek = () => {
     setCurrentDate(new Date());
-    setIsDataLoaded(false);
   };
 
-  const weekDates = getWeekDates(currentDate);
   const hasActiveFilters = filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId;
-  
-  const hasAppliedFilter = isStudent ? true : (selectedGroupId || hasActiveFilters);
 
-  if (loading || !isDataLoaded) {
+  if (loading) {
     return (
       <div className="loading-state">
         <div className="spinner"></div>
@@ -923,16 +949,13 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         isStudent={isStudent}
         selectedGroupId={selectedGroupId}
         onGroupChange={setSelectedGroupId}
+        isLoading={isLoadingLocal}
       />
       
       {showCalendar && createPortal(
         <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
           <DatePicker 
-            onDateSelect={(date) => {
-              setCurrentDate(date);
-              setIsDataLoaded(false);
-              setShowCalendar(false);
-            }}
+            onDateSelect={handleDateSelect}
             onClose={() => setShowCalendar(false)}
             selectedDate={currentDate}
           />
@@ -946,7 +969,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
           <h3>Выберите параметры для просмотра расписания</h3>
           <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
         </div>
-      ) : filteredSchedule.length === 0 ? (
+      ) : filteredSchedule.length === 0 && !isLoadingLocal ? (
         <div className="empty-state">
           <i className="fas fa-search"></i>
           <p>Нет занятий по выбранным фильтрам</p>
@@ -957,49 +980,20 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
           canEdit={false} 
           weekDates={weekDates}
           selectedDate={currentDate}
+          isLoading={isLoadingLocal}
         />
       )}
     </div>
   );
 };
- const checkConflicts = async () => {
-  if (!editingLesson?.date || !editingLesson?.group_id || !editingLesson?.teacher_id) {
-    showNotification('Заполните дату, группу и преподавателя', 'warning');
-    return;
-  }
-  
-  try {
-    // Проверяем группу
-    const groupRes = await fetch(`/api/schedule?groupId=${editingLesson.group_id}&date=${editingLesson.date}&pairNumber=${editingLesson.pair_number}`);
-    const groupSchedule = await groupRes.json();
-    
-    // Проверяем преподавателя
-    const teacherRes = await fetch(`/api/schedule?teacherId=${editingLesson.teacher_id}&date=${editingLesson.date}&pairNumber=${editingLesson.pair_number}`);
-    const teacherSchedule = await teacherRes.json();
-    
-    let conflicts = [];
-    if (groupSchedule.length > 0) {
-      conflicts.push(`Группа уже занята: ${groupSchedule[0].subject_name}`);
-    }
-    if (teacherSchedule.length > 0) {
-      conflicts.push(`Преподаватель уже занят: ${teacherSchedule[0].subject_name} с группой ${teacherSchedule[0].group_name}`);
-    }
-    
-    if (conflicts.length > 0) {
-      alert(`⚠️ Найдены конфликты:\n${conflicts.join('\n')}`);
-    } else {
-      alert('✅ Конфликтов не найдено, можно добавлять занятие');
-    }
-  } catch (error) {
-    console.error('Check conflict error:', error);
-  }
-};
+
 // ============ PublicScheduleView Component ============
 const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, loadScheduleForWeek }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [isLoadingLocal, setIsLoadingLocal] = useState(false);
   const [filters, setFilters] = useState({
     groupId: '',
     teacherId: '',
@@ -1011,16 +1005,27 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 
   const weekDates = getWeekDates(currentDate);
 
+  const debouncedLoadSchedule = useCallback(
+    debounce(async (start, end, groupId) => {
+      setIsLoadingLocal(true);
+      await loadScheduleForWeek(start, end, groupId);
+      setIsLoadingLocal(false);
+    }, 300),
+    [loadScheduleForWeek]
+  );
+
   useEffect(() => {
-    if (weekDates.length > 0 && loadScheduleForWeek && hasAppliedFilter) {
+    if (weekDates.length > 0 && hasAppliedFilter) {
       const startDate = formatForInput(weekDates[0]);
       const endDate = formatForInput(weekDates[6]);
       const groupId = selectedGroupId || filters.groupId;
-      loadScheduleForWeek(startDate, endDate, groupId);
+      debouncedLoadSchedule(startDate, endDate, groupId);
     }
-  }, [weekDates, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
+  }, [weekDates, selectedGroupId, filters.groupId, hasAppliedFilter, debouncedLoadSchedule]);
 
   const filteredSchedule = useMemo(() => {
+    if (isLoadingLocal) return schedule;
+    
     let filtered = [...schedule];
     
     if (filters.teacherId) {
@@ -1040,7 +1045,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     }
     
     return filtered;
-  }, [schedule, filters]);
+  }, [schedule, filters, isLoadingLocal]);
 
   const handleFilterChange = (key, value) => {
     if (key === 'groupId') {
@@ -1114,6 +1119,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
         isStudent={false}
         selectedGroupId={selectedGroupId}
         onGroupChange={setSelectedGroupId}
+        isLoading={isLoadingLocal}
       />
       
       {showCalendar && createPortal(
@@ -1133,7 +1139,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
           <h3>Выберите параметры для просмотра расписания</h3>
           <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
         </div>
-      ) : filteredSchedule.length === 0 ? (
+      ) : filteredSchedule.length === 0 && !isLoadingLocal ? (
         <div className="empty-state">
           <i className="fas fa-search"></i>
           <p>Нет занятий по выбранным фильтрам</p>
@@ -1144,6 +1150,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
           canEdit={false} 
           weekDates={weekDates}
           selectedDate={currentDate}
+          isLoading={isLoadingLocal}
         />
       )}
     </div>
@@ -1181,10 +1188,10 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
             </th>
             {DAYS.map((day, idx) => {
               const date = weekDates[idx];
-              const isToday = date && date.toDateString() === new Date().toDateString();
+              const isTodayDate = date && date.toDateString() === new Date().toDateString();
               const isWeekend = idx === 5 || idx === 6;
               return (
-                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                <th key={day} className={`day-header ${isTodayDate ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
                   <div className="day-header-content">
                     <span className="day-name">{day}</span>
                     <span className="day-date">{date ? formatDate(date) : ''}</span>
@@ -1207,11 +1214,11 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 const lessons = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLessons = lessons.length > 0;
                 const date = weekDates[dayIndex];
-                const isToday = date && date.toDateString() === new Date().toDateString();
+                const isTodayDate = date && date.toDateString() === new Date().toDateString();
                 const isWeekend = dayIndex === 5 || dayIndex === 6;
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isTodayDate ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLessons ? (
                       <div className="teacher-lessons-container">
                         {lessons.map((lesson, idx) => {
@@ -1362,7 +1369,6 @@ function HomeContent() {
   const [newClassroom, setNewClassroom] = useState('');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('');
   
-  // Состояние для управления неделями в Управлении
   const [manageCurrentDate, setManageCurrentDate] = useState(new Date());
 
   const [localData, setLocalData] = useState({});
@@ -1374,64 +1380,70 @@ function HomeContent() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const canEditSchedule = user && user.role === 'admin';
+  const canEditSchedule = user && (user.role === 'admin' || user.role === 'methodist');
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  // Функция для загрузки расписания за неделю
-  const loadScheduleForWeek = async (startDate, endDate, groupId = null) => {
-  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-  
-  let start = startDate;
-  let end = endDate;
-  
-  if (startDate instanceof Date) start = formatForInput(startDate);
-  if (endDate instanceof Date) end = formatForInput(endDate);
-  
-  let url = `/api/schedule?weekStart=${start}&weekEnd=${end}`;
-  if (groupId) {
-    url += `&groupId=${groupId}`;
-  } else if (selectedGroupFilter) {
-    url += `&groupId=${selectedGroupFilter}`;
-  }
-  
-  try {
-    const scheduleRes = await fetch(url, { headers });
-    const scheduleData = await scheduleRes.json();
+  // Оптимизированная функция загрузки расписания с кэшем
+  const loadScheduleForWeek = useCallback(async (startDate, endDate, groupId = null) => {
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     
-    const normalizedData = scheduleData.map(item => ({
-      ...item,
-      date: item.date || null
-    }));
+    let start = startDate;
+    let end = endDate;
     
-    setSchedule(normalizedData);
-    return normalizedData;
-  } catch (e) {
-    console.error(e);
-    showNotification('Ошибка загрузки расписания', 'error');
-    return [];
-  }
-};
+    if (startDate instanceof Date) start = formatForInput(startDate);
+    if (endDate instanceof Date) end = formatForInput(endDate);
+    
+    const cacheKey = `${start}|${end}|${groupId || selectedGroupFilter || ''}`;
+    
+    // Проверяем кэш (валидность 5 секунд)
+    const cached = scheduleCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 5000) {
+      console.log('📦 Использую кэш для:', cacheKey);
+      setSchedule(cached.data);
+      return cached.data;
+    }
+    
+    let url = `/api/schedule?weekStart=${start}&weekEnd=${end}`;
+    if (groupId) {
+      url += `&groupId=${groupId}`;
+    } else if (selectedGroupFilter) {
+      url += `&groupId=${selectedGroupFilter}`;
+    }
+    
+    try {
+      const scheduleRes = await fetch(url, { headers });
+      const scheduleData = await scheduleRes.json();
+      
+      const normalizedData = scheduleData.map(item => ({
+        ...item,
+        date: item.date || null
+      }));
+      
+      // Сохраняем в кэш
+      scheduleCache.set(cacheKey, {
+        data: normalizedData,
+        timestamp: Date.now()
+      });
+      
+      setSchedule(normalizedData);
+      return normalizedData;
+    } catch (e) {
+      console.error(e);
+      showNotification('Ошибка загрузки расписания', 'error');
+      return [];
+    }
+  }, [token, selectedGroupFilter]);
 
-  // Функция для загрузки расписания за текущую неделю
-  const loadCurrentWeekSchedule = async (groupId = null) => {
-    const now = new Date();
-    const monday = getMonday(now);
-    const weekStart = formatForInput(monday);
-    const weekEnd = new Date(monday);
-    weekEnd.setDate(monday.getDate() + 6);
-    return await loadScheduleForWeek(weekStart, formatForInput(weekEnd), groupId);
-  };
-  
-  // Функция для загрузки расписания для Управления (по выбранной неделе)
-  const loadScheduleForWeekForManage = async () => {
+  // Загрузка расписания для Управления
+  const loadScheduleForWeekForManage = useCallback(async () => {
     const weekDates = getWeekDates(manageCurrentDate);
     const startDate = formatForInput(weekDates[0]);
     const endDate = formatForInput(weekDates[6]);
     await loadScheduleForWeek(startDate, endDate, selectedGroupFilter);
-  };
-  
-  const loadData = async () => {
+  }, [manageCurrentDate, selectedGroupFilter, loadScheduleForWeek]);
+
+  const loadData = useCallback(async () => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     
     try {
@@ -1447,25 +1459,30 @@ function HomeContent() {
       setSubjects(await subjectsRes.json());
       setClassrooms(await classroomsRes.json());
       
-      await loadCurrentWeekSchedule();
+      // Загружаем текущую неделю
+      const now = new Date();
+      const monday = getMonday(now);
+      const weekStart = formatForInput(monday);
+      const weekEnd = formatForInput(new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000));
+      await loadScheduleForWeek(weekStart, weekEnd);
     } catch (e) {
       console.error(e);
       showNotification('Ошибка загрузки данных', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, loadScheduleForWeek]);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     if (!token || !canManageUsers) return;
     try {
       const res = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setUsers(await res.json());
     } catch (e) {}
-  };
+  }, [token, canManageUsers]);
 
-  // Функция для генерации отчета по часам
-  const generateTeacherReport = async (teacherId) => {
+  // Генерация отчета
+  const generateTeacherReport = useCallback(async (teacherId) => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
       
@@ -1528,7 +1545,9 @@ function HomeContent() {
             </div>
             <h3>Сводка по предметам</h3>
             <table class="summary-table">
-              <thead><tr><th>№</th><th>Предмет</th><th>Количество пар</th><th>Часов</th></tr></thead>
+              <thead>
+                <tr><th>№</th><th>Предмет</th><th>Количество пар</th><th>Часов</th></tr>
+              </thead>
               <tbody>
                 ${Object.values(subjectsHours).map((item, idx) => `
                   <tr>
@@ -1566,9 +1585,10 @@ function HomeContent() {
       console.error('Report error:', error);
       showNotification('Ошибка формирования отчета', 'error');
     }
-  };
+  }, [teachers, schedule]);
 
-  const exportTeacherHoursReport = async () => {
+  // Экспорт функций
+  const exportTeacherHoursReport = useCallback(async () => {
     if (!user || user.role !== 'teacher') return;
     
     try {
@@ -1582,9 +1602,9 @@ function HomeContent() {
       console.error('Report error:', error);
       showNotification('Ошибка формирования отчета', 'error');
     }
-  };
+  }, [user, teachers, generateTeacherReport]);
 
-  const exportToExcel = () => {
+  const exportToExcel = useCallback(() => {
     let exportData = [];
     
     if (activeTab === 'my-lessons' && isTeacher) {
@@ -1638,9 +1658,9 @@ function HomeContent() {
     XLSX.utils.book_append_sheet(wb, ws, "Расписание");
     XLSX.writeFile(wb, `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`);
     showNotification('Excel файл сохранен', 'success');
-  };
+  }, [schedule, activeTab, isTeacher, teachers, user, selectedGroupFilter]);
 
-  const exportToPDF = async () => {
+  const exportToPDF = useCallback(async () => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
       let exportData = [];
@@ -1662,8 +1682,20 @@ function HomeContent() {
           <head><meta charset="UTF-8"></head>
           <body>
             <h1>${activeTab === 'my-lessons' ? 'Мои занятия' : 'Расписание занятий'}</h1>
-            <table border="1" cellpadding="8">
-              <thead><tr><th>Дата</th><th>День</th><th>Время</th>${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}<th>Предмет</th><th>Преподаватель</th><th>Аудитория</th><th>Заметки</th></tr></thead>
+            <h3>Дата формирования: ${new Date().toLocaleString('ru-RU')}</h3>
+            <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">
+              <thead>
+                <tr style="background: #2c3e66; color: white;">
+                  <th>Дата</th>
+                  <th>День</th>
+                  <th>Время</th>
+                  ${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}
+                  <th>Предмет</th>
+                  <th>Преподаватель</th>
+                  <th>Аудитория</th>
+                  <th>Заметки</th>
+                </tr>
+              </thead>
               <tbody>
                 ${exportData.map(lesson => `
                   <tr>
@@ -1682,13 +1714,21 @@ function HomeContent() {
           </body>
         </html>
       `;
-      await html2pdf().from(element).save();
+      await html2pdf().set({
+        margin: [0.5, 0.5, 0.5, 0.5],
+        filename: `Расписание_${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, letterRendering: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+      }).from(element).save();
       showNotification('PDF файл сохранен', 'success');
     } catch (error) {
+      console.error('PDF error:', error);
       showNotification('Ошибка экспорта PDF', 'error');
     }
-  };
+  }, [schedule, activeTab, isTeacher, teachers, user, selectedGroupFilter]);
 
+  // CRUD операции
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -1724,6 +1764,7 @@ function HomeContent() {
     setToken(null);
     setUser(null);
     localStorage.clear();
+    scheduleCache.clear();
     showNotification('Вы вышли из системы', 'info');
     setSchedule([]);
     setSelectedGroupFilter('');
@@ -1801,11 +1842,9 @@ function HomeContent() {
     }
   };
 
-  // Обработчик добавления занятия через кнопку "+"
-  const handleAddScheduleClick = (slotData) => {
+  const handleAddScheduleClick = useCallback((slotData) => {
     console.log('📅 Добавление занятия в слот:', slotData);
     
-    // Получаем дату из слота и парсим как локальную
     let dateValue = '';
     if (slotData.date) {
       const parsedDate = parseLocalDate(slotData.date);
@@ -1823,134 +1862,135 @@ function HomeContent() {
       date: dateValue
     });
     setShowEditModal(true);
-  };
+  }, []);
 
-const handleAddLesson = async (e) => {
-  e.preventDefault();
-  if (!canEditSchedule) return showNotification('Нет прав', 'error');
-  
-  const lessonToSave = editingLesson;
-  
-  if (!lessonToSave) {
-    showNotification('Ошибка: данные занятия не найдены', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.date) {
-    showNotification('Выберите дату занятия', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.group_id) {
-    showNotification('Выберите группу', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.teacher_id) {
-    showNotification('Выберите преподавателя', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.subject_id) {
-    showNotification('Выберите предмет', 'error');
-    return;
-  }
-  
-  const dataToSend = {
-    group_id: parseInt(lessonToSave.group_id),
-    teacher_id: parseInt(lessonToSave.teacher_id),
-    subject_id: parseInt(lessonToSave.subject_id),
-    classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
-    pair_number: parseInt(lessonToSave.pair_number),
-    day_of_week: parseInt(lessonToSave.day_of_week),
-    date: lessonToSave.date
-  };
-  
-  console.log('📤 Отправка данных на сервер:', dataToSend);
-
-  try {
-    const res = await fetch('/api/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(dataToSend)
-    });
+  const handleAddLesson = async (e) => {
+    e.preventDefault();
+    if (!canEditSchedule) return showNotification('Нет прав', 'error');
     
-    const result = await res.json();
-    console.log('📥 Ответ сервера:', result);
+    const lessonToSave = editingLesson;
     
-    if (res.ok) {
-      showNotification('Занятие добавлено', 'success');
-      setShowEditModal(false);
-      setEditingLesson(null);
-      if (activeTab === 'manage-schedule') {
-        await loadScheduleForWeekForManage();
-      } else {
-        await loadCurrentWeekSchedule(selectedGroupFilter);
-      }
-    } else if (res.status === 409 && result.conflict) {
-      // Конфликт - показываем специальное сообщение
-      showNotification(result.error, 'error');
-      // Дополнительно можно показать модальное окно с деталями конфликта
-      alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
-    } else {
-      showNotification(result.error || 'Ошибка сервера', 'error');
+    if (!lessonToSave) {
+      showNotification('Ошибка: данные занятия не найдены', 'error');
+      return;
     }
-  } catch (error) {
-    console.error('❌ Ошибка запроса:', error);
-    showNotification('Ошибка соединения с сервером', 'error');
-  }
-};
-
-// Аналогично для handleUpdateLesson
-const handleUpdateLesson = async (e) => {
-  e.preventDefault();
-  
-  if (!editingLesson) return;
-  
-  if (!editingLesson.date) {
-    showNotification('Выберите дату занятия', 'error');
-    return;
-  }
-  
-  const dataToSend = {
-    group_id: parseInt(editingLesson.group_id),
-    teacher_id: parseInt(editingLesson.teacher_id),
-    subject_id: parseInt(editingLesson.subject_id),
-    classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
-    pair_number: parseInt(editingLesson.pair_number),
-    day_of_week: parseInt(editingLesson.day_of_week),
-    date: editingLesson.date
-  };
-  
-  try {
-    const res = await fetch(`/api/schedule/${editingLesson.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(dataToSend)
-    });
     
-    const result = await res.json();
-    
-    if (res.ok) {
-      showNotification('Занятие обновлено', 'success');
-      setShowEditModal(false);
-      setEditingLesson(null);
-      if (activeTab === 'manage-schedule') {
-        await loadScheduleForWeekForManage();
-      } else {
-        await loadCurrentWeekSchedule(selectedGroupFilter);
-      }
-    } else if (res.status === 409 && result.conflict) {
-      showNotification(result.error, 'error');
-      alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
-    } else {
-      showNotification(result.error || 'Ошибка сервера', 'error');
+    if (!lessonToSave.date) {
+      showNotification('Выберите дату занятия', 'error');
+      return;
     }
-  } catch (error) {
-    console.error('Error:', error);
-    showNotification('Ошибка соединения с сервером', 'error');
-  }
-};
+    
+    if (!lessonToSave.group_id) {
+      showNotification('Выберите группу', 'error');
+      return;
+    }
+    
+    if (!lessonToSave.teacher_id) {
+      showNotification('Выберите преподавателя', 'error');
+      return;
+    }
+    
+    if (!lessonToSave.subject_id) {
+      showNotification('Выберите предмет', 'error');
+      return;
+    }
+    
+    const dataToSend = {
+      group_id: parseInt(lessonToSave.group_id),
+      teacher_id: parseInt(lessonToSave.teacher_id),
+      subject_id: parseInt(lessonToSave.subject_id),
+      classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
+      pair_number: parseInt(lessonToSave.pair_number),
+      day_of_week: parseInt(lessonToSave.day_of_week),
+      date: lessonToSave.date
+    };
+    
+    console.log('📤 Отправка данных на сервер:', dataToSend);
+
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      const result = await res.json();
+      console.log('📥 Ответ сервера:', result);
+      
+      if (res.ok) {
+        // Очищаем кэш
+        scheduleCache.clear();
+        showNotification('Занятие добавлено', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else {
+          await loadData();
+        }
+      } else if (res.status === 409 && result.conflict) {
+        showNotification(result.error, 'error');
+        alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
+      } else {
+        showNotification(result.error || 'Ошибка сервера', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Ошибка запроса:', error);
+      showNotification('Ошибка соединения с сервером', 'error');
+    }
+  };
+
+  const handleUpdateLesson = async (e) => {
+    e.preventDefault();
+    
+    if (!editingLesson) return;
+    
+    if (!editingLesson.date) {
+      showNotification('Выберите дату занятия', 'error');
+      return;
+    }
+    
+    const dataToSend = {
+      group_id: parseInt(editingLesson.group_id),
+      teacher_id: parseInt(editingLesson.teacher_id),
+      subject_id: parseInt(editingLesson.subject_id),
+      classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
+      pair_number: parseInt(editingLesson.pair_number),
+      day_of_week: parseInt(editingLesson.day_of_week),
+      date: editingLesson.date
+    };
+    
+    try {
+      const res = await fetch(`/api/schedule/${editingLesson.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      const result = await res.json();
+      
+      if (res.ok) {
+        scheduleCache.clear();
+        showNotification('Занятие обновлено', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else {
+          await loadData();
+        }
+      } else if (res.status === 409 && result.conflict) {
+        showNotification(result.error, 'error');
+        alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
+      } else {
+        showNotification(result.error || 'Ошибка сервера', 'error');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showNotification('Ошибка соединения с сервером', 'error');
+    }
+  };
+
   const handleDeleteLesson = async (id) => {
     if (!canEditSchedule) return showNotification('Нет прав', 'error');
     if (!confirm('Удалить занятие?')) return;
@@ -1960,11 +2000,12 @@ const handleUpdateLesson = async (e) => {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      scheduleCache.clear();
       showNotification('Занятие удалено', 'success');
       if (activeTab === 'manage-schedule') {
         await loadScheduleForWeekForManage();
       } else {
-        await loadCurrentWeekSchedule(selectedGroupFilter);
+        await loadData();
       }
     } catch (e) {
       showNotification('Ошибка', 'error');
@@ -2080,7 +2121,7 @@ const handleUpdateLesson = async (e) => {
           delete newState[lessonId];
           return newState;
         });
-        await loadCurrentWeekSchedule();
+        await loadData();
       } else {
         const error = await res.json();
         showNotification(error.error || 'Ошибка сохранения', 'error');
@@ -2112,11 +2153,11 @@ const handleUpdateLesson = async (e) => {
 
   useEffect(() => {
     if (!authChecking) loadData();
-  }, [authChecking, token]);
+  }, [authChecking, loadData]);
 
   useEffect(() => {
     if (token && canManageUsers) loadUsers();
-  }, [token, canManageUsers]);
+  }, [token, canManageUsers, loadUsers]);
 
   useEffect(() => {
     if (isTeacher && schedule.length > 0 && user) {
@@ -2130,13 +2171,13 @@ const handleUpdateLesson = async (e) => {
     }
   }, [schedule, isTeacher, teachers, user]);
 
-  // Эффект для загрузки расписания в Управлении при смене недели/группы
   useEffect(() => {
     if (activeTab === 'manage-schedule' && token) {
       loadScheduleForWeekForManage();
     }
-  }, [manageCurrentDate, selectedGroupFilter, activeTab, token]);
+  }, [manageCurrentDate, selectedGroupFilter, activeTab, token, loadScheduleForWeekForManage]);
 
+  // Рендер контента
   const renderMainContent = () => {
     if (isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
@@ -2225,7 +2266,7 @@ const handleUpdateLesson = async (e) => {
               </button>
               {user && user.role === 'admin' && (
                 <button className="action-button report-hours" onClick={() => setShowTeacherReportModal(true)}>
-                  <i className="fas fa-chart-line"></i> Отчет по часам (учителя)
+                  <i className="fas fa-chart-line"></i> Отчет по часам
                 </button>
               )}
             </div>
@@ -2513,7 +2554,7 @@ const handleUpdateLesson = async (e) => {
                 <span className="gradient-highlight">Колледжа</span>
               </h1>
               <p className="hero-description">
-               Платформа для просмотра расписания в колледже
+                Платформа для просмотра расписания в колледже
               </p>
               <div className="hero-buttons">
                 <button className="btn-primary" onClick={() => setShowLogin(true)}>
@@ -2605,7 +2646,7 @@ const handleUpdateLesson = async (e) => {
             </button>
           )}
           
-          {user?.role === 'admin' && (
+          {(user?.role === 'admin' || user?.role === 'methodist') && (
             <>
               <button className={`nav-item ${activeTab === 'manage-schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('manage-schedule'); setSidebarOpen(false); }}>
                 <i className="fas fa-plus-circle"></i><span>Управление</span>
@@ -2613,10 +2654,13 @@ const handleUpdateLesson = async (e) => {
               <button className={`nav-item ${activeTab === 'directories' ? 'active' : ''}`} onClick={() => { setActiveTab('directories'); setSidebarOpen(false); }}>
                 <i className="fas fa-database"></i><span>Справочники</span>
               </button>
-              <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
-                <i className="fas fa-users-cog"></i><span>Пользователи</span>
-              </button>
             </>
+          )}
+          
+          {user?.role === 'admin' && (
+            <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
+              <i className="fas fa-users-cog"></i><span>Пользователи</span>
+            </button>
           )}
         </nav>
         
@@ -2741,7 +2785,6 @@ const handleUpdateLesson = async (e) => {
         document.body
       )}
 
-      {/* Модальное окно для добавления/редактирования занятия */}
       {showEditModal && editingLesson && createPortal(
         <div className="modal" onClick={() => setShowEditModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>

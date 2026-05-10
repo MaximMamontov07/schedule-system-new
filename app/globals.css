@@ -3948,3 +3948,26 @@ body {
     font-size: 3rem;
   }
 }
+/* Добавьте в конец файла globals.css */
+
+/* Плавные переходы для загрузки */
+.schedule-grid-wrapper {
+  transition: opacity 0.2s ease;
+}
+
+.schedule-grid-wrapper.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Отключаем анимации для кнопок при загрузке */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Плавное появление ячеек */
+.lesson-cell {
+  transition: background 0.15s ease, transform 0.15s ease;
+}
