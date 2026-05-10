@@ -35,10 +35,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Дата занятия обязательна' }, { status: 400 });
     }
 
-    // ========== ПРОВЕРКА КОНФЛИКТОВ ПРИ РЕДАКТИРОВАНИИ ==========
-    // Исключаем текущее занятие из проверки (id != $)
-    
-    // 1. Проверяем группу
+    // Проверка конфликтов
     const groupConflict = await db.query(`
       SELECT s.*, g.name as group_name, sub.name as subject_name
       FROM schedule s
@@ -53,13 +50,12 @@ export async function PUT(request, { params }) {
     if (groupConflict.rows.length > 0) {
       const conflict = groupConflict.rows[0];
       return NextResponse.json({ 
-        error: `Группа уже занята в это время! Занятие: ${conflict.subject_name} в ${conflict.pair_number} пару`,
+        error: `Группа уже занята в это время! Занятие: ${conflict.subject_name}`,
         conflict: true,
         type: 'group'
       }, { status: 409 });
     }
     
-    // 2. Проверяем преподавателя
     const teacherConflict = await db.query(`
       SELECT s.*, t.name as teacher_name, sub.name as subject_name, g.name as group_name
       FROM schedule s
@@ -75,13 +71,12 @@ export async function PUT(request, { params }) {
     if (teacherConflict.rows.length > 0) {
       const conflict = teacherConflict.rows[0];
       return NextResponse.json({ 
-        error: `Преподаватель уже занят в это время! Занятие: ${conflict.subject_name} с группой ${conflict.group_name} в ${conflict.pair_number} пару`,
+        error: `Преподаватель уже занят в это время! Занятие: ${conflict.subject_name} с группой ${conflict.group_name}`,
         conflict: true,
         type: 'teacher'
       }, { status: 409 });
     }
     
-    // 3. Проверяем аудиторию
     if (classroom_id) {
       const classroomConflict = await db.query(`
         SELECT s.*, c.name as classroom_name, sub.name as subject_name, g.name as group_name
@@ -98,18 +93,18 @@ export async function PUT(request, { params }) {
       if (classroomConflict.rows.length > 0) {
         const conflict = classroomConflict.rows[0];
         return NextResponse.json({ 
-          error: `Аудитория уже занята в это время! Занятие: ${conflict.subject_name} с группой ${conflict.group_name} в ${conflict.pair_number} пару`,
+          error: `Аудитория уже занята в это время! Занятие: ${conflict.subject_name} с группой ${conflict.group_name}`,
           conflict: true,
           type: 'classroom'
         }, { status: 409 });
       }
     }
 
-    // Если конфликтов нет - обновляем
+    // Обновляем занятие и помечаем как исключение (ручное изменение)
     await db.query(
       `UPDATE schedule 
        SET group_id = $1, teacher_id = $2, subject_id = $3, classroom_id = $4, 
-           pair_number = $5, day_of_week = $6, date = $7
+           pair_number = $5, day_of_week = $6, date = $7, is_exception = true, updated_at = NOW()
        WHERE id = $8`,
       [
         parseInt(group_id), 
