@@ -765,6 +765,9 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   }, [isStudent, userGroupId]);
 
   const weekDates = getWeekDates(currentDate);
+  const weekDatesKey = useMemo(() => {
+    return weekDates.map(d => d.toISOString()).join(',');
+  }, [weekDates]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -780,7 +783,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     };
     
     loadData();
-  }, [weekDates, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
+  }, [weekDatesKey, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
 
   const filteredSchedule = useMemo(() => {
     let filtered = [...schedule];
@@ -949,6 +952,9 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   });
 
   const weekDates = getWeekDates(currentDate);
+  const weekDatesKey = useMemo(() => {
+    return weekDates.map(d => d.toISOString()).join(',');
+  }, [weekDates]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -964,7 +970,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     };
     
     loadData();
-  }, [weekDates, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
+  }, [weekDatesKey, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
 
   const filteredSchedule = useMemo(() => {
     let filtered = [...schedule];
@@ -1099,30 +1105,24 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 };
 
 // ============ TeacherPanel Component ============
-// ============ TeacherPanel Component (ИСПРАВЛЕННЫЙ) ============
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const weekDates = getWeekDates(new Date());
   
-  // Создаём стабильные ключи для каждого занятия
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
-      data.forEach((lesson, idx) => {
+      data.forEach(lesson => {
         const dayIndex = lesson.day_of_week - 1;
         const pairIndex = lesson.pair_number - 1;
         if (dayIndex >= 0 && dayIndex < 7 && pairIndex >= 0 && pairIndex < 6) {
-          matrix[dayIndex][pairIndex].push({
-            ...lesson,
-            _uniqueId: lesson.id || `temp_${idx}_${Date.now()}`
-          });
+          matrix[dayIndex][pairIndex].push(lesson);
         }
       });
     }
     return matrix;
   }, [data]);
 
-  // Компонент для отдельного занятия - вынесен наружу, чтобы хуки были стабильными
-  const LessonCard = ({ lesson, isChanged, isSaving, onNotesChange, onSave, onCancel }) => {
+  const LessonCard = ({ lesson, isChanged, isSaving }) => {
     const currentData = localData[lesson.id] || { notes: lesson.notes || '' };
     
     return (
@@ -1215,26 +1215,24 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 
                 return (
                   <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
-                    {hasLessons && (
+                    {hasLessons ? (
                       <div className="teacher-lessons-container">
-                        {lessons.map((lesson) => {
+                        {lessons.map((lesson, idx) => {
                           const isChanged = hasChanges[lesson.id] || false;
                           const isSaving = saving[lesson.id] || false;
                           return (
                             <LessonCard
-                              key={lesson._uniqueId || lesson.id}
+                              key={lesson.id || idx}
                               lesson={lesson}
                               isChanged={isChanged}
                               isSaving={isSaving}
-                              onNotesChange={onNotesChange}
-                              onSave={onSave}
-                              onCancel={onCancel}
                             />
                           );
                         })}
                       </div>
+                    ) : (
+                      <div className="empty-cell"></div>
                     )}
-                    {!hasLessons && <div className="empty-cell"></div>}
                   </td>
                 );
               })}
@@ -1338,7 +1336,6 @@ function HomeContent() {
   const [editingLesson, setEditingLesson] = useState(null);
   const [isExceptionMode, setIsExceptionMode] = useState(false);
   
-  const [scheduleCache, setScheduleCache] = useState({});
   const [isScheduleLoading, setIsScheduleLoading] = useState(false);
 
   const showNotification = (msg, type = 'success') => {
@@ -1350,7 +1347,7 @@ function HomeContent() {
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  // Функция загрузки расписания с кэшированием
+  // ПРОСТАЯ ФУНКЦИЯ ЗАГРУЗКИ БЕЗ КЭША
   const loadScheduleForWeek = useCallback(async (startDate, endDate, groupId = null) => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     const finalGroupId = groupId || selectedGroupFilter;
@@ -1360,29 +1357,13 @@ function HomeContent() {
       return [];
     }
     
-    const cacheKey = `${finalGroupId}_${startDate}_${endDate}`;
-    
-    if (scheduleCache[cacheKey]) {
-      console.log(`📦 Кэш: ${cacheKey}, занятий: ${scheduleCache[cacheKey].length}`);
-      setSchedule(scheduleCache[cacheKey]);
-      return scheduleCache[cacheKey];
-    }
-    
     setIsScheduleLoading(true);
     
     try {
       const url = `/api/schedule?weekStart=${startDate}&weekEnd=${endDate}&groupId=${finalGroupId}`;
       console.log(`📡 Запрос: ${url}`);
       
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const scheduleRes = await fetch(url, { 
-        headers,
-        signal: controller.signal 
-      });
-      
-      clearTimeout(timeoutId);
+      const scheduleRes = await fetch(url, { headers });
       
       if (!scheduleRes.ok) {
         throw new Error(`HTTP ${scheduleRes.status}`);
@@ -1390,25 +1371,17 @@ function HomeContent() {
       
       const scheduleData = await scheduleRes.json();
       console.log(`✅ Загружено ${scheduleData.length} занятий`);
-      
-      setScheduleCache(prev => ({ ...prev, [cacheKey]: scheduleData }));
       setSchedule(scheduleData);
-      
       return scheduleData;
     } catch (e) {
-      if (e.name === 'AbortError') {
-        console.error('❌ Таймаут запроса');
-        showNotification('Сервер долго отвечает, попробуйте позже', 'error');
-      } else {
-        console.error('❌ Ошибка загрузки:', e);
-        showNotification('Ошибка загрузки расписания', 'error');
-      }
+      console.error('❌ Ошибка загрузки:', e);
+      showNotification('Ошибка загрузки расписания', 'error');
       setSchedule([]);
       return [];
     } finally {
       setIsScheduleLoading(false);
     }
-  }, [token, selectedGroupFilter, scheduleCache]);
+  }, [token, selectedGroupFilter]);
 
   const loadCurrentWeekSchedule = async (groupId = null) => {
     const now = new Date();
@@ -1427,7 +1400,6 @@ function HomeContent() {
   };
   
   const refreshSchedule = async () => {
-    setScheduleCache({}); // ОЧИЩАЕМ КЭШ ПРИ ОБНОВЛЕНИИ
     if (activeTab === 'manage-schedule') {
       await loadScheduleForWeekForManage();
     } else if (activeTab === 'schedule' && selectedGroupFilter) {
@@ -1741,7 +1713,6 @@ function HomeContent() {
     setSchedule([]);
     setSelectedGroupFilter('');
     setActiveTab('schedule');
-    setScheduleCache({});
   };
 
   const handleRegister = async (e) => {
@@ -1869,8 +1840,7 @@ function HomeContent() {
         showNotification('Занятие добавлено в шаблон!', 'success');
         setShowEditModal(false);
         setEditingLesson(null);
-        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
-        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
+        await refreshSchedule();
       } else {
         showNotification(result.error || 'Ошибка', 'error');
       }
@@ -1909,8 +1879,7 @@ function HomeContent() {
         setShowEditModal(false);
         setEditingLesson(null);
         setIsExceptionMode(false);
-        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
-        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
+        await refreshSchedule();
       } else {
         showNotification(result.error || 'Ошибка', 'error');
       }
@@ -1992,8 +1961,7 @@ function HomeContent() {
         showNotification('Занятие обновлено в шаблоне!', 'success');
         setShowEditModal(false);
         setEditingLesson(null);
-        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
-        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
+        await refreshSchedule();
       } else {
         showNotification(result.error || 'Ошибка', 'error');
       }
@@ -2040,8 +2008,7 @@ function HomeContent() {
         setShowEditModal(false);
         setEditingLesson(null);
         setIsExceptionMode(false);
-        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
-        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
+        await refreshSchedule();
       } else {
         showNotification(result.error || 'Ошибка', 'error');
       }
@@ -2103,51 +2070,54 @@ function HomeContent() {
         const exceptionId = id.toString().replace('exception_added_', '').replace('exception_', '');
         url = `/api/schedule/exceptions?id=${exceptionId}`;
         console.log('📤 Удаление исключения:', url);
-      } else {
-        const lesson = schedule.find(l => l.id === id);
-        if (lesson && lesson.date) {
-          const lessonDate = new Date(lesson.date);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          if (lessonDate < today) {
-            const res = await fetch('/api/schedule/exceptions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-              body: JSON.stringify({
-                group_id: lesson.group_id,
-                pair_number: lesson.pair_number,
-                exception_date: lesson.date,
-                exception_type: 'canceled'
-              })
-            });
-            
-            if (res.ok) {
-              showNotification('Занятие отменено на эту дату!', 'success');
-              setScheduleCache({});
-              await refreshSchedule();
-            } else {
-              showNotification('Ошибка отмены занятия', 'error');
-            }
-            return;
-          }
+        
+        const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          showNotification('Исключение удалено!', 'success');
+          await refreshSchedule();
+        } else {
+          showNotification('Ошибка удаления', 'error');
         }
-        url = `/api/schedule?id=${id}&isTemplate=true`;
-        console.log('📤 Удаление из шаблона:', url);
+        return;
       }
       
-      const res = await fetch(url, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const lesson = schedule.find(l => l.id === id);
+      if (lesson && lesson.date) {
+        const lessonDate = new Date(lesson.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (lessonDate < today) {
+          const res = await fetch('/api/schedule/exceptions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({
+              group_id: lesson.group_id,
+              pair_number: lesson.pair_number,
+              exception_date: lesson.date,
+              exception_type: 'canceled'
+            })
+          });
+          
+          if (res.ok) {
+            showNotification('Занятие отменено на эту дату!', 'success');
+            await refreshSchedule();
+          } else {
+            showNotification('Ошибка отмены занятия', 'error');
+          }
+          return;
+        }
+      }
       
+      url = `/api/schedule?id=${id}&isTemplate=true`;
+      console.log('📤 Удаление из шаблона:', url);
+      
+      const res = await fetch(url, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) {
-        showNotification('Занятие удалено!', 'success');
-        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
-        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
+        showNotification('Занятие удалено из шаблона!', 'success');
+        await refreshSchedule();
       } else {
-        const error = await res.json();
-        showNotification(error.error || 'Ошибка', 'error');
+        showNotification('Ошибка удаления', 'error');
       }
     } catch (e) {
       console.error('Delete error:', e);
@@ -2259,7 +2229,6 @@ function HomeContent() {
           delete newState[lessonId];
           return newState;
         });
-        setScheduleCache({});
         await refreshSchedule();
       } else {
         const error = await res.json();
@@ -3047,7 +3016,6 @@ function HomeContent() {
                 </div>
               </div>
               
-              {/* Информационное сообщение о типе изменения */}
               {editingLesson.id && editingLesson.date && (
                 (() => {
                   const lessonDate = new Date(editingLesson.date);
