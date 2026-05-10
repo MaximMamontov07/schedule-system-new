@@ -1,9 +1,8 @@
-// app/api/schedule/exceptions/route.js
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
-// GET - получить все исключения
+// GET - получить исключения
 export async function GET(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -13,73 +12,43 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
-    const teacherId = searchParams.get('teacherId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const date = searchParams.get('date');
 
     const db = await getDb();
     
     let query = `
-      SELECT 
-        e.*,
-        g.name as group_name,
-        t.name as teacher_name,
-        s.name as subject_name,
-        c.name as classroom_name,
-        rt.name as replacement_teacher_name,
-        rs.name as replacement_subject_name,
-        rc.name as replacement_classroom_name
+      SELECT e.*, g.name as group_name, t.name as teacher_name, s.name as subject_name, c.name as classroom_name
       FROM schedule_exceptions e
       LEFT JOIN groups g ON e.group_id = g.id
       LEFT JOIN teachers t ON e.teacher_id = t.id
       LEFT JOIN subjects s ON e.subject_id = s.id
       LEFT JOIN classrooms c ON e.classroom_id = c.id
-      LEFT JOIN teachers rt ON e.replacement_teacher_id = rt.id
-      LEFT JOIN subjects rs ON e.replacement_subject_id = rs.id
-      LEFT JOIN classrooms rc ON e.replacement_classroom_id = rc.id
       WHERE 1=1
     `;
-    
     let params = [];
-    let paramIndex = 1;
+    let idx = 1;
 
     if (groupId) {
-      query += ` AND e.group_id = $${paramIndex++}`;
+      query += ` AND e.group_id = $${idx++}`;
       params.push(parseInt(groupId));
     }
-    
-    if (teacherId) {
-      query += ` AND (e.teacher_id = $${paramIndex++} OR e.replacement_teacher_id = $${paramIndex++})`;
-      params.push(parseInt(teacherId), parseInt(teacherId));
-    }
-    
-    if (date) {
-      query += ` AND e.exception_date = $${paramIndex++}`;
-      params.push(date);
-    }
-    
-    if (startDate) {
-      query += ` AND e.exception_date >= $${paramIndex++}`;
-      params.push(startDate);
-    }
-    
-    if (endDate) {
-      query += ` AND e.exception_date <= $${paramIndex++}`;
-      params.push(endDate);
+    if (startDate && endDate) {
+      query += ` AND e.exception_date BETWEEN $${idx++} AND $${idx++}`;
+      params.push(startDate, endDate);
     }
 
     query += ' ORDER BY e.exception_date, e.pair_number';
     
     const result = await db.query(query, params);
-    return NextResponse.json(result.rows || []);
+    return NextResponse.json(result.rows);
   } catch (error) {
-    console.error('Exceptions GET error:', error);
+    console.error('GET error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// POST - создать или обновить исключение
+// POST - создать исключение
 export async function POST(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -90,92 +59,31 @@ export async function POST(request) {
     const db = await getDb();
     const body = await request.json();
     
-    const { 
-      group_id, 
-      teacher_id, 
-      subject_id, 
-      classroom_id, 
-      pair_number, 
-      exception_date, 
-      exception_type,
-      replacement_teacher_id,
-      replacement_subject_id,
-      replacement_classroom_id,
-      notes
-    } = body;
+    const { group_id, teacher_id, subject_id, classroom_id, pair_number, exception_date, exception_type, notes } = body;
 
-    console.log('📝 Creating exception:', body);
-
-    // Проверяем обязательные поля
-    if (!group_id || !pair_number || !exception_date || !exception_type) {
-      return NextResponse.json({ 
-        error: 'Не все обязательные поля заполнены' 
-      }, { status: 400 });
-    }
-
-    // Проверяем, не существует ли уже исключение на эту дату/пару/группу
+    // Проверяем, нет ли уже исключения
     const existing = await db.query(`
       SELECT id FROM schedule_exceptions 
       WHERE group_id = $1 AND pair_number = $2 AND exception_date = $3
     `, [parseInt(group_id), parseInt(pair_number), exception_date]);
 
     if (existing.rows.length > 0) {
-      // Обновляем существующее
-      const updateQuery = `
+      await db.query(`
         UPDATE schedule_exceptions 
-        SET exception_type = $1, 
-            teacher_id = $2, 
-            subject_id = $3, 
-            classroom_id = $4,
-            replacement_teacher_id = $5,
-            replacement_subject_id = $6,
-            replacement_classroom_id = $7,
-            notes = $8
-        WHERE id = $9
-      `;
-      
-      await db.query(updateQuery, [
-        exception_type,
-        teacher_id ? parseInt(teacher_id) : null,
-        subject_id ? parseInt(subject_id) : null,
-        classroom_id ? parseInt(classroom_id) : null,
-        replacement_teacher_id ? parseInt(replacement_teacher_id) : null,
-        replacement_subject_id ? parseInt(replacement_subject_id) : null,
-        replacement_classroom_id ? parseInt(replacement_classroom_id) : null,
-        notes || null,
-        existing.rows[0].id
-      ]);
-      
-      return NextResponse.json({ success: true, updated: true });
+        SET exception_type = $1, teacher_id = $2, subject_id = $3, classroom_id = $4, notes = $5
+        WHERE id = $6
+      `, [exception_type, teacher_id ? parseInt(teacher_id) : null, subject_id ? parseInt(subject_id) : null, classroom_id ? parseInt(classroom_id) : null, notes || null, existing.rows[0].id]);
+    } else {
+      await db.query(`
+        INSERT INTO schedule_exceptions 
+        (group_id, teacher_id, subject_id, classroom_id, pair_number, exception_date, exception_type, notes)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [parseInt(group_id), teacher_id ? parseInt(teacher_id) : null, subject_id ? parseInt(subject_id) : null, classroom_id ? parseInt(classroom_id) : null, parseInt(pair_number), exception_date, exception_type, notes || null]);
     }
 
-    // Создаём новое исключение
-    const insertQuery = `
-      INSERT INTO schedule_exceptions 
-      (group_id, teacher_id, subject_id, classroom_id, pair_number, 
-       exception_date, exception_type, replacement_teacher_id, 
-       replacement_subject_id, replacement_classroom_id, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING id
-    `;
-    
-    const result = await db.query(insertQuery, [
-      parseInt(group_id),
-      teacher_id ? parseInt(teacher_id) : null,
-      subject_id ? parseInt(subject_id) : null,
-      classroom_id ? parseInt(classroom_id) : null,
-      parseInt(pair_number),
-      exception_date,
-      exception_type,
-      replacement_teacher_id ? parseInt(replacement_teacher_id) : null,
-      replacement_subject_id ? parseInt(replacement_subject_id) : null,
-      replacement_classroom_id ? parseInt(replacement_classroom_id) : null,
-      notes || null
-    ]);
-
-    return NextResponse.json({ success: true, id: result.rows[0].id });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Exceptions POST error:', error);
+    console.error('POST error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -200,12 +108,12 @@ export async function DELETE(request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Exceptions DELETE error:', error);
+    console.error('DELETE error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// PUT - обновить существующее исключение
+// PUT - обновить исключение
 export async function PUT(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -223,15 +131,12 @@ export async function PUT(request) {
     const db = await getDb();
     const body = await request.json();
     
-    const { 
-      teacher_id, subject_id, classroom_id, notes
-    } = body;
+    const { teacher_id, subject_id, classroom_id, notes } = body;
 
-    const result = await db.query(`
+    await db.query(`
       UPDATE schedule_exceptions 
       SET teacher_id = $1, subject_id = $2, classroom_id = $3, notes = $4
       WHERE id = $5
-      RETURNING id
     `, [
       teacher_id ? parseInt(teacher_id) : null,
       subject_id ? parseInt(subject_id) : null,
@@ -240,13 +145,9 @@ export async function PUT(request) {
       parseInt(id)
     ]);
 
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: 'Исключение не найдено' }, { status: 404 });
-    }
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Exceptions PUT error:', error);
+    console.error('PUT error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
