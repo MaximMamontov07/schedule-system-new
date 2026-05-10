@@ -1,0 +1,38 @@
+-- 002_template_and_overrides.sql
+
+-- Шаблон расписания (без дат)
+CREATE TABLE IF NOT EXISTS schedule_templates (
+    id            SERIAL PRIMARY KEY,
+    group_id      INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    teacher_id    INTEGER NOT NULL REFERENCES teachers(id),
+    subject_id    INTEGER NOT NULL REFERENCES subjects(id),
+    classroom_id  INTEGER REFERENCES classrooms(id),
+    pair_number   INTEGER NOT NULL,
+    day_of_week   INTEGER NOT NULL,  -- 1-7 (Пн-Вс)
+    notes         TEXT,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(group_id, day_of_week, pair_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_templates_group ON schedule_templates(group_id);
+
+-- Переопределения для конкретной недели (начало недели – понедельник)
+CREATE TABLE IF NOT EXISTS schedule_overrides (
+    id              SERIAL PRIMARY KEY,
+    week_start_date DATE NOT NULL,     -- дата понедельника недели
+    group_id        INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    day_of_week     INTEGER NOT NULL,  -- 1-7
+    pair_number     INTEGER NOT NULL,
+    teacher_id      INTEGER REFERENCES teachers(id),   -- NULL если статус 'cancelled'
+    subject_id      INTEGER REFERENCES subjects(id),   -- NULL если cancelled
+    classroom_id    INTEGER REFERENCES classrooms(id),
+    status          VARCHAR(20) NOT NULL DEFAULT 'modified', -- 'modified', 'cancelled', 'added'
+    notes           TEXT,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(week_start_date, group_id, day_of_week, pair_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_overrides_week ON schedule_overrides(week_start_date);
+CREATE INDEX IF NOT EXISTS idx_overrides_group ON schedule_overrides(group_id);

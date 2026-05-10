@@ -1,227 +1,147 @@
+// app/api/schedule/route.js
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { getUserFromRequest } from '@/lib/auth';
 
-// POST - создание занятия с проверкой конфликтов
-export async function POST(request) {
-  try {
-    const user = await getUserFromRequest(request);
-    
-    if (!user || !['admin', 'methodist'].includes(user.role)) {
-      return NextResponse.json({ error: 'Нет прав' }, { status: 403 });
-    }
-
-    const db = await getDb();
-    const body = await request.json();
-    
-    const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date } = body;
-
-    // Проверка обязательных полей
-    if (!group_id || !teacher_id || !subject_id || !pair_number || !day_of_week) {
-      return NextResponse.json({ 
-        error: 'Не все обязательные поля заполнены'
-      }, { status: 400 });
-    }
-
-    if (!date) {
-      return NextResponse.json({ error: 'Дата занятия обязательна' }, { status: 400 });
-    }
-
-    // Проверка конфликтов
-    const groupConflict = await db.query(`
-      SELECT s.*, g.name as group_name, sub.name as subject_name
-      FROM schedule s
-      JOIN groups g ON s.group_id = g.id
-      JOIN subjects sub ON s.subject_id = sub.id
-      WHERE s.group_id = $1 
-        AND s.date = $2::date
-        AND s.pair_number = $3
-    `, [parseInt(group_id), date, parseInt(pair_number)]);
-    
-    if (groupConflict.rows.length > 0) {
-      const conflict = groupConflict.rows[0];
-      return NextResponse.json({ 
-        error: `Группа уже занята в это время! Занятие: ${conflict.subject_name} в ${conflict.pair_number} пару`,
-        conflict: true,
-        type: 'group'
-      }, { status: 409 });
-    }
-    
-    const teacherConflict = await db.query(`
-      SELECT s.*, t.name as teacher_name, sub.name as subject_name, g.name as group_name
-      FROM schedule s
-      JOIN teachers t ON s.teacher_id = t.id
-      JOIN subjects sub ON s.subject_id = sub.id
-      JOIN groups g ON s.group_id = g.id
-      WHERE s.teacher_id = $1 
-        AND s.date = $2::date
-        AND s.pair_number = $3
-    `, [parseInt(teacher_id), date, parseInt(pair_number)]);
-    
-    if (teacherConflict.rows.length > 0) {
-      const conflict = teacherConflict.rows[0];
-      return NextResponse.json({ 
-        error: `Преподаватель уже занят в это время! Занятие: ${conflict.subject_name} с группой ${conflict.group_name} в ${conflict.pair_number} пару`,
-        conflict: true,
-        type: 'teacher'
-      }, { status: 409 });
-    }
-    
-    if (classroom_id) {
-      const classroomConflict = await db.query(`
-        SELECT s.*, c.name as classroom_name, sub.name as subject_name, g.name as group_name
-        FROM schedule s
-        JOIN classrooms c ON s.classroom_id = c.id
-        JOIN subjects sub ON s.subject_id = sub.id
-        JOIN groups g ON s.group_id = g.id
-        WHERE s.classroom_id = $1 
-          AND s.date = $2::date
-          AND s.pair_number = $3
-      `, [parseInt(classroom_id), date, parseInt(pair_number)]);
-      
-      if (classroomConflict.rows.length > 0) {
-        const conflict = classroomConflict.rows[0];
-        return NextResponse.json({ 
-          error: `Аудитория уже занята в это время! Занятие: ${conflict.subject_name} с группой ${conflict.group_name} в ${conflict.pair_number} пару`,
-          conflict: true,
-          type: 'classroom'
-        }, { status: 409 });
-      }
-    }
-
-    const query = `
-      INSERT INTO schedule (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, date) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7::date)
-      RETURNING id
-    `;
-    
-    const result = await db.query(query, [
-      parseInt(group_id), 
-      parseInt(teacher_id), 
-      parseInt(subject_id), 
-      classroom_id ? parseInt(classroom_id) : null, 
-      parseInt(pair_number), 
-      parseInt(day_of_week),
-      date
-    ]);
-
-    return NextResponse.json({ 
-      success: true, 
-      id: result.rows[0].id 
-    });
-  } catch (error) {
-    console.error('Schedule POST error:', error);
-    return NextResponse.json({ 
-      error: error.message 
-    }, { status: 500 });
-  }
-}
-
-// GET - получение расписания
+// GET – получение актуального расписания (шаблон + переопределения)
 export async function GET(request) {
   try {
     const db = await getDb();
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
     const teacherId = searchParams.get('teacherId');
-    const weekStart = searchParams.get('weekStart');
-    const weekEnd = searchParams.get('weekEnd');
+    const weekStart = searchParams.get('weekStart'); // YYYY-MM-DD (понедельник)
     const date = searchParams.get('date');
 
-    let query = `
-      SELECT 
-        s.*,
-        g.name as group_name,
-        t.name as teacher_name,
-        sub.name as subject_name,
-        c.name as classroom_name,
-        TO_CHAR(s.date, 'YYYY-MM-DD') as date_str
-      FROM schedule s
-      JOIN groups g ON s.group_id = g.id
-      JOIN teachers t ON s.teacher_id = t.id
-      JOIN subjects sub ON s.subject_id = sub.id
-      LEFT JOIN classrooms c ON s.classroom_id = c.id
-      WHERE 1=1
-    `;
-    let params = [];
-    let paramIndex = 1;
+    // Определяем понедельник недели
+    let startMonday = weekStart;
+    if (!startMonday && date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - ((day === 0 ? 6 : day - 1));
+      d.setDate(diff);
+      startMonday = d.toISOString().split('T')[0];
+    }
+    if (!startMonday) {
+      return NextResponse.json([]);
+    }
+
+    // Параметры для фильтрации
+    const whereClauses = [];
+    const params = [startMonday];
+    let paramIndex = 2;
 
     if (groupId) {
-      query += ` AND s.group_id = $${paramIndex++}`;
+      whereClauses.push(`effective.group_id = $${paramIndex++}`);
       params.push(parseInt(groupId));
     }
-    
     if (teacherId) {
-      query += ` AND s.teacher_id = $${paramIndex++}`;
+      whereClauses.push(`effective.teacher_id = $${paramIndex++}`);
       params.push(parseInt(teacherId));
     }
 
-    if (weekStart && weekEnd) {
-      query += ` AND s.date >= $${paramIndex++}::date AND s.date <= $${paramIndex++}::date`;
-      params.push(weekStart, weekEnd);
+    // Основной запрос: шаблон + существующие переопределения (кроме cancelled)
+    let query = `
+      WITH effective AS (
+        SELECT
+          t.group_id,
+          g.name AS group_name,
+          t.day_of_week,
+          t.pair_number,
+          COALESCE(o.teacher_id, t.teacher_id) AS teacher_id,
+          COALESCE(tch.name, otch.name) AS teacher_name,
+          COALESCE(o.subject_id, t.subject_id) AS subject_id,
+          COALESCE(s.name, os.name) AS subject_name,
+          COALESCE(o.classroom_id, t.classroom_id) AS classroom_id,
+          COALESCE(c.name, oc.name) AS classroom_name,
+          COALESCE(o.notes, t.notes) AS notes,
+          CASE
+            WHEN o.status = 'cancelled' THEN 'cancelled'
+            WHEN o.status IS NOT NULL THEN o.status
+            ELSE 'template'
+          END AS source,
+          o.status AS override_status,
+          $1::date + (t.day_of_week - 1) AS lesson_date
+        FROM schedule_templates t
+        JOIN groups g ON t.group_id = g.id
+        LEFT JOIN teachers tch ON t.teacher_id = tch.id
+        LEFT JOIN subjects s ON t.subject_id = s.id
+        LEFT JOIN classrooms c ON t.classroom_id = c.id
+        LEFT JOIN schedule_overrides o
+          ON o.week_start_date = $1::date
+         AND o.group_id = t.group_id
+         AND o.day_of_week = t.day_of_week
+         AND o.pair_number = t.pair_number
+        LEFT JOIN teachers otch ON o.teacher_id = otch.id
+        LEFT JOIN subjects os ON o.subject_id = os.id
+        LEFT JOIN classrooms oc ON o.classroom_id = oc.id
+      )
+      SELECT * FROM effective
+      WHERE override_status IS DISTINCT FROM 'cancelled'
+      ${whereClauses.length ? 'AND ' + whereClauses.join(' AND ') : ''}
+    `;
+
+    // Запрос для полностью новых занятий (status = 'added')
+    let addedQuery = `
+      SELECT
+        o.group_id,
+        g.name AS group_name,
+        o.day_of_week,
+        o.pair_number,
+        o.teacher_id,
+        otch.name AS teacher_name,
+        o.subject_id,
+        os.name AS subject_name,
+        o.classroom_id,
+        oc.name AS classroom_name,
+        o.notes,
+        'added' AS source,
+        o.status AS override_status,
+        o.week_start_date + (o.day_of_week - 1) AS lesson_date
+      FROM schedule_overrides o
+      JOIN groups g ON o.group_id = g.id
+      LEFT JOIN teachers otch ON o.teacher_id = otch.id
+      LEFT JOIN subjects os ON o.subject_id = os.id
+      LEFT JOIN classrooms oc ON o.classroom_id = oc.id
+      WHERE o.status = 'added'
+        AND o.week_start_date = $1::date
+    `;
+    const addedParams = [startMonday];
+    let addedParamIdx = 2;
+    if (groupId) {
+      addedQuery += ` AND o.group_id = $${addedParamIdx++}`;
+      addedParams.push(parseInt(groupId));
     }
-    
-    if (date) {
-      query += ` AND s.date = $${paramIndex++}::date`;
-      params.push(date);
+    if (teacherId) {
+      addedQuery += ` AND o.teacher_id = $${addedParamIdx++}`;
+      addedParams.push(parseInt(teacherId));
     }
 
-    query += ' ORDER BY s.date, s.day_of_week, s.pair_number';
-    
-    const result = await db.query(query, params);
-    
-    const rows = result.rows.map(row => ({
+    const [mainResult, addedResult] = await Promise.all([
+      db.query(query, params),
+      db.query(addedQuery, addedParams)
+    ]);
+
+    const allRows = [...mainResult.rows, ...addedResult.rows];
+    // Сортировка
+    allRows.sort((a, b) => {
+      if (a.lesson_date < b.lesson_date) return -1;
+      if (a.lesson_date > b.lesson_date) return 1;
+      return a.pair_number - b.pair_number;
+    });
+
+    const formatted = allRows.map(row => ({
       ...row,
-      date: row.date_str
+      date: row.lesson_date ? new Date(row.lesson_date).toISOString().split('T')[0] : null,
+      day_of_week: parseInt(row.day_of_week),
+      pair_number: parseInt(row.pair_number),
     }));
-    
-    return NextResponse.json(rows);
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error('Schedule GET error:', error);
     return NextResponse.json([], { status: 200 });
-  }
-}
-
-// PATCH - обновление заметок
-export async function PATCH(request) {
-  try {
-    const user = await getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
-    }
-
-    const { id, notes, status } = await request.json();
-    
-    if (!id) {
-      return NextResponse.json({ error: 'ID занятия обязателен' }, { status: 400 });
-    }
-
-    const db = await getDb();
-    
-    if (user.role === 'teacher') {
-      const teacher = await db.query('SELECT id FROM teachers WHERE user_id = $1', [user.id]);
-      if (teacher.rows.length > 0) {
-        const lessonCheck = await db.query(
-          'SELECT id FROM schedule WHERE id = $1 AND teacher_id = $2',
-          [id, teacher.rows[0].id]
-        );
-        if (lessonCheck.rows.length === 0) {
-          return NextResponse.json({ error: 'Это не ваше занятие' }, { status: 403 });
-        }
-      }
-    }
-    
-    await db.query(
-      'UPDATE schedule SET notes = $1, status = $2 WHERE id = $3',
-      [notes || null, status || 'planned', id]
-    );
-    
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Schedule PATCH error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

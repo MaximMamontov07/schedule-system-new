@@ -3971,3 +3971,38 @@ button:disabled {
 .lesson-cell {
   transition: background 0.15s ease, transform 0.15s ease;
 }
+/* Статусы занятий */
+.lesson-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 1.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.status-modified { background: rgba(255,193,7,0.12); color: #b38f00; }
+.status-added   { background: rgba(40,167,69,0.12); color: #1e7e34; }
+.status-cancelled { background: rgba(220,53,69,0.12); color: #bd2130; }
+
+.lesson-card-modern.cancelled {
+  opacity: 0.55;
+  text-decoration: line-through;
+  background: var(--surface-muted);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
