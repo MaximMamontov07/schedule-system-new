@@ -857,31 +857,31 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   };
 
   const resetFilters = () => {
-    if (isStudent && userGroupId) {
-      setFilters({
-        groupId: String(userGroupId),
-        teacherId: '',
-        subjectId: '',
-        dayOfWeek: '',
-        pairNumber: '',
-        classroomId: ''
-      });
-      setSelectedGroupId(userGroupId);
-      setHasAppliedFilter(true);
-    } else {
-      setFilters({
-        groupId: '',
-        teacherId: '',
-        subjectId: '',
-        dayOfWeek: '',
-        pairNumber: '',
-        classroomId: ''
-      });
-      setSelectedGroupId(null);
-      setHasAppliedFilter(false);
-    }
-    setCurrentDate(new Date());
-  };
+  if (isStudent && userGroupId) {
+    setFilters({
+      groupId: String(userGroupId),
+      teacherId: '',
+      subjectId: '',
+      dayOfWeek: '',
+      pairNumber: '',
+      classroomId: ''
+    });
+    setSelectedGroupId(userGroupId);
+  } else {
+    setFilters({
+      groupId: '',
+      teacherId: '',
+      subjectId: '',
+      dayOfWeek: '',
+      pairNumber: '',
+      classroomId: ''
+    });
+    setSelectedGroupId(null);
+  }
+  setCurrentDate(new Date());
+  // Убеждаемся, что расписание загрузится
+  setHasAppliedFilter(true);
+};
 
   const handleDateSelect = (date) => {
     setCurrentDate(date);
