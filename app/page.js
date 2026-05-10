@@ -46,15 +46,64 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', teacher: 'Преподаватель', student: 'Студент' };
 
-// ============ ФУНКЦИИ ДЛЯ КОРРЕКТНОЙ РАБОТЫ С ДАТАМИ (БЕЗ СДВИГА ЧАСОВОГО ПОЯСА) ============
+// ============ ФУНКЦИИ ДЛЯ КОРРЕКТНОЙ РАБОТЫ С ДАТАМИ (FIXED FOR SUPABASE) ============
+
 const parseLocalDate = (dateString) => {
   if (!dateString) return null;
-  const [year, month, day] = dateString.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  
+  try {
+    // Если это уже объект Date
+    if (dateString instanceof Date) {
+      return new Date(dateString.getFullYear(), dateString.getMonth(), dateString.getDate());
+    }
+    
+    // Преобразуем в строку
+    let str = String(dateString);
+    
+    // Убираем время если есть (UTC формат от Supabase)
+    if (str.includes('T')) {
+      str = str.split('T')[0];
+    }
+    
+    // Убираем миллисекунды если есть
+    if (str.includes('.')) {
+      str = str.split('.')[0];
+    }
+    
+    // Формат YYYY-MM-DD
+    if (str.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = str.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    
+    // Формат DD.MM.YYYY
+    if (str.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+      const [day, month, year] = str.split('.').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    
+    return null;
+  } catch (e) {
+    console.error('parseLocalDate error:', e);
+    return null;
+  }
 };
 
 const formatForInput = (date) => {
   if (!date) return '';
+  
+  if (typeof date === 'string') {
+    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) return date;
+    const parsed = parseLocalDate(date);
+    if (parsed && !isNaN(parsed.getTime())) {
+      const year = parsed.getFullYear();
+      const month = String(parsed.getMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return '';
+  }
+  
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -63,18 +112,35 @@ const formatForInput = (date) => {
 
 const formatDateRu = (dateString) => {
   if (!dateString) return '';
-  const [year, month, day] = dateString.split('-').map(Number);
-  return `${day}.${month}.${year}`;
+  try {
+    const date = parseLocalDate(dateString);
+    if (!date || isNaN(date.getTime())) return 'Дата не указана';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  } catch (e) {
+    console.error('formatDateRu error:', e);
+    return 'Дата не указана';
+  }
 };
 
 const formatDate = (date) => {
   if (!date) return '';
+  if (typeof date === 'string') {
+    date = parseLocalDate(date);
+    if (!date) return '';
+  }
   const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   return `${date.getDate()} ${months[date.getMonth()]}`;
 };
 
 const getWeekNumber = (date) => {
-  const d = new Date(date);
+  if (typeof date === 'string') {
+    date = parseLocalDate(date);
+    if (!date) return 1;
+  }
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
@@ -82,6 +148,10 @@ const getWeekNumber = (date) => {
 };
 
 const getMonday = (date) => {
+  if (typeof date === 'string') {
+    date = parseLocalDate(date);
+    if (!date) return new Date();
+  }
   const d = new Date(date);
   const day = d.getDay();
   const diff = day === 0 ? 6 : day - 1;
@@ -90,6 +160,10 @@ const getMonday = (date) => {
 };
 
 const getWeekDates = (date) => {
+  if (typeof date === 'string') {
+    date = parseLocalDate(date);
+  }
+  if (!date) date = new Date();
   const monday = getMonday(date);
   const dates = [];
   for (let i = 0; i < 7; i++) {
@@ -98,6 +172,18 @@ const getWeekDates = (date) => {
     dates.push(d);
   }
   return dates;
+};
+
+const isToday = (date) => {
+  if (!date) return false;
+  if (typeof date === 'string') {
+    date = parseLocalDate(date);
+  }
+  if (!date) return false;
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear();
 };
 
 // ============ SearchableSelect Component ============
@@ -1292,26 +1378,38 @@ function HomeContent() {
 
   // Функция для загрузки расписания за неделю
   const loadScheduleForWeek = async (startDate, endDate, groupId = null) => {
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  
+  let start = startDate;
+  let end = endDate;
+  
+  if (startDate instanceof Date) start = formatForInput(startDate);
+  if (endDate instanceof Date) end = formatForInput(endDate);
+  
+  let url = `/api/schedule?weekStart=${start}&weekEnd=${end}`;
+  if (groupId) {
+    url += `&groupId=${groupId}`;
+  } else if (selectedGroupFilter) {
+    url += `&groupId=${selectedGroupFilter}`;
+  }
+  
+  try {
+    const scheduleRes = await fetch(url, { headers });
+    const scheduleData = await scheduleRes.json();
     
-    let url = `/api/schedule?weekStart=${startDate}&weekEnd=${endDate}`;
-    if (groupId) {
-      url += `&groupId=${groupId}`;
-    } else if (selectedGroupFilter) {
-      url += `&groupId=${selectedGroupFilter}`;
-    }
+    const normalizedData = scheduleData.map(item => ({
+      ...item,
+      date: item.date || null
+    }));
     
-    try {
-      const scheduleRes = await fetch(url, { headers });
-      const scheduleData = await scheduleRes.json();
-      setSchedule(scheduleData);
-      return scheduleData;
-    } catch (e) {
-      console.error(e);
-      showNotification('Ошибка загрузки расписания', 'error');
-      return [];
-    }
-  };
+    setSchedule(normalizedData);
+    return normalizedData;
+  } catch (e) {
+    console.error(e);
+    showNotification('Ошибка загрузки расписания', 'error');
+    return [];
+  }
+};
 
   // Функция для загрузки расписания за текущую неделю
   const loadCurrentWeekSchedule = async (groupId = null) => {
