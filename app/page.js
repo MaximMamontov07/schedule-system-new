@@ -781,11 +781,11 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
   );
 };
 
-// ============ ScheduleView Component ============
+// ============ ОБНОВЛЕННЫЙ ScheduleView Component ============
 const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId, loadScheduleForWeek }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false); // Флаг загрузки данных
   const [selectedGroupId, setSelectedGroupId] = useState(userRole === 'student' ? userGroupId : null);
   
   const isStudent = userRole === 'student';
@@ -798,27 +798,28 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     classroomId: ''
   });
 
+  // Загружаем данные ТОЛЬКО когда меняется неделя или начальная группа
   useEffect(() => {
-    if (isStudent && userGroupId) {
-      setHasAppliedFilter(true);
-      setSelectedGroupId(userGroupId);
-    }
-  }, [isStudent, userGroupId]);
-
-  const weekDates = getWeekDates(currentDate);
-
-  useEffect(() => {
-    if (weekDates.length > 0 && loadScheduleForWeek && hasAppliedFilter) {
+    if (loadScheduleForWeek) {
+      const weekDates = getWeekDates(currentDate);
       const startDate = formatForInput(weekDates[0]);
       const endDate = formatForInput(weekDates[6]);
-      const groupId = selectedGroupId || filters.groupId;
-      loadScheduleForWeek(startDate, endDate, groupId);
+      const groupId = selectedGroupId || (isStudent ? userGroupId : null);
+      
+      loadScheduleForWeek(startDate, endDate, groupId).then(() => {
+        setIsDataLoaded(true);
+      });
     }
-  }, [weekDates, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
+  }, [currentDate]); // ТОЛЬКО при смене недели!
 
+  // Функция для локальной фильтрации (без запроса к серверу!)
   const filteredSchedule = useMemo(() => {
     let filtered = [...schedule];
     
+    // Группа уже отфильтрована в основном запросе, но если есть дополнительный фильтр
+    if (filters.groupId && filters.groupId !== (selectedGroupId || (isStudent ? userGroupId : null))) {
+      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
+    }
     if (filters.teacherId) {
       filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
     }
@@ -836,14 +837,13 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     }
     
     return filtered;
-  }, [schedule, filters]);
+  }, [schedule, filters, selectedGroupId, isStudent, userGroupId]);
 
   const handleFilterChange = (key, value) => {
     if (key === 'groupId') {
       setSelectedGroupId(value);
     }
     setFilters(prev => ({ ...prev, [key]: value }));
-    setHasAppliedFilter(true);
   };
 
   const resetFilters = () => {
@@ -857,7 +857,6 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         classroomId: ''
       });
       setSelectedGroupId(userGroupId);
-      setHasAppliedFilter(true);
     } else {
       setFilters({
         groupId: '',
@@ -868,35 +867,34 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
         classroomId: ''
       });
       setSelectedGroupId(null);
-      setHasAppliedFilter(false);
     }
-    setCurrentDate(new Date());
-  };
-
-  const handleDateSelect = (date) => {
-    setCurrentDate(date);
-    setShowCalendar(false);
   };
 
   const handlePrevWeek = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() - 7);
     setCurrentDate(newDate);
+    setIsDataLoaded(false); // Сбрасываем флаг, пока грузятся новые данные
   };
 
   const handleNextWeek = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() + 7);
     setCurrentDate(newDate);
+    setIsDataLoaded(false);
   };
 
   const handleCurrentWeek = () => {
     setCurrentDate(new Date());
+    setIsDataLoaded(false);
   };
 
+  const weekDates = getWeekDates(currentDate);
   const hasActiveFilters = filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId;
+  
+  const hasAppliedFilter = isStudent ? true : (selectedGroupId || hasActiveFilters);
 
-  if (loading) {
+  if (loading || !isDataLoaded) {
     return (
       <div className="loading-state">
         <div className="spinner"></div>
@@ -930,7 +928,11 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
       {showCalendar && createPortal(
         <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
           <DatePicker 
-            onDateSelect={handleDateSelect}
+            onDateSelect={(date) => {
+              setCurrentDate(date);
+              setIsDataLoaded(false);
+              setShowCalendar(false);
+            }}
             onClose={() => setShowCalendar(false)}
             selectedDate={currentDate}
           />
