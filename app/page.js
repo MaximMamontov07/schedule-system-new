@@ -1890,47 +1890,48 @@ function HomeContent() {
   };
 
   const handleAddLesson = async (e) => {
-    e.preventDefault();
-    if (!canEditSchedule) return showNotification('Нет прав', 'error');
-    
-    const lessonToSave = editingLesson;
-    
-    if (!lessonToSave) {
-      showNotification('Ошибка: данные занятия не найдены', 'error');
-      return;
-    }
-    
-    if (!lessonToSave.date) {
-      showNotification('Выберите дату занятия', 'error');
-      return;
-    }
-    
-    if (!lessonToSave.group_id) {
-      showNotification('Выберите группу', 'error');
-      return;
-    }
-    
-    if (!lessonToSave.teacher_id) {
-      showNotification('Выберите преподавателя', 'error');
-      return;
-    }
-    
-    if (!lessonToSave.subject_id) {
-      showNotification('Выберите предмет', 'error');
-      return;
-    }
-    
-    const lessonDate = new Date(lessonToSave.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isPastDate = lessonDate < today;
-    
-    if (isPastDate || isExceptionMode) {
-      await handleAddException(lessonToSave);
-    } else {
-      await handleAddTemplate(lessonToSave);
-    }
+  e.preventDefault();
+  if (!canEditSchedule) return showNotification('Нет прав', 'error');
+  
+  const lessonToSave = editingLesson;
+  
+  if (!lessonToSave || !lessonToSave.date || !lessonToSave.group_id || !lessonToSave.teacher_id || !lessonToSave.subject_id) {
+    showNotification('Заполните все обязательные поля', 'error');
+    return;
+  }
+  
+  const dataToSend = {
+    group_id: parseInt(lessonToSave.group_id),
+    teacher_id: parseInt(lessonToSave.teacher_id),
+    subject_id: parseInt(lessonToSave.subject_id),
+    classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
+    pair_number: parseInt(lessonToSave.pair_number),
+    day_of_week: parseInt(lessonToSave.day_of_week),
+    week_type: 'all'
   };
+  
+  try {
+    const res = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(dataToSend)
+    });
+    
+    const result = await res.json();
+    
+    if (res.ok) {
+      showNotification('Занятие добавлено!', 'success');
+      setShowEditModal(false);
+      setEditingLesson(null);
+      await refreshSchedule();
+    } else {
+      showNotification(result.error || 'Ошибка', 'error');
+    }
+  } catch (error) {
+    console.error('Add error:', error);
+    showNotification('Ошибка соединения', 'error');
+  }
+};
 
   // ОБНОВЛЕНИЕ ШАБЛОНА
   const handleUpdateTemplate = async (lesson) => {
@@ -2019,71 +2020,68 @@ function HomeContent() {
   };
 
   const handleUpdateLesson = async (e) => {
-    e.preventDefault();
-    
-    if (!editingLesson) return;
-    
-    if (!editingLesson.date) {
-      showNotification('Выберите дату занятия', 'error');
-      return;
-    }
-    
-    const lessonDate = new Date(editingLesson.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isPastDate = lessonDate < today;
-    
-    if (isPastDate || editingLesson.is_exception) {
-      await handleUpdateException(editingLesson);
-    } else {
-      await handleUpdateTemplate(editingLesson);
-    }
+  e.preventDefault();
+  
+  if (!editingLesson || !editingLesson.id) {
+    showNotification('Ошибка: данные занятия не найдены', 'error');
+    return;
+  }
+  
+  const dataToSend = {
+    id: editingLesson.id,
+    group_id: parseInt(editingLesson.group_id),
+    teacher_id: parseInt(editingLesson.teacher_id),
+    subject_id: parseInt(editingLesson.subject_id),
+    classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
+    pair_number: parseInt(editingLesson.pair_number),
+    day_of_week: parseInt(editingLesson.day_of_week),
+    week_type: 'all'
   };
-
-  const handleEditClick = (lesson) => {
-    console.log('✏️ Редактирование занятия:', lesson);
-    
-    const lessonDate = new Date(lesson.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isPastDate = lessonDate < today;
-    
-    setIsExceptionMode(isPastDate || lesson.is_exception);
-    setEditingLesson({ 
-      ...lesson, 
-      date: lesson.date || '',
-      id: lesson.id,
-      is_exception: lesson.is_exception || false,
-      original_lesson: lesson
+  
+  try {
+    const res = await fetch('/api/schedule', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(dataToSend)
     });
-    setShowEditModal(true);
-  };
+    
+    const result = await res.json();
+    
+    if (res.ok) {
+      showNotification('Занятие обновлено!', 'success');
+      setShowEditModal(false);
+      setEditingLesson(null);
+      await refreshSchedule();
+    } else {
+      showNotification(result.error || 'Ошибка', 'error');
+    }
+  } catch (error) {
+    console.error('Update error:', error);
+    showNotification('Ошибка соединения', 'error');
+  }
+};
 
   // УДАЛЕНИЕ
- const handleDeleteLesson = async (id, isException = false) => {
+ const handleDeleteLesson = async (id) => {
   if (!canEditSchedule) return showNotification('Нет прав', 'error');
   if (!confirm('Удалить занятие?')) return;
   
   try {
-    // ВРЕМЕННО: всегда удаляем из шаблона, игнорируя исключения
-    const url = `/api/schedule?id=${id}&isTemplate=true`;
-    console.log('📤 Удаление из шаблона:', url);
-    
-    const res = await fetch(url, { 
+    const res = await fetch(`/api/schedule?id=${id}&isTemplate=true`, { 
       method: 'DELETE', 
       headers: { 'Authorization': `Bearer ${token}` } 
     });
     
     if (res.ok) {
-      showNotification('Занятие удалено из шаблона!', 'success');
+      showNotification('Занятие удалено!', 'success');
       await refreshSchedule();
     } else {
       const error = await res.json();
-      showNotification(error.error || 'Ошибка удаления', 'error');
+      showNotification(error.error || 'Ошибка', 'error');
     }
   } catch (e) {
     console.error('Delete error:', e);
-    showNotification('Ошибка', 'error');
+    showNotification('Ошибка соединения', 'error');
   }
 };
 
