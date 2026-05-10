@@ -4,187 +4,157 @@ import { getDb } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
 // GET - возвращает расписание на неделю с учётом шаблона и исключений
+// app/api/schedule/route.js - исправленный GET
 export async function GET(request) {
   try {
     const db = await getDb();
     const { searchParams } = new URL(request.url);
     const groupId = searchParams.get('groupId');
-    const teacherId = searchParams.get('teacherId');
     const weekStart = searchParams.get('weekStart');
     const weekEnd = searchParams.get('weekEnd');
-    const date = searchParams.get('date');
 
-    // Если нужна конкретная дата с исключениями
-    if (date && groupId) {
-      const schedule = await getScheduleForDate(db, parseInt(groupId), date);
-      return NextResponse.json(schedule);
+    // Если нет группы или дат - возвращаем пустой массив
+    if (!groupId || !weekStart || !weekEnd) {
+      return NextResponse.json([]);
     }
 
-    // Если нужна неделя
-    if (weekStart && weekEnd && groupId) {
-      const schedule = await getScheduleForWeek(db, parseInt(groupId), weekStart, weekEnd);
-      return NextResponse.json(schedule);
-    }
+    console.log(`📡 Запрос расписания: группа ${groupId}, неделя ${weekStart} - ${weekEnd}`);
 
-    // Для совместимости со старым кодом
-    let query = `
+    // 1. Получаем шаблон для этой группы
+    const templateResult = await db.query(`
       SELECT 
-        s.*,
-        g.name as group_name,
-        t.name as teacher_name,
+        t.*,
         sub.name as subject_name,
+        tea.name as teacher_name,
         c.name as classroom_name
-      FROM schedule s
-      JOIN groups g ON s.group_id = g.id
-      JOIN teachers t ON s.teacher_id = t.id
-      JOIN subjects sub ON s.subject_id = sub.id
-      LEFT JOIN classrooms c ON s.classroom_id = c.id
-      WHERE 1=1
-    `;
-    let params = [];
-    let paramIndex = 1;
+      FROM schedule_template t
+      JOIN subjects sub ON t.subject_id = sub.id
+      JOIN teachers tea ON t.teacher_id = tea.id
+      LEFT JOIN classrooms c ON t.classroom_id = c.id
+      WHERE t.group_id = $1
+    `, [parseInt(groupId)]);
 
-    if (groupId) {
-      query += ` AND s.group_id = $${paramIndex++}`;
-      params.push(parseInt(groupId));
-    }
-    
-    if (teacherId) {
-      query += ` AND s.teacher_id = $${paramIndex++}`;
-      params.push(parseInt(teacherId));
+    const template = templateResult.rows || [];
+    console.log(`📋 Шаблон: ${template.length} занятий`);
+
+    // 2. Получаем исключения на эту неделю
+    const exceptionsResult = await db.query(`
+      SELECT * FROM schedule_exceptions 
+      WHERE group_id = $1 AND exception_date BETWEEN $2 AND $3
+    `, [parseInt(groupId), weekStart, weekEnd]);
+
+    const exceptions = exceptionsResult.rows || [];
+    console.log(`⚠️ Исключения: ${exceptions.length}`);
+
+    // 3. Генерируем расписание для каждого дня недели
+    const startDate = new Date(weekStart);
+    const endDate = new Date(weekEnd);
+    const result = [];
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      const dayOfWeek = d.getDay();
+      const dbDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+      
+      // Берём занятия из шаблона для этого дня
+      const dayLessons = template.filter(l => l.day_of_week === dbDayOfWeek);
+      
+      for (const lesson of dayLessons) {
+        // Проверяем, есть ли исключение для этого занятия
+        const exception = exceptions.find(e => 
+          e.pair_number === lesson.pair_number && 
+          e.exception_date === dateStr
+        );
+        
+        if (exception && exception.exception_type === 'canceled') {
+          continue; // Пропускаем отменённое занятие
+        }
+        
+        if (exception && exception.exception_type === 'replaced') {
+          // Заменённое занятие
+          let subjectName = lesson.subject_name;
+          let teacherName = lesson.teacher_name;
+          let classroomName = lesson.classroom_name;
+          
+          if (exception.replacement_subject_id) {
+            const subRes = await db.query('SELECT name FROM subjects WHERE id = $1', [exception.replacement_subject_id]);
+            subjectName = subRes.rows[0]?.name || lesson.subject_name;
+          }
+          if (exception.replacement_teacher_id) {
+            const teaRes = await db.query('SELECT name FROM teachers WHERE id = $1', [exception.replacement_teacher_id]);
+            teacherName = teaRes.rows[0]?.name || lesson.teacher_name;
+          }
+          if (exception.replacement_classroom_id) {
+            const classRes = await db.query('SELECT name FROM classrooms WHERE id = $1', [exception.replacement_classroom_id]);
+            classroomName = classRes.rows[0]?.name || lesson.classroom_name;
+          }
+          
+          result.push({
+            id: lesson.id,
+            group_id: lesson.group_id,
+            teacher_id: lesson.teacher_id,
+            subject_id: lesson.subject_id,
+            classroom_id: lesson.classroom_id,
+            pair_number: lesson.pair_number,
+            day_of_week: lesson.day_of_week,
+            date: dateStr,
+            subject_name: subjectName,
+            teacher_name: teacherName,
+            classroom_name: classroomName,
+            is_exception: true,
+            exception_type: 'replaced',
+            notes: exception.notes
+          });
+        } else {
+          // Обычное занятие из шаблона
+          result.push({
+            ...lesson,
+            date: dateStr,
+            is_exception: false
+          });
+        }
+      }
+      
+      // Добавляем дополнительные занятия (added)
+      const addedExceptions = exceptions.filter(e => 
+        e.exception_type === 'added' && e.exception_date === dateStr
+      );
+      
+      for (const exception of addedExceptions) {
+        const subject = await db.query('SELECT name FROM subjects WHERE id = $1', [exception.subject_id]);
+        const teacher = await db.query('SELECT name FROM teachers WHERE id = $1', [exception.teacher_id]);
+        const classroom = exception.classroom_id 
+          ? await db.query('SELECT name FROM classrooms WHERE id = $1', [exception.classroom_id])
+          : { rows: [null] };
+        
+        result.push({
+          id: `exception_${exception.id}`,
+          group_id: exception.group_id,
+          teacher_id: exception.teacher_id,
+          subject_id: exception.subject_id,
+          classroom_id: exception.classroom_id,
+          pair_number: exception.pair_number,
+          day_of_week: dbDayOfWeek,
+          date: dateStr,
+          subject_name: subject.rows[0]?.name || 'Новый предмет',
+          teacher_name: teacher.rows[0]?.name || 'Нет преподавателя',
+          classroom_name: classroom.rows[0]?.name || null,
+          notes: exception.notes,
+          is_exception: true,
+          exception_type: 'added'
+        });
+      }
     }
 
-    if (weekStart && weekEnd) {
-      query += ` AND s.date >= $${paramIndex++} AND s.date <= $${paramIndex++}`;
-      params.push(weekStart, weekEnd);
-    }
-    
-    if (date) {
-      query += ` AND s.date = $${paramIndex++}`;
-      params.push(date);
-    }
-
-    query += ' ORDER BY s.date, s.day_of_week, s.pair_number';
-    
-    const result = await db.query(query, params);
-    
-    return NextResponse.json(result.rows || []);
+    console.log(`✅ Сгенерировано ${result.length} занятий для недели`);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Schedule GET error:', error);
     return NextResponse.json([], { status: 200 });
   }
 }
 
-// Функция получения расписания на конкретную дату
-async function getScheduleForDate(db, groupId, date) {
-  // Получаем день недели
-  const dayOfWeek = new Date(date).getDay();
-  const dbDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
-  
-  // Получаем шаблон
-  const templateResult = await db.query(`
-    SELECT 
-      t.*,
-      sub.name as subject_name,
-      tea.name as teacher_name,
-      c.name as classroom_name
-    FROM schedule_template t
-    JOIN subjects sub ON t.subject_id = sub.id
-    JOIN teachers tea ON t.teacher_id = tea.id
-    LEFT JOIN classrooms c ON t.classroom_id = c.id
-    WHERE t.group_id = $1 AND t.day_of_week = $2
-  `, [groupId, dbDayOfWeek]);
-  
-  const templateLessons = templateResult.rows || [];
-  
-  // Получаем исключения на эту дату
-  const exceptionsResult = await db.query(`
-    SELECT * FROM schedule_exceptions 
-    WHERE group_id = $1 AND exception_date = $2
-  `, [groupId, date]);
-  
-  const exceptions = exceptionsResult.rows || [];
-  
-  // Применяем исключения
-  const finalSchedule = [];
-  
-  for (const lesson of templateLessons) {
-    const exception = exceptions.find(e => 
-      e.pair_number === lesson.pair_number && 
-      (!e.template_id || e.template_id === lesson.id)
-    );
-    
-    if (exception && exception.exception_type === 'canceled') {
-      continue; // Занятие отменено
-    }
-    
-    if (exception && exception.exception_type === 'replaced') {
-      // Заменённое занятие
-      finalSchedule.push({
-        ...lesson,
-        id: `exception_${exception.id}`,
-        subject_name: exception.replacement_subject_id 
-          ? (await db.query('SELECT name FROM subjects WHERE id = $1', [exception.replacement_subject_id])).rows[0]?.name 
-          : lesson.subject_name,
-        teacher_name: exception.replacement_teacher_id
-          ? (await db.query('SELECT name FROM teachers WHERE id = $1', [exception.replacement_teacher_id])).rows[0]?.name
-          : lesson.teacher_name,
-        classroom_name: exception.replacement_classroom_id
-          ? (await db.query('SELECT name FROM classrooms WHERE id = $1', [exception.replacement_classroom_id])).rows[0]?.name
-          : lesson.classroom_name,
-        notes: exception.notes,
-        is_exception: true,
-        exception_type: 'replaced'
-      });
-    } else {
-      finalSchedule.push(lesson);
-    }
-  }
-  
-  // Добавляем дополнительные занятия (added)
-  for (const exception of exceptions.filter(e => e.exception_type === 'added')) {
-    const subject = await db.query('SELECT name FROM subjects WHERE id = $1', [exception.subject_id]);
-    const teacher = await db.query('SELECT name FROM teachers WHERE id = $1', [exception.teacher_id]);
-    const classroom = exception.classroom_id 
-      ? await db.query('SELECT name FROM classrooms WHERE id = $1', [exception.classroom_id])
-      : { rows: [null] };
-    
-    finalSchedule.push({
-      id: `exception_added_${exception.id}`,
-      group_id: exception.group_id,
-      teacher_id: exception.teacher_id,
-      subject_id: exception.subject_id,
-      classroom_id: exception.classroom_id,
-      pair_number: exception.pair_number,
-      day_of_week: dbDayOfWeek,
-      subject_name: subject.rows[0]?.name,
-      teacher_name: teacher.rows[0]?.name,
-      classroom_name: classroom.rows[0]?.name,
-      notes: exception.notes,
-      is_exception: true,
-      exception_type: 'added'
-    });
-  }
-  
-  return finalSchedule.sort((a, b) => a.pair_number - b.pair_number);
-}
-
-// Функция получения расписания на неделю
-async function getScheduleForWeek(db, groupId, weekStart, weekEnd) {
-  const startDate = new Date(weekStart);
-  const endDate = new Date(weekEnd);
-  const result = [];
-  
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split('T')[0];
-    const dailySchedule = await getScheduleForDate(db, groupId, dateStr);
-    result.push(...dailySchedule.map(l => ({ ...l, date: dateStr })));
-  }
-  
-  return result;
-}
-
-// POST - создание/обновление шаблона
+// app/api/schedule/route.js - исправленный POST
 export async function POST(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -195,45 +165,18 @@ export async function POST(request) {
     const db = await getDb();
     const body = await request.json();
     
-    const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, week_type, is_exception, exception_date } = body;
+    const { group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, week_type } = body;
 
-    // Если это исключение
-    if (is_exception && exception_date) {
-      // Проверяем, не создавали ли уже исключение
-      const existing = await db.query(`
-        SELECT id FROM schedule_exceptions 
-        WHERE group_id = $1 AND pair_number = $2 AND exception_date = $3
-      `, [parseInt(group_id), parseInt(pair_number), exception_date]);
-      
-      if (existing.rows.length > 0) {
-        // Обновляем
-        await db.query(`
-          UPDATE schedule_exceptions 
-          SET teacher_id = $1, subject_id = $2, classroom_id = $3, 
-              exception_type = 'replaced', notes = $4
-          WHERE id = $5
-        `, [
-          parseInt(teacher_id), parseInt(subject_id), 
-          classroom_id ? parseInt(classroom_id) : null,
-          body.notes || null,
-          existing.rows[0].id
-        ]);
-      } else {
-        // Создаём
-        await db.query(`
-          INSERT INTO schedule_exceptions 
-          (group_id, teacher_id, subject_id, classroom_id, pair_number, exception_date, exception_type)
-          VALUES ($1, $2, $3, $4, $5, $6, 'replaced')
-        `, [
-          parseInt(group_id), parseInt(teacher_id), parseInt(subject_id),
-          classroom_id ? parseInt(classroom_id) : null,
-          parseInt(pair_number), exception_date
-        ]);
-      }
-      return NextResponse.json({ success: true, type: 'exception' });
+    console.log('📝 Создание занятия в шаблоне:', body);
+
+    // Проверяем обязательные поля
+    if (!group_id || !teacher_id || !subject_id || !pair_number || !day_of_week) {
+      return NextResponse.json({ 
+        error: 'Не все обязательные поля заполнены',
+        received: { group_id, teacher_id, subject_id, pair_number, day_of_week }
+      }, { status: 400 });
     }
-    
-    // Иначе работаем с шаблоном
+
     // Проверяем конфликты в шаблоне
     const conflict = await db.query(`
       SELECT * FROM schedule_template 
@@ -248,7 +191,8 @@ export async function POST(request) {
     }
     
     const query = `
-      INSERT INTO schedule_template (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, week_type) 
+      INSERT INTO schedule_template 
+      (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week, week_type) 
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `;
@@ -262,6 +206,8 @@ export async function POST(request) {
       parseInt(day_of_week),
       week_type || 'all'
     ]);
+
+    console.log('✅ Занятие создано, ID:', result.rows[0].id);
 
     return NextResponse.json({ success: true, id: result.rows[0].id });
   } catch (error) {
