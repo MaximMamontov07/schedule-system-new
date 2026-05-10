@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
-// import * as XLSX from 'xlsx';exportToExcel 
+import * as XLSX from 'xlsx';
 
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
 
@@ -874,38 +874,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     </div>
   );
 };
- const checkConflicts = async () => {
-  if (!editingLesson?.date || !editingLesson?.group_id || !editingLesson?.teacher_id) {
-    showNotification('Заполните дату, группу и преподавателя', 'warning');
-    return;
-  }
-  
-  try {
-    // Проверяем группу
-    const groupRes = await fetch(`/api/schedule?groupId=${editingLesson.group_id}&date=${editingLesson.date}&pairNumber=${editingLesson.pair_number}`);
-    const groupSchedule = await groupRes.json();
-    
-    // Проверяем преподавателя
-    const teacherRes = await fetch(`/api/schedule?teacherId=${editingLesson.teacher_id}&date=${editingLesson.date}&pairNumber=${editingLesson.pair_number}`);
-    const teacherSchedule = await teacherRes.json();
-    
-    let conflicts = [];
-    if (groupSchedule.length > 0) {
-      conflicts.push(`Группа уже занята: ${groupSchedule[0].subject_name}`);
-    }
-    if (teacherSchedule.length > 0) {
-      conflicts.push(`Преподаватель уже занят: ${teacherSchedule[0].subject_name} с группой ${teacherSchedule[0].group_name}`);
-    }
-    
-    if (conflicts.length > 0) {
-      alert(`⚠️ Найдены конфликты:\n${conflicts.join('\n')}`);
-    } else {
-      alert('✅ Конфликтов не найдено, можно добавлять занятие');
-    }
-  } catch (error) {
-    console.error('Check conflict error:', error);
-  }
-};
+
 // ============ PublicScheduleView Component ============
 const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, loadScheduleForWeek }) => {
   const [showCalendar, setShowCalendar] = useState(false);
@@ -1485,62 +1454,60 @@ function HomeContent() {
   };
 
   const exportToExcel = () => {
-  console.log('📊 Начинаем экспорт...');
-  console.log('schedule length:', schedule.length);
-  
-  if (!schedule || schedule.length === 0) {
-    showNotification('Нет данных для экспорта', 'error');
-    return;
-  }
-  
-  // Преобразуем данные для Excel
-  const exportData = schedule.map(lesson => ({
-    'Дата': lesson.date || '-',
-    'День недели': DAYS[(lesson.day_of_week || 1) - 1] || '-',
-    'Пара': `${lesson.pair_number || '-'} пара (${PAIRS[lesson.pair_number - 1]?.time || '-'})`,
-    'Группа': lesson.group_name || '-',
-    'Предмет': lesson.subject_name || '-',
-    'Преподаватель': lesson.teacher_name || '-',
-    'Аудитория': lesson.classroom_name || '-',
-    'Заметки': lesson.notes || '-'
-  }));
-  
-  console.log('Экспортируем записей:', exportData.length);
-  
-  try {
-    // Создаем workbook и worksheet
-    const wb = XLSX.utils.book_new();
+    let exportData = [];
+    
+    if (activeTab === 'my-lessons' && isTeacher) {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      exportData = teacherLessons.map(lesson => ({
+        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (user && user.role === 'student' && user.groupId) {
+      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
+        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else if (selectedGroupFilter) {
+      exportData = schedule.filter(s => s.group_id === parseInt(selectedGroupFilter)).map(lesson => ({
+        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    } else {
+      exportData = schedule.map(lesson => ({
+        'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
+        'День недели': DAYS[lesson.day_of_week - 1],
+        'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
+        'Группа': lesson.group_name,
+        'Предмет': lesson.subject_name,
+        'Преподаватель': lesson.teacher_name,
+        'Аудитория': lesson.classroom_name || '—',
+        'Заметки': lesson.notes || '—'
+      }));
+    }
+
     const ws = XLSX.utils.json_to_sheet(exportData);
-    
-    // Настраиваем ширину колонок
-    ws['!cols'] = [
-      { wch: 12 }, // Дата
-      { wch: 12 }, // День недели
-      { wch: 20 }, // Пара
-      { wch: 12 }, // Группа
-      { wch: 25 }, // Предмет
-      { wch: 25 }, // Преподаватель
-      { wch: 12 }, // Аудитория
-      { wch: 30 }  // Заметки
-    ];
-    
-    // Добавляем лист в книгу
+    const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Расписание");
-    
-    // Генерируем имя файла
-    const fileName = `Расписание_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
-    
-    // Сохраняем файл
-    XLSX.writeFile(wb, fileName);
-    
-    showNotification(`Экспортировано ${exportData.length} занятий`, 'success');
-    console.log('Файл скачнг:', fileName);
-    
-  } catch (error) {
-    console.error('Ошибка экспорта:', error);
-    showNotification('Ошибка при создании Excel файла: ' + error.message, 'error');
-  }
-};
+    XLSX.writeFile(wb, `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showNotification('Excel файл сохранен', 'success');
+  };
 
   const exportToPDF = async () => {
     try {
@@ -1727,132 +1694,127 @@ function HomeContent() {
     setShowEditModal(true);
   };
 
-const handleAddLesson = async (e) => {
-  e.preventDefault();
-  if (!canEditSchedule) return showNotification('Нет прав', 'error');
-  
-  const lessonToSave = editingLesson;
-  
-  if (!lessonToSave) {
-    showNotification('Ошибка: данные занятия не найдены', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.date) {
-    showNotification('Выберите дату занятия', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.group_id) {
-    showNotification('Выберите группу', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.teacher_id) {
-    showNotification('Выберите преподавателя', 'error');
-    return;
-  }
-  
-  if (!lessonToSave.subject_id) {
-    showNotification('Выберите предмет', 'error');
-    return;
-  }
-  
-  const dataToSend = {
-    group_id: parseInt(lessonToSave.group_id),
-    teacher_id: parseInt(lessonToSave.teacher_id),
-    subject_id: parseInt(lessonToSave.subject_id),
-    classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
-    pair_number: parseInt(lessonToSave.pair_number),
-    day_of_week: parseInt(lessonToSave.day_of_week),
-    date: lessonToSave.date
-  };
-  
-  console.log('📤 Отправка данных на сервер:', dataToSend);
-
-  try {
-    const res = await fetch('/api/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(dataToSend)
-    });
+  // Обработчик создания нового занятия
+  const handleAddLesson = async (e) => {
+    e.preventDefault();
+    if (!canEditSchedule) return showNotification('Нет прав', 'error');
     
-    const result = await res.json();
-    console.log('📥 Ответ сервера:', result);
+    const lessonToSave = editingLesson;
     
-    if (res.ok) {
-      showNotification('Занятие добавлено', 'success');
-      setShowEditModal(false);
-      setEditingLesson(null);
-      if (activeTab === 'manage-schedule') {
-        await loadScheduleForWeekForManage();
-      } else {
-        await loadCurrentWeekSchedule(selectedGroupFilter);
-      }
-    } else if (res.status === 409 && result.conflict) {
-      // Конфликт - показываем специальное сообщение
-      showNotification(result.error, 'error');
-      // Дополнительно можно показать модальное окно с деталями конфликта
-      alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
-    } else {
-      showNotification(result.error || 'Ошибка сервера', 'error');
+    if (!lessonToSave) {
+      showNotification('Ошибка: данные занятия не найдены', 'error');
+      return;
     }
-  } catch (error) {
-    console.error('❌ Ошибка запроса:', error);
-    showNotification('Ошибка соединения с сервером', 'error');
-  }
-};
-
-// Аналогично для handleUpdateLesson
-const handleUpdateLesson = async (e) => {
-  e.preventDefault();
-  
-  if (!editingLesson) return;
-  
-  if (!editingLesson.date) {
-    showNotification('Выберите дату занятия', 'error');
-    return;
-  }
-  
-  const dataToSend = {
-    group_id: parseInt(editingLesson.group_id),
-    teacher_id: parseInt(editingLesson.teacher_id),
-    subject_id: parseInt(editingLesson.subject_id),
-    classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
-    pair_number: parseInt(editingLesson.pair_number),
-    day_of_week: parseInt(editingLesson.day_of_week),
-    date: editingLesson.date
-  };
-  
-  try {
-    const res = await fetch(`/api/schedule/${editingLesson.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(dataToSend)
-    });
     
-    const result = await res.json();
-    
-    if (res.ok) {
-      showNotification('Занятие обновлено', 'success');
-      setShowEditModal(false);
-      setEditingLesson(null);
-      if (activeTab === 'manage-schedule') {
-        await loadScheduleForWeekForManage();
-      } else {
-        await loadCurrentWeekSchedule(selectedGroupFilter);
-      }
-    } else if (res.status === 409 && result.conflict) {
-      showNotification(result.error, 'error');
-      alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
-    } else {
-      showNotification(result.error || 'Ошибка сервера', 'error');
+    if (!lessonToSave.date) {
+      showNotification('Выберите дату занятия', 'error');
+      return;
     }
-  } catch (error) {
-    console.error('Error:', error);
-    showNotification('Ошибка соединения с сервером', 'error');
-  }
-};
+    
+    if (!lessonToSave.group_id) {
+      showNotification('Выберите группу', 'error');
+      return;
+    }
+    
+    if (!lessonToSave.teacher_id) {
+      showNotification('Выберите преподавателя', 'error');
+      return;
+    }
+    
+    if (!lessonToSave.subject_id) {
+      showNotification('Выберите предмет', 'error');
+      return;
+    }
+    
+    // Отправляем дату как есть
+    const dataToSend = {
+      group_id: parseInt(lessonToSave.group_id),
+      teacher_id: parseInt(lessonToSave.teacher_id),
+      subject_id: parseInt(lessonToSave.subject_id),
+      classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
+      pair_number: parseInt(lessonToSave.pair_number),
+      day_of_week: parseInt(lessonToSave.day_of_week),
+      date: lessonToSave.date
+    };
+    
+    console.log('📤 Отправка данных на сервер:', dataToSend);
+
+    try {
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      const result = await res.json();
+      console.log('📥 Ответ сервера:', result);
+      
+      if (res.ok) {
+        showNotification('Занятие добавлено', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else {
+          await loadCurrentWeekSchedule(selectedGroupFilter);
+        }
+      } else {
+        showNotification(result.error || 'Ошибка сервера', 'error');
+      }
+    } catch (error) {
+      console.error('❌ Ошибка запроса:', error);
+      showNotification('Ошибка соединения с сервером', 'error');
+    }
+  };
+
+  // Обработчик редактирования занятия
+  const handleUpdateLesson = async (e) => {
+    e.preventDefault();
+    
+    if (!editingLesson) return;
+    
+    if (!editingLesson.date) {
+      showNotification('Выберите дату занятия', 'error');
+      return;
+    }
+    
+    const dataToSend = {
+      group_id: parseInt(editingLesson.group_id),
+      teacher_id: parseInt(editingLesson.teacher_id),
+      subject_id: parseInt(editingLesson.subject_id),
+      classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
+      pair_number: parseInt(editingLesson.pair_number),
+      day_of_week: parseInt(editingLesson.day_of_week),
+      date: editingLesson.date
+    };
+    
+    try {
+      const res = await fetch(`/api/schedule/${editingLesson.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      const result = await res.json();
+      
+      if (res.ok) {
+        showNotification('Занятие обновлено', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else {
+          await loadCurrentWeekSchedule(selectedGroupFilter);
+        }
+      } else {
+        showNotification(result.error || 'Ошибка сервера', 'error');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showNotification('Ошибка соединения с сервером', 'error');
+    }
+  };
+
   const handleDeleteLesson = async (id) => {
     if (!canEditSchedule) return showNotification('Нет прав', 'error');
     if (!confirm('Удалить занятие?')) return;
@@ -2415,7 +2377,7 @@ const handleUpdateLesson = async (e) => {
                 <span className="gradient-highlight">Колледжа</span>
               </h1>
               <p className="hero-description">
-               Платформа для просмотра расписания в колледже
+                Современная платформа для просмотра расписания в колледже
               </p>
               <div className="hero-buttons">
                 <button className="btn-primary" onClick={() => setShowLogin(true)}>
