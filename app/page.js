@@ -108,11 +108,12 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const selectedOption = options.find(opt => opt.value === value);
+  const safeOptions = Array.isArray(options) ? options : [];
+  const selectedOption = safeOptions.find(opt => opt?.value === value);
   
   useEffect(() => {
     if (isOpen && selectedOption) {
-      setSearchTerm(selectedOption.label);
+      setSearchTerm(selectedOption.label || '');
     } else if (!isOpen) {
       setSearchTerm('');
       setHighlightedIndex(-1);
@@ -120,10 +121,10 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
   }, [isOpen, selectedOption]);
 
   const filteredOptions = useMemo(() => {
-    if (!searchTerm.trim()) return options;
+    if (!searchTerm.trim()) return safeOptions;
     const term = searchTerm.toLowerCase();
-    return options.filter(opt => opt.label.toLowerCase().includes(term));
-  }, [options, searchTerm]);
+    return safeOptions.filter(opt => opt?.label?.toLowerCase().includes(term));
+  }, [safeOptions, searchTerm]);
 
   const handleKeyDown = (e) => {
     if (disabled) return;
@@ -1098,22 +1099,77 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 };
 
 // ============ TeacherPanel Component ============
+// ============ TeacherPanel Component (ИСПРАВЛЕННЫЙ) ============
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const weekDates = getWeekDates(new Date());
   
+  // Создаём стабильные ключи для каждого занятия
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
-      data.forEach(lesson => {
+      data.forEach((lesson, idx) => {
         const dayIndex = lesson.day_of_week - 1;
         const pairIndex = lesson.pair_number - 1;
         if (dayIndex >= 0 && dayIndex < 7 && pairIndex >= 0 && pairIndex < 6) {
-          matrix[dayIndex][pairIndex].push(lesson);
+          matrix[dayIndex][pairIndex].push({
+            ...lesson,
+            _uniqueId: lesson.id || `temp_${idx}_${Date.now()}`
+          });
         }
       });
     }
     return matrix;
   }, [data]);
+
+  // Компонент для отдельного занятия - вынесен наружу, чтобы хуки были стабильными
+  const LessonCard = ({ lesson, isChanged, isSaving, onNotesChange, onSave, onCancel }) => {
+    const currentData = localData[lesson.id] || { notes: lesson.notes || '' };
+    
+    return (
+      <div className="teacher-lesson-card">
+        <div className="lesson-header">
+          <h4 className="lesson-title">{lesson.subject_name}</h4>
+          <div className="lesson-badges">
+            <span className="lesson-group-tag">{lesson.group_name}</span>
+            {isChanged && <span className="unsaved-badge"><i className="fas fa-circle"></i> Не сохранено</span>}
+          </div>
+        </div>
+        {lesson.is_exception && (
+          <ExceptionBadge type={lesson.exception_type} notes={lesson.notes} />
+        )}
+        <div className="lesson-body">
+          <div className="lesson-info">
+            <i className="fas fa-door-open"></i>
+            <span>{lesson.classroom_name || 'Аудитория не указана'}</span>
+          </div>
+          {lesson.date && (
+            <div className="lesson-info">
+              <i className="fas fa-calendar-alt"></i>
+              <span>{formatDateRu(lesson.date)}</span>
+            </div>
+          )}
+          <textarea 
+            placeholder="Заметки (домашнее задание, материалы...)"
+            value={currentData.notes || ''}
+            onChange={(e) => onNotesChange(lesson.id, e.target.value)}
+            rows="2"
+            disabled={isSaving}
+            className="teacher-notes-textarea"
+          />
+          {isChanged && (
+            <div className="teacher-actions-modern">
+              <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="teacher-action-btn cancel">
+                <i className="fas fa-times"></i> Отмена
+              </button>
+              <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="teacher-action-btn save">
+                {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="schedule-grid-wrapper">
@@ -1159,62 +1215,26 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                 
                 return (
                   <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isToday ? 'today-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
-                    {hasLessons ? (
+                    {hasLessons && (
                       <div className="teacher-lessons-container">
-                        {lessons.map((lesson, idx) => {
-                          const currentData = localData[lesson.id] || { notes: lesson.notes || '' };
+                        {lessons.map((lesson) => {
                           const isChanged = hasChanges[lesson.id] || false;
                           const isSaving = saving[lesson.id] || false;
-                          
                           return (
-                            <div key={lesson.id || idx} className="teacher-lesson-card">
-                              <div className="lesson-header">
-                                <h4 className="lesson-title">{lesson.subject_name}</h4>
-                                <div className="lesson-badges">
-                                  <span className="lesson-group-tag">{lesson.group_name}</span>
-                                  {isChanged && <span className="unsaved-badge"><i className="fas fa-circle"></i> Не сохранено</span>}
-                                </div>
-                              </div>
-                              {lesson.is_exception && (
-                                <ExceptionBadge type={lesson.exception_type} notes={lesson.notes} />
-                              )}
-                              <div className="lesson-body">
-                                <div className="lesson-info">
-                                  <i className="fas fa-door-open"></i>
-                                  <span>{lesson.classroom_name || 'Аудитория не указана'}</span>
-                                </div>
-                                {lesson.date && (
-                                  <div className="lesson-info">
-                                    <i className="fas fa-calendar-alt"></i>
-                                    <span>{formatDateRu(lesson.date)}</span>
-                                  </div>
-                                )}
-                                <textarea 
-                                  placeholder="Заметки (домашнее задание, материалы...)"
-                                  value={currentData.notes || ''}
-                                  onChange={(e) => onNotesChange(lesson.id, e.target.value)}
-                                  rows="2"
-                                  disabled={isSaving}
-                                  className="teacher-notes-textarea"
-                                />
-                                {isChanged && (
-                                  <div className="teacher-actions-modern">
-                                    <button onClick={() => onCancel(lesson.id)} disabled={isSaving} className="teacher-action-btn cancel">
-                                      <i className="fas fa-times"></i> Отмена
-                                    </button>
-                                    <button onClick={() => onSave(lesson.id)} disabled={isSaving} className="teacher-action-btn save">
-                                      {isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                            <LessonCard
+                              key={lesson._uniqueId || lesson.id}
+                              lesson={lesson}
+                              isChanged={isChanged}
+                              isSaving={isSaving}
+                              onNotesChange={onNotesChange}
+                              onSave={onSave}
+                              onCancel={onCancel}
+                            />
                           );
                         })}
                       </div>
-                    ) : (
-                      <div className="empty-cell"></div>
                     )}
+                    {!hasLessons && <div className="empty-cell"></div>}
                   </td>
                 );
               })}
@@ -1318,7 +1338,6 @@ function HomeContent() {
   const [editingLesson, setEditingLesson] = useState(null);
   const [isExceptionMode, setIsExceptionMode] = useState(false);
   
-  // Кэш для расписания
   const [scheduleCache, setScheduleCache] = useState({});
   const [isScheduleLoading, setIsScheduleLoading] = useState(false);
 
@@ -1331,7 +1350,7 @@ function HomeContent() {
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  // Исправленная функция загрузки расписания с кэшированием
+  // Функция загрузки расписания с кэшированием
   const loadScheduleForWeek = useCallback(async (startDate, endDate, groupId = null) => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     const finalGroupId = groupId || selectedGroupFilter;
@@ -1343,7 +1362,6 @@ function HomeContent() {
     
     const cacheKey = `${finalGroupId}_${startDate}_${endDate}`;
     
-    // Проверяем кэш
     if (scheduleCache[cacheKey]) {
       console.log(`📦 Кэш: ${cacheKey}, занятий: ${scheduleCache[cacheKey].length}`);
       setSchedule(scheduleCache[cacheKey]);
@@ -1371,7 +1389,7 @@ function HomeContent() {
       }
       
       const scheduleData = await scheduleRes.json();
-      console.log(`✅ Загружено ${scheduleData.length} занятий для ${startDate} - ${endDate}`);
+      console.log(`✅ Загружено ${scheduleData.length} занятий`);
       
       setScheduleCache(prev => ({ ...prev, [cacheKey]: scheduleData }));
       setSchedule(scheduleData);
@@ -1409,6 +1427,7 @@ function HomeContent() {
   };
   
   const refreshSchedule = async () => {
+    setScheduleCache({}); // ОЧИЩАЕМ КЭШ ПРИ ОБНОВЛЕНИИ
     if (activeTab === 'manage-schedule') {
       await loadScheduleForWeekForManage();
     } else if (activeTab === 'schedule' && selectedGroupFilter) {
@@ -1722,7 +1741,7 @@ function HomeContent() {
     setSchedule([]);
     setSelectedGroupFilter('');
     setActiveTab('schedule');
-    setScheduleCache({}); // Очищаем кэш при выходе
+    setScheduleCache({});
   };
 
   const handleRegister = async (e) => {
@@ -1822,41 +1841,7 @@ function HomeContent() {
     setShowEditModal(true);
   };
 
-  const handleAddException = async (lesson) => {
-    try {
-      const dataToSend = {
-        group_id: parseInt(lesson.group_id),
-        teacher_id: parseInt(lesson.teacher_id),
-        subject_id: parseInt(lesson.subject_id),
-        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
-        pair_number: parseInt(lesson.pair_number),
-        exception_date: lesson.date,
-        exception_type: 'added'
-      };
-      
-      const res = await fetch('/api/schedule/exceptions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(dataToSend)
-      });
-      
-      if (res.ok) {
-        showNotification('Занятие добавлено только на эту дату', 'success');
-        setShowEditModal(false);
-        setEditingLesson(null);
-        setIsExceptionMode(false);
-        setScheduleCache({}); // Очищаем кэш
-        await refreshSchedule();
-      } else {
-        const error = await res.json();
-        showNotification(error.error || 'Ошибка', 'error');
-      }
-    } catch (error) {
-      console.error('Add exception error:', error);
-      showNotification('Ошибка соединения', 'error');
-    }
-  };
-
+  // ДОБАВЛЕНИЕ В ШАБЛОН
   const handleAddTemplate = async (lesson) => {
     try {
       const dataToSend = {
@@ -1869,24 +1854,68 @@ function HomeContent() {
         week_type: 'all'
       };
       
+      console.log('📤 Добавление в шаблон:', dataToSend);
+      
       const res = await fetch('/api/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(dataToSend)
       });
       
+      const result = await res.json();
+      console.log('📥 Ответ:', result);
+      
       if (res.ok) {
-        showNotification('Занятие добавлено в шаблон (будет повторяться каждую неделю)', 'success');
+        showNotification('Занятие добавлено в шаблон!', 'success');
         setShowEditModal(false);
         setEditingLesson(null);
-        setScheduleCache({}); // Очищаем кэш
-        await refreshSchedule();
+        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
+        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
       } else {
-        const error = await res.json();
-        showNotification(error.error || 'Ошибка', 'error');
+        showNotification(result.error || 'Ошибка', 'error');
       }
     } catch (error) {
       console.error('Add template error:', error);
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
+
+  // ДОБАВЛЕНИЕ ИСКЛЮЧЕНИЯ
+  const handleAddException = async (lesson) => {
+    try {
+      const dataToSend = {
+        group_id: parseInt(lesson.group_id),
+        teacher_id: parseInt(lesson.teacher_id),
+        subject_id: parseInt(lesson.subject_id),
+        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
+        pair_number: parseInt(lesson.pair_number),
+        exception_date: lesson.date,
+        exception_type: 'added'
+      };
+      
+      console.log('📤 Добавление исключения:', dataToSend);
+      
+      const res = await fetch('/api/schedule/exceptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      const result = await res.json();
+      console.log('📥 Ответ:', result);
+      
+      if (res.ok) {
+        showNotification('Занятие добавлено только на эту дату!', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        setIsExceptionMode(false);
+        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
+        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
+      } else {
+        showNotification(result.error || 'Ошибка', 'error');
+      }
+    } catch (error) {
+      console.error('Add exception error:', error);
       showNotification('Ошибка соединения', 'error');
     }
   };
@@ -1934,6 +1963,47 @@ function HomeContent() {
     }
   };
 
+  // ОБНОВЛЕНИЕ ШАБЛОНА
+  const handleUpdateTemplate = async (lesson) => {
+    try {
+      const dataToSend = {
+        id: lesson.id,
+        group_id: parseInt(lesson.group_id),
+        teacher_id: parseInt(lesson.teacher_id),
+        subject_id: parseInt(lesson.subject_id),
+        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
+        pair_number: parseInt(lesson.pair_number),
+        day_of_week: parseInt(lesson.day_of_week),
+        week_type: 'all'
+      };
+      
+      console.log('📤 Обновление шаблона:', dataToSend);
+      
+      const res = await fetch('/api/schedule', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      const result = await res.json();
+      console.log('📥 Ответ:', result);
+      
+      if (res.ok) {
+        showNotification('Занятие обновлено в шаблоне!', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
+        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
+      } else {
+        showNotification(result.error || 'Ошибка', 'error');
+      }
+    } catch (error) {
+      console.error('Update template error:', error);
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
+
+  // ОБНОВЛЕНИЕ ИСКЛЮЧЕНИЯ
   const handleUpdateException = async (lesson) => {
     try {
       let url = '/api/schedule/exceptions';
@@ -1954,60 +2024,29 @@ function HomeContent() {
         url = `/api/schedule/exceptions?id=${lesson.id}`;
       }
       
+      console.log('📤 Обновление исключения:', { method, url, body });
+      
       const res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(body)
       });
       
+      const result = await res.json();
+      console.log('📥 Ответ:', result);
+      
       if (res.ok) {
-        showNotification(`Изменение сохранено только для ${formatDateRu(lesson.date)}`, 'success');
+        showNotification(`Изменение сохранено только для ${formatDateRu(lesson.date)}!`, 'success');
         setShowEditModal(false);
         setEditingLesson(null);
         setIsExceptionMode(false);
-        setScheduleCache({}); // Очищаем кэш
-        await refreshSchedule();
+        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
+        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
       } else {
-        const error = await res.json();
-        showNotification(error.error || 'Ошибка', 'error');
+        showNotification(result.error || 'Ошибка', 'error');
       }
     } catch (error) {
       console.error('Update exception error:', error);
-      showNotification('Ошибка соединения', 'error');
-    }
-  };
-
-  const handleUpdateTemplate = async (lesson) => {
-    try {
-      const dataToSend = {
-        id: lesson.id,
-        group_id: parseInt(lesson.group_id),
-        teacher_id: parseInt(lesson.teacher_id),
-        subject_id: parseInt(lesson.subject_id),
-        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
-        pair_number: parseInt(lesson.pair_number),
-        day_of_week: parseInt(lesson.day_of_week),
-        week_type: 'all'
-      };
-      
-      const res = await fetch('/api/schedule', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(dataToSend)
-      });
-      
-      if (res.ok) {
-        showNotification('Изменение сохранено в шаблоне (будет на всех неделях)', 'success');
-        setShowEditModal(false);
-        setEditingLesson(null);
-        setScheduleCache({}); // Очищаем кэш
-        await refreshSchedule();
-      } else {
-        const error = await res.json();
-        showNotification(error.error || 'Ошибка', 'error');
-      }
-    } catch (error) {
-      console.error('Update template error:', error);
       showNotification('Ошибка соединения', 'error');
     }
   };
@@ -2053,6 +2092,7 @@ function HomeContent() {
     setShowEditModal(true);
   };
 
+  // УДАЛЕНИЕ
   const handleDeleteLesson = async (id, isException = false) => {
     if (!canEditSchedule) return showNotification('Нет прав', 'error');
     if (!confirm('Удалить занятие?')) return;
@@ -2062,6 +2102,7 @@ function HomeContent() {
       if (isException) {
         const exceptionId = id.toString().replace('exception_added_', '').replace('exception_', '');
         url = `/api/schedule/exceptions?id=${exceptionId}`;
+        console.log('📤 Удаление исключения:', url);
       } else {
         const lesson = schedule.find(l => l.id === id);
         if (lesson && lesson.date) {
@@ -2082,7 +2123,7 @@ function HomeContent() {
             });
             
             if (res.ok) {
-              showNotification('Занятие отменено на эту дату', 'success');
+              showNotification('Занятие отменено на эту дату!', 'success');
               setScheduleCache({});
               await refreshSchedule();
             } else {
@@ -2092,6 +2133,7 @@ function HomeContent() {
           }
         }
         url = `/api/schedule?id=${id}&isTemplate=true`;
+        console.log('📤 Удаление из шаблона:', url);
       }
       
       const res = await fetch(url, {
@@ -2100,9 +2142,9 @@ function HomeContent() {
       });
       
       if (res.ok) {
-        showNotification('Занятие удалено', 'success');
-        setScheduleCache({});
-        await refreshSchedule();
+        showNotification('Занятие удалено!', 'success');
+        setScheduleCache({}); // ОЧИЩАЕМ КЭШ
+        await refreshSchedule(); // ПЕРЕЗАГРУЖАЕМ
       } else {
         const error = await res.json();
         showNotification(error.error || 'Ошибка', 'error');
