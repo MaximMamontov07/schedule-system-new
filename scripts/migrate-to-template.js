@@ -1,5 +1,6 @@
 // scripts/migrate-to-template.js
-import sqlite3 from 'sqlite3';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -7,106 +8,97 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const dbPath = path.join(process.cwd(), 'database.db');
-const db = new sqlite3.Database(dbPath);
+// Загружаем переменные окружения
+dotenv.config({ path: path.join(process.cwd(), '.env.local') });
 
-console.log('🔄 Миграция на шаблонную систему...');
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-db.serialize(() => {
-  // Создаём таблицу шаблонов
-  db.run(`
-    CREATE TABLE IF NOT EXISTS schedule_template (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      group_id INTEGER NOT NULL,
-      teacher_id INTEGER NOT NULL,
-      subject_id INTEGER NOT NULL,
-      classroom_id INTEGER,
-      pair_number INTEGER NOT NULL,
-      day_of_week INTEGER NOT NULL,
-      week_type TEXT DEFAULT 'all', -- 'all', 'even', 'odd'
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (group_id) REFERENCES groups(id),
-      FOREIGN KEY (teacher_id) REFERENCES teachers(id),
-      FOREIGN KEY (subject_id) REFERENCES subjects(id),
-      FOREIGN KEY (classroom_id) REFERENCES classrooms(id)
-    )
-  `);
-  console.log('✅ Таблица schedule_template создана');
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Ошибка: NEXT_PUBLIC_SUPABASE_URL или SUPABASE_KEY не заданы');
+  process.exit(1);
+}
 
-  // Создаём таблицу исключений
-  db.run(`
-    CREATE TABLE IF NOT EXISTS schedule_exceptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      template_id INTEGER, -- ссылка на шаблон, который заменяем (опционально)
-      group_id INTEGER NOT NULL,
-      teacher_id INTEGER,
-      subject_id INTEGER,
-      classroom_id INTEGER,
-      pair_number INTEGER,
-      day_of_week INTEGER,
-      exception_date TEXT NOT NULL, -- конкретная дата
-      exception_type TEXT NOT NULL, -- 'canceled', 'replaced', 'moved', 'added'
-      replacement_teacher_id INTEGER,
-      replacement_subject_id INTEGER,
-      replacement_classroom_id INTEGER,
-      replacement_pair_number INTEGER,
-      replacement_day_of_week INTEGER,
-      notes TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (group_id) REFERENCES groups(id),
-      FOREIGN KEY (teacher_id) REFERENCES teachers(id),
-      FOREIGN KEY (subject_id) REFERENCES subjects(id),
-      FOREIGN KEY (classroom_id) REFERENCES classrooms(id)
-    )
-  `);
-  console.log('✅ Таблица schedule_exceptions создана');
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Создаём индексы для быстрого поиска
-  db.run('CREATE INDEX IF NOT EXISTS idx_exceptions_date ON schedule_exceptions(exception_date)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_exceptions_group ON schedule_exceptions(group_id)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_template_group ON schedule_template(group_id)');
+async function migrate() {
+  console.log('🔄 Начинаем миграцию данных в schedule_template...');
 
-  // Переносим существующие занятия в шаблон
-  db.all('SELECT * FROM schedule', (err, rows) => {
-    if (err) {
-      console.error('Ошибка чтения schedule:', err);
-      return;
+  // 1. Проверяем, есть ли данные в schedule
+  const { data: scheduleData, error: scheduleError } = await supabase
+    .from('schedule')
+    .select('*');
+
+  if (scheduleError) {
+    console.error('❌ Ошибка чтения schedule:', scheduleError);
+    return;
+  }
+
+  console.log(`📊 Найдено ${scheduleData?.length || 0} занятий в schedule`);
+
+  if (!scheduleData || scheduleData.length === 0) {
+    console.log('⚠️ Нет данных для миграции');
+    return;
+  }
+
+  // 2. Переносим каждое занятие в schedule_template
+  let migrated = 0;
+  let errors = 0;
+
+  for (const lesson of scheduleData) {
+    // Проверяем, нет ли уже такого в шаблоне
+    const { data: existing } = await supabase
+      .from('schedule_template')
+      .select('id')
+      .eq('group_id', lesson.group_id)
+      .eq('day_of_week', lesson.day_of_week)
+      .eq('pair_number', lesson.pair_number)
+      .maybeSingle();
+
+    if (existing) {
+      console.log(`⏭️ Пропускаем дубликат: группа ${lesson.group_id}, день ${lesson.day_of_week}, пара ${lesson.pair_number}`);
+      continue;
     }
 
-    if (rows.length === 0) {
-      console.log('Нет существующих занятий для переноса');
-      return;
+    // Вставляем в шаблон
+    const templateData = {
+      group_id: lesson.group_id,
+      teacher_id: lesson.teacher_id,
+      subject_id: lesson.subject_id,
+      classroom_id: lesson.classroom_id || null,
+      pair_number: lesson.pair_number,
+      day_of_week: lesson.day_of_week,
+      week_type: 'all'
+    };
+
+    const { error: insertError } = await supabase
+      .from('schedule_template')
+      .insert(templateData);
+
+    if (insertError) {
+      console.error(`❌ Ошибка вставки:`, insertError);
+      errors++;
+    } else {
+      migrated++;
+      console.log(`✅ Перенесено: группа ${lesson.group_id}, день ${lesson.day_of_week}, пара ${lesson.pair_number}`);
     }
+  }
 
-    const stmt = db.prepare(`
-      INSERT INTO schedule_template 
-      (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
+  console.log(`\n📊 Результат миграции:`);
+  console.log(`   - Всего занятий в schedule: ${scheduleData.length}`);
+  console.log(`   - Перенесено в template: ${migrated}`);
+  console.log(`   - Ошибок: ${errors}`);
 
-    rows.forEach(row => {
-      stmt.run([
-        row.group_id,
-        row.teacher_id,
-        row.subject_id,
-        row.classroom_id,
-        row.pair_number,
-        row.day_of_week
-      ]);
-    });
+  // 3. Проверяем результат
+  const { count: templateCount, error: countError } = await supabase
+    .from('schedule_template')
+    .select('*', { count: 'exact', head: true });
 
-    stmt.finalize();
-    console.log(`✅ Перенесено ${rows.length} занятий в шаблон`);
-  });
+  if (!countError) {
+    console.log(`   - Всего в template теперь: ${templateCount}`);
+  }
 
-  console.log('\n📌 ВАЖНО: старые занятия остались в таблице schedule для истории');
-  console.log('🔧 Новая система:');
-  console.log('   - schedule_template: шаблон расписания');
-  console.log('   - schedule_exceptions: изменения на конкретные дни');
-  console.log('   - schedule (старая): для истории/бэкапа');
-});
-
-setTimeout(() => {
   console.log('\n✨ Миграция завершена!');
-  db.close();
-}, 1000);
+}
+
+migrate();
