@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
+// app/api/schedule/route.js - обновлённая GET часть
+
 // GET - возвращает расписание на неделю с учётом шаблона и исключений
 export async function GET(request) {
   try {
@@ -26,7 +28,25 @@ export async function GET(request) {
       return NextResponse.json(schedule);
     }
 
-    // Fallback - возвращаем пустой массив
+    // Для обратной совместимости
+    if (teacherId) {
+      // Получаем расписание для преподавателя
+      const result = await db.query(`
+        SELECT 
+          s.*,
+          g.name as group_name,
+          sub.name as subject_name,
+          c.name as classroom_name
+        FROM schedule_template s
+        JOIN groups g ON s.group_id = g.id
+        JOIN subjects sub ON s.subject_id = sub.id
+        LEFT JOIN classrooms c ON s.classroom_id = c.id
+        WHERE s.teacher_id = $1
+        ORDER BY s.day_of_week, s.pair_number
+      `, [parseInt(teacherId)]);
+      return NextResponse.json(result.rows || []);
+    }
+
     return NextResponse.json([]);
   } catch (error) {
     console.error('Schedule GET error:', error);

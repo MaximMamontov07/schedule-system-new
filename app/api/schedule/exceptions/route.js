@@ -205,7 +205,7 @@ export async function DELETE(request) {
   }
 }
 
-// PUT - обновить исключение
+// PUT - обновить существующее исключение
 export async function PUT(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -224,25 +224,25 @@ export async function PUT(request) {
     const body = await request.json();
     
     const { 
-      group_id, teacher_id, subject_id, classroom_id, 
-      pair_number, exception_type, notes
+      teacher_id, subject_id, classroom_id, notes
     } = body;
 
-    await db.query(`
+    const result = await db.query(`
       UPDATE schedule_exceptions 
-      SET group_id = $1, teacher_id = $2, subject_id = $3, 
-          classroom_id = $4, pair_number = $5, exception_type = $6, notes = $7
-      WHERE id = $8
+      SET teacher_id = $1, subject_id = $2, classroom_id = $3, notes = $4
+      WHERE id = $5
+      RETURNING id
     `, [
-      parseInt(group_id),
       teacher_id ? parseInt(teacher_id) : null,
       subject_id ? parseInt(subject_id) : null,
       classroom_id ? parseInt(classroom_id) : null,
-      parseInt(pair_number),
-      exception_type,
       notes || null,
       parseInt(id)
     ]);
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Исключение не найдено' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

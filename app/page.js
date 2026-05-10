@@ -598,10 +598,10 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                         </button>
                       )
                     )}
-                   </td>
+                  </td>
                 );
               })}
-             </tr>
+            </tr>
           ))}
         </tbody>
       </table>
@@ -764,9 +764,13 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
     }
   }, [weekDates, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
 
+  // ИСПРАВЛЕННАЯ ФИЛЬТРАЦИЯ - теперь работает по всем полям
   const filteredSchedule = useMemo(() => {
     let filtered = [...schedule];
     
+    if (filters.groupId) {
+      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
+    }
     if (filters.teacherId) {
       filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
     }
@@ -935,9 +939,13 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
     }
   }, [weekDates, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
 
+  // ИСПРАВЛЕННАЯ ФИЛЬТРАЦИЯ
   const filteredSchedule = useMemo(() => {
     let filtered = [...schedule];
     
+    if (filters.groupId) {
+      filtered = filtered.filter(s => s.group_id === parseInt(filters.groupId));
+    }
     if (filters.teacherId) {
       filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
     }
@@ -1272,9 +1280,6 @@ function HomeContent() {
   
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [registerData, setRegisterData] = useState({ username: '', password: '', fullName: '', role: 'student', groupId: '' });
-  const [newLesson, setNewLesson] = useState({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1', date: '' });
-  const [editingLesson, setEditingLesson] = useState(null);
-  const [isExceptionMode, setIsExceptionMode] = useState(false); // Режим исключения (только для этой недели)
   const [newGroup, setNewGroup] = useState('');
   const [newTeacher, setNewTeacher] = useState('');
   const [newSubject, setNewSubject] = useState('');
@@ -1286,6 +1291,10 @@ function HomeContent() {
   const [localData, setLocalData] = useState({});
   const [hasChanges, setHasChanges] = useState({});
   const [saving, setSaving] = useState({});
+  
+  // Состояния для редактирования
+  const [editingLesson, setEditingLesson] = useState(null);
+  const [isExceptionMode, setIsExceptionMode] = useState(false);
 
   const showNotification = (msg, type = 'success') => {
     setNotification({ msg, type });
@@ -1296,21 +1305,35 @@ function HomeContent() {
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  // Функция для загрузки расписания за неделю с поддержкой шаблонов
+  // Функция для определения, нужно ли создавать исключение
+  const shouldCreateException = (date, originalLesson) => {
+    if (!date) return false;
+    
+    const lessonDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Если дата в прошлом ИЛИ это уже исключение
+    if (lessonDate < today || originalLesson?.is_exception) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Функция для загрузки расписания за неделю
   const loadScheduleForWeek = async (startDate, endDate, groupId = null) => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     
-    if (!groupId && selectedGroupFilter) {
-      groupId = selectedGroupFilter;
-    }
+    const finalGroupId = groupId || selectedGroupFilter;
     
-    if (!groupId) {
+    if (!finalGroupId) {
       setSchedule([]);
       return [];
     }
     
     try {
-      const url = `/api/schedule?weekStart=${startDate}&weekEnd=${endDate}&groupId=${groupId}`;
+      const url = `/api/schedule?weekStart=${startDate}&weekEnd=${endDate}&groupId=${finalGroupId}`;
       const scheduleRes = await fetch(url, { headers });
       const scheduleData = await scheduleRes.json();
       setSchedule(scheduleData);
@@ -1338,6 +1361,21 @@ function HomeContent() {
     await loadScheduleForWeek(startDate, endDate, selectedGroupFilter);
   };
   
+  const refreshSchedule = async () => {
+    if (activeTab === 'manage-schedule') {
+      await loadScheduleForWeekForManage();
+    } else if (activeTab === 'schedule' && selectedGroupFilter) {
+      await loadCurrentWeekSchedule(selectedGroupFilter);
+    } else if (activeTab === 'my-lessons' && user) {
+      const now = new Date();
+      const monday = getMonday(now);
+      const weekStart = formatForInput(monday);
+      const weekEnd = new Date(monday);
+      weekEnd.setDate(monday.getDate() + 6);
+      await loadScheduleForWeek(weekStart, formatForInput(weekEnd), null);
+    }
+  };
+  
   const loadData = async () => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
     
@@ -1354,7 +1392,7 @@ function HomeContent() {
       setSubjects(await subjectsRes.json());
       setClassrooms(await classroomsRes.json());
       
-      if (!isTeacher) {
+      if (!isTeacher && activeTab !== 'manage-schedule') {
         await loadCurrentWeekSchedule();
       }
     } catch (e) {
@@ -1721,7 +1759,7 @@ function HomeContent() {
     
     // Определяем, добавляем в шаблон или создаём исключение
     const isFutureDate = dateValue && new Date(dateValue) > new Date();
-    setIsExceptionMode(isFutureDate);
+    setIsExceptionMode(!isFutureDate); // Если дата в прошлом - исключение
     
     setEditingLesson({
       id: null,
@@ -1731,9 +1769,89 @@ function HomeContent() {
       classroom_id: '',
       pair_number: String(slotData.pair_number),
       day_of_week: String(slotData.day_of_week),
-      date: dateValue
+      date: dateValue,
+      is_exception: false
     });
     setShowEditModal(true);
+  };
+
+  // Обновление исключения (для прошлых дат или конкретных изменений)
+  const handleUpdateException = async (lesson) => {
+    try {
+      let url = '/api/schedule/exceptions';
+      let method = 'POST';
+      let body = {
+        group_id: parseInt(lesson.group_id),
+        teacher_id: parseInt(lesson.teacher_id),
+        subject_id: parseInt(lesson.subject_id),
+        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
+        pair_number: parseInt(lesson.pair_number),
+        exception_date: lesson.date,
+        exception_type: 'replaced',
+        notes: lesson.notes || null
+      };
+      
+      // Если у занятия есть ID исключения - обновляем
+      if (lesson.id && lesson.is_exception && typeof lesson.id === 'number') {
+        method = 'PUT';
+        url = `/api/schedule/exceptions?id=${lesson.id}`;
+      }
+      
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      
+      if (res.ok) {
+        showNotification(`Изменение сохранено только для ${formatDateRu(lesson.date)}`, 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        setIsExceptionMode(false);
+        await refreshSchedule();
+      } else {
+        const error = await res.json();
+        showNotification(error.error || 'Ошибка', 'error');
+      }
+    } catch (error) {
+      console.error('Update exception error:', error);
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
+
+  // Обновление шаблона (для будущих дат)
+  const handleUpdateTemplate = async (lesson) => {
+    try {
+      const dataToSend = {
+        id: lesson.id,
+        group_id: parseInt(lesson.group_id),
+        teacher_id: parseInt(lesson.teacher_id),
+        subject_id: parseInt(lesson.subject_id),
+        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
+        pair_number: parseInt(lesson.pair_number),
+        day_of_week: parseInt(lesson.day_of_week),
+        week_type: 'all'
+      };
+      
+      const res = await fetch('/api/schedule', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      if (res.ok) {
+        showNotification('Изменение сохранено в шаблоне (будет на всех неделях)', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        await refreshSchedule();
+      } else {
+        const error = await res.json();
+        showNotification(error.error || 'Ошибка', 'error');
+      }
+    } catch (error) {
+      console.error('Update template error:', error);
+      showNotification('Ошибка соединения', 'error');
+    }
   };
 
   const handleAddLesson = async (e) => {
@@ -1767,62 +1885,83 @@ function HomeContent() {
       return;
     }
     
-    const endpoint = isExceptionMode ? '/api/schedule/exceptions' : '/api/schedule';
+    const lessonDate = new Date(lessonToSave.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPastDate = lessonDate < today;
     
-    let dataToSend;
-    if (isExceptionMode) {
-      dataToSend = {
-        group_id: parseInt(lessonToSave.group_id),
-        teacher_id: parseInt(lessonToSave.teacher_id),
-        subject_id: parseInt(lessonToSave.subject_id),
-        classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
-        pair_number: parseInt(lessonToSave.pair_number),
-        exception_date: lessonToSave.date,
+    // Для прошлых дат всегда создаём исключение
+    if (isPastDate || isExceptionMode) {
+      await handleAddException(lessonToSave);
+    } else {
+      await handleAddTemplate(lessonToSave);
+    }
+  };
+
+  const handleAddException = async (lesson) => {
+    try {
+      const dataToSend = {
+        group_id: parseInt(lesson.group_id),
+        teacher_id: parseInt(lesson.teacher_id),
+        subject_id: parseInt(lesson.subject_id),
+        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
+        pair_number: parseInt(lesson.pair_number),
+        exception_date: lesson.date,
         exception_type: 'added'
       };
-    } else {
-      dataToSend = {
-        group_id: parseInt(lessonToSave.group_id),
-        teacher_id: parseInt(lessonToSave.teacher_id),
-        subject_id: parseInt(lessonToSave.subject_id),
-        classroom_id: lessonToSave.classroom_id ? parseInt(lessonToSave.classroom_id) : null,
-        pair_number: parseInt(lessonToSave.pair_number),
-        day_of_week: parseInt(lessonToSave.day_of_week),
-        week_type: 'all'
-      };
-    }
-    
-    console.log('📤 Отправка данных на сервер:', dataToSend);
-
-    try {
-      const res = await fetch(endpoint, {
+      
+      const res = await fetch('/api/schedule/exceptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(dataToSend)
       });
       
-      const result = await res.json();
-      console.log('📥 Ответ сервера:', result);
-      
       if (res.ok) {
-        showNotification(isExceptionMode ? 'Занятие добавлено (только на эту дату)' : 'Занятие добавлено в шаблон', 'success');
+        showNotification('Занятие добавлено только на эту дату', 'success');
         setShowEditModal(false);
         setEditingLesson(null);
         setIsExceptionMode(false);
-        if (activeTab === 'manage-schedule') {
-          await loadScheduleForWeekForManage();
-        } else {
-          await loadCurrentWeekSchedule(selectedGroupFilter);
-        }
-      } else if (res.status === 409 && result.conflict) {
-        showNotification(result.error, 'error');
-        alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
+        await refreshSchedule();
       } else {
-        showNotification(result.error || 'Ошибка сервера', 'error');
+        const error = await res.json();
+        showNotification(error.error || 'Ошибка', 'error');
       }
     } catch (error) {
-      console.error('❌ Ошибка запроса:', error);
-      showNotification('Ошибка соединения с сервером', 'error');
+      console.error('Add exception error:', error);
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
+
+  const handleAddTemplate = async (lesson) => {
+    try {
+      const dataToSend = {
+        group_id: parseInt(lesson.group_id),
+        teacher_id: parseInt(lesson.teacher_id),
+        subject_id: parseInt(lesson.subject_id),
+        classroom_id: lesson.classroom_id ? parseInt(lesson.classroom_id) : null,
+        pair_number: parseInt(lesson.pair_number),
+        day_of_week: parseInt(lesson.day_of_week),
+        week_type: 'all'
+      };
+      
+      const res = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(dataToSend)
+      });
+      
+      if (res.ok) {
+        showNotification('Занятие добавлено в шаблон (будет повторяться каждую неделю)', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        await refreshSchedule();
+      } else {
+        const error = await res.json();
+        showNotification(error.error || 'Ошибка', 'error');
+      }
+    } catch (error) {
+      console.error('Add template error:', error);
+      showNotification('Ошибка соединения', 'error');
     }
   };
 
@@ -1836,83 +1975,37 @@ function HomeContent() {
       return;
     }
     
-    // Если занятие является исключением
-    if (editingLesson.is_exception) {
-      // Обновляем исключение
-      try {
-        const res = await fetch(`/api/schedule/exceptions?id=${editingLesson.id.replace('exception_added_', '').replace('exception_', '')}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            group_id: parseInt(editingLesson.group_id),
-            teacher_id: parseInt(editingLesson.teacher_id),
-            subject_id: parseInt(editingLesson.subject_id),
-            classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
-            pair_number: parseInt(editingLesson.pair_number),
-            exception_type: 'replaced'
-          })
-        });
-        
-        if (res.ok) {
-          showNotification('Исключение обновлено', 'success');
-          setShowEditModal(false);
-          setEditingLesson(null);
-          if (activeTab === 'manage-schedule') {
-            await loadScheduleForWeekForManage();
-          } else {
-            await loadCurrentWeekSchedule(selectedGroupFilter);
-          }
-        } else {
-          const error = await res.json();
-          showNotification(error.error || 'Ошибка', 'error');
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        showNotification('Ошибка соединения', 'error');
-      }
-      return;
-    }
+    const lessonDate = new Date(editingLesson.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPastDate = lessonDate < today;
     
-    // Обновляем шаблон
-    const dataToSend = {
-      id: editingLesson.id,
-      group_id: parseInt(editingLesson.group_id),
-      teacher_id: parseInt(editingLesson.teacher_id),
-      subject_id: parseInt(editingLesson.subject_id),
-      classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
-      pair_number: parseInt(editingLesson.pair_number),
-      day_of_week: parseInt(editingLesson.day_of_week),
-      week_type: 'all'
-    };
-    
-    try {
-      const res = await fetch('/api/schedule', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(dataToSend)
-      });
-      
-      const result = await res.json();
-      
-      if (res.ok) {
-        showNotification('Занятие обновлено', 'success');
-        setShowEditModal(false);
-        setEditingLesson(null);
-        if (activeTab === 'manage-schedule') {
-          await loadScheduleForWeekForManage();
-        } else {
-          await loadCurrentWeekSchedule(selectedGroupFilter);
-        }
-      } else if (res.status === 409 && result.conflict) {
-        showNotification(result.error, 'error');
-        alert(`❌ Конфликт расписания!\n\n${result.error}\n\nПожалуйста, выберите другое время.`);
-      } else {
-        showNotification(result.error || 'Ошибка сервера', 'error');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      showNotification('Ошибка соединения с сервером', 'error');
+    // Если дата в прошлом ИЛИ это уже исключение - обновляем/создаём исключение
+    if (isPastDate || editingLesson.is_exception) {
+      await handleUpdateException(editingLesson);
+    } else {
+      await handleUpdateTemplate(editingLesson);
     }
+  };
+
+  const handleEditClick = (lesson) => {
+    console.log('✏️ Редактирование занятия:', lesson);
+    
+    // Определяем, нужно ли создавать исключение
+    const lessonDate = new Date(lesson.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPastDate = lessonDate < today;
+    
+    setIsExceptionMode(isPastDate || lesson.is_exception);
+    setEditingLesson({ 
+      ...lesson, 
+      date: lesson.date || '',
+      id: lesson.id,
+      is_exception: lesson.is_exception || false,
+      original_lesson: lesson
+    });
+    setShowEditModal(true);
   };
 
   const handleDeleteLesson = async (id, isException = false) => {
@@ -1924,64 +2017,55 @@ function HomeContent() {
       if (isException) {
         const exceptionId = id.toString().replace('exception_added_', '').replace('exception_', '');
         url = `/api/schedule/exceptions?id=${exceptionId}`;
-      } else if (typeof id === 'number') {
-        // Проверяем, есть ли дата у занятия и создаём исключение на отмену вместо удаления из шаблона
-        const lesson = schedule.find(l => l.id === id);
-        if (lesson && lesson.date && new Date(lesson.date) > new Date()) {
-          // Создаём исключение на отмену для будущей даты
-          const res = await fetch('/api/schedule/exceptions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({
-              group_id: lesson.group_id,
-              pair_number: lesson.pair_number,
-              exception_date: lesson.date,
-              exception_type: 'canceled'
-            })
-          });
-          
-          if (res.ok) {
-            showNotification('Занятие отменено на эту дату', 'success');
-            if (activeTab === 'manage-schedule') {
-              await loadScheduleForWeekForManage();
-            } else {
-              await loadCurrentWeekSchedule(selectedGroupFilter);
-            }
-          } else {
-            showNotification('Ошибка отмены занятия', 'error');
-          }
-          return;
-        }
-        url = `/api/schedule?id=${id}&isTemplate=true`;
       } else {
+        // Находим занятие, чтобы проверить дату
+        const lesson = schedule.find(l => l.id === id);
+        if (lesson && lesson.date) {
+          const lessonDate = new Date(lesson.date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          if (lessonDate < today) {
+            // Для прошлых дат создаём исключение на отмену
+            const res = await fetch('/api/schedule/exceptions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({
+                group_id: lesson.group_id,
+                pair_number: lesson.pair_number,
+                exception_date: lesson.date,
+                exception_type: 'canceled'
+              })
+            });
+            
+            if (res.ok) {
+              showNotification('Занятие отменено на эту дату', 'success');
+              await refreshSchedule();
+            } else {
+              showNotification('Ошибка отмены занятия', 'error');
+            }
+            return;
+          }
+        }
         url = `/api/schedule?id=${id}&isTemplate=true`;
       }
       
-      await fetch(url, {
+      const res = await fetch(url, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      showNotification('Занятие удалено', 'success');
-      if (activeTab === 'manage-schedule') {
-        await loadScheduleForWeekForManage();
+      
+      if (res.ok) {
+        showNotification('Занятие удалено', 'success');
+        await refreshSchedule();
       } else {
-        await loadCurrentWeekSchedule(selectedGroupFilter);
+        const error = await res.json();
+        showNotification(error.error || 'Ошибка', 'error');
       }
     } catch (e) {
       console.error('Delete error:', e);
       showNotification('Ошибка', 'error');
     }
-  };
-
-  const handleEditClick = (lesson) => {
-    setIsExceptionMode(lesson.is_exception || false);
-    setEditingLesson({ 
-      ...lesson, 
-      date: lesson.date || '',
-      id: lesson.id,
-      is_exception: lesson.is_exception || false
-    });
-    setShowEditModal(true);
   };
 
   const addDirectory = async (type, name, setShow, setValue) => {
@@ -2088,7 +2172,7 @@ function HomeContent() {
           delete newState[lessonId];
           return newState;
         });
-        await loadCurrentWeekSchedule();
+        await refreshSchedule();
       } else {
         const error = await res.json();
         showNotification(error.error || 'Ошибка сохранения', 'error');
@@ -2144,7 +2228,6 @@ function HomeContent() {
     }
   }, [manageCurrentDate, selectedGroupFilter, activeTab, token]);
 
-  // Загрузка расписания для преподавателя
   useEffect(() => {
     if (activeTab === 'my-lessons' && token && user && user.role === 'teacher') {
       const now = new Date();
@@ -2153,12 +2236,7 @@ function HomeContent() {
       const weekEnd = new Date(monday);
       weekEnd.setDate(monday.getDate() + 6);
       
-      const teacher = teachers.find(t => t.user_id === user.id);
-      if (teacher) {
-        loadScheduleForWeek(weekStart, formatForInput(weekEnd), null);
-      } else {
-        loadScheduleForWeek(weekStart, formatForInput(weekEnd), null);
-      }
+      loadScheduleForWeek(weekStart, formatForInput(weekEnd), null);
     }
   }, [activeTab, token, user, teachers]);
 
@@ -2284,7 +2362,7 @@ function HomeContent() {
             <div className="header-left">
               <h2><i className="fas fa-plus-circle"></i> Управление расписанием</h2>
               <div className="filter-hint">
-                <i className="fas fa-info-circle"></i> Занятия добавляются в шаблон. Для изменения на конкретную неделю используйте кнопку "Только на эту дату"
+                <i className="fas fa-info-circle"></i> Для изменения на конкретную неделю - выберите дату в прошлом или используйте опцию "Только на эту дату"
               </div>
             </div>
             <div className="header-actions">
@@ -2834,7 +2912,7 @@ function HomeContent() {
                 </select>
               </div>
               
-              {!editingLesson.is_exception && !editingLesson.id && (
+              {!editingLesson.id && !editingLesson.is_exception && (
                 <div className="form-group">
                   <label className="checkbox-label">
                     <input 
@@ -2866,7 +2944,7 @@ function HomeContent() {
                     value={editingLesson.day_of_week || '1'} 
                     onChange={(e) => setEditingLesson({...editingLesson, day_of_week: e.target.value})}
                     required
-                    disabled={!editingLesson.is_exception && !editingLesson.id && isExceptionMode}
+                    disabled={!editingLesson.id && isExceptionMode}
                   >
                     {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
                   </select>
@@ -2884,8 +2962,48 @@ function HomeContent() {
                 </div>
               </div>
               
+              {/* Информационное сообщение о типе изменения */}
+              {editingLesson.id && editingLesson.date && (
+                (() => {
+                  const lessonDate = new Date(editingLesson.date);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const isPast = lessonDate < today;
+                  
+                  if (isPast) {
+                    return (
+                      <div className="warning-message" style={{ 
+                        background: 'rgba(193, 102, 107, 0.1)', 
+                        padding: '10px', 
+                        borderRadius: '8px', 
+                        marginBottom: '16px',
+                        color: 'var(--danger)',
+                        fontSize: '0.85rem'
+                      }}>
+                        <i className="fas fa-history"></i> Это занятие в прошлом. Изменение будет применено только к этой дате.
+                      </div>
+                    );
+                  } else if (!editingLesson.is_exception) {
+                    return (
+                      <div className="info-message" style={{ 
+                        background: 'rgba(44, 95, 45, 0.1)', 
+                        padding: '10px', 
+                        borderRadius: '8px', 
+                        marginBottom: '16px',
+                        color: 'var(--success)',
+                        fontSize: '0.85rem'
+                      }}>
+                        <i className="fas fa-calendar-week"></i> Это будущее занятие. Изменение будет применено ко всем неделям (шаблон).
+                      </div>
+                    );
+                  }
+                  return null;
+                })()
+              )}
+              
               <button type="submit" className="submit-btn">
-                <i className="fas fa-save"></i> {editingLesson.id ? ' Сохранить изменения' : (isExceptionMode && !editingLesson.id ? ' Добавить только на эту дату' : ' Добавить в шаблон')}
+                <i className="fas fa-save"></i> 
+                {editingLesson.id ? ' Сохранить изменения' : (isExceptionMode ? ' Добавить только на эту дату' : ' Добавить в шаблон')}
               </button>
             </form>
           </div>
