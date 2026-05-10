@@ -116,6 +116,18 @@ const formatDate = (date) => {
   return `${date.getDate()} ${months[date.getMonth()]}`;
 };
 
+const getWeekNumber = (date) => {
+  if (typeof date === 'string') {
+    date = parseLocalDate(date);
+    if (!date) return 1;
+  }
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+};
+
 const getMonday = (date) => {
   if (typeof date === 'string') {
     date = parseLocalDate(date);
@@ -143,6 +155,18 @@ const getWeekDates = (date) => {
   return dates;
 };
 
+const isToday = (date) => {
+  if (!date) return false;
+  if (typeof date === 'string') {
+    date = parseLocalDate(date);
+  }
+  if (!date) return false;
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear();
+};
+
 // ============ SearchableSelect Component ============
 const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -168,6 +192,48 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
     return options.filter(opt => opt.label.toLowerCase().includes(term));
   }, [options, searchTerm]);
 
+  const handleKeyDown = (e) => {
+    if (disabled) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (!isOpen) {
+          setIsOpen(true);
+        } else {
+          setHighlightedIndex(prev => prev < filteredOptions.length - 1 ? prev + 1 : prev);
+        }
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (isOpen && highlightedIndex >= 0 && filteredOptions[highlightedIndex]) {
+          handleSelect(filteredOptions[highlightedIndex]);
+        } else if (isOpen && filteredOptions.length === 1) {
+          handleSelect(filteredOptions[0]);
+        } else if (!isOpen) {
+          setIsOpen(true);
+        }
+        break;
+      case 'Escape':
+        setIsOpen(false);
+        setSearchTerm('');
+        setHighlightedIndex(-1);
+        if (inputRef.current) inputRef.current.blur();
+        break;
+      case 'Tab':
+        setIsOpen(false);
+        break;
+      default:
+        if (!isOpen && e.key.length === 1) {
+          setIsOpen(true);
+        }
+    }
+  };
+
   const handleSelect = (option) => {
     onChange(option.value);
     setIsOpen(false);
@@ -181,38 +247,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
     setHighlightedIndex(-1);
   };
 
-  const handleKeyDown = (e) => {
-    if (disabled) return;
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        if (!isOpen) setIsOpen(true);
-        else setHighlightedIndex(prev => prev < filteredOptions.length - 1 ? prev + 1 : prev);
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setHighlightedIndex(prev => prev > 0 ? prev - 1 : -1);
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (isOpen && highlightedIndex >= 0 && filteredOptions[highlightedIndex]) {
-          handleSelect(filteredOptions[highlightedIndex]);
-        } else if (isOpen && filteredOptions.length === 1) {
-          handleSelect(filteredOptions[0]);
-        } else if (!isOpen) setIsOpen(true);
-        break;
-      case 'Escape':
-        setIsOpen(false);
-        setSearchTerm('');
-        setHighlightedIndex(-1);
-        if (inputRef.current) inputRef.current.blur();
-        break;
-      case 'Tab':
-        setIsOpen(false);
-        break;
-    }
-  };
-
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -224,6 +258,11 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const getDisplayValue = () => {
+    if (isOpen) return searchTerm;
+    return selectedOption?.label || '';
+  };
 
   if (disabled) {
     return (
@@ -245,14 +284,26 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
           type="text"
           className="searchable-select-input-field"
           placeholder={placeholder}
-          value={isOpen ? searchTerm : (selectedOption?.label || '')}
+          value={getDisplayValue()}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(true);
+          }}
         />
         <div className="searchable-select-icons">
           {value && (
-            <button className="searchable-select-clear-btn" onClick={() => onChange('')}>
+            <button 
+              className="searchable-select-clear-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+                setSearchTerm('');
+              }}
+              title="Очистить"
+            >
               <i className="fas fa-times-circle"></i>
             </button>
           )}
@@ -264,7 +315,9 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
         <div className="searchable-select-dropdown">
           <div className="searchable-select-options">
             {filteredOptions.length === 0 ? (
-              <div className="searchable-select-empty">Ничего не найдено</div>
+              <div className="searchable-select-empty">
+                <i className="fas fa-search"></i> Ничего не найдено
+              </div>
             ) : (
               filteredOptions.map((option, idx) => (
                 <div
@@ -275,7 +328,11 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
                 >
                   <div className="searchable-select-option-content">
                     <span className="searchable-select-option-label">{option.label}</span>
-                    {value === option.value && <i className="fas fa-check"></i>}
+                    {value === option.value && (
+                      <span className="searchable-select-option-check">
+                        <i className="fas fa-check"></i>
+                      </span>
+                    )}
                   </div>
                 </div>
               ))
@@ -283,6 +340,153 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// ============ DatePicker Component ============
+const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
+  const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date());
+  const [viewMode, setViewMode] = useState('month');
+  
+  const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+  const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    
+    const days = [];
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      days.push({
+        date: new Date(year, month, -i),
+        isCurrentMonth: false,
+        day: prevMonthLastDay - i
+      });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true,
+        day: i
+      });
+    }
+    const remainingDays = 42 - days.length;
+    for (let i = 1; i <= remainingDays; i++) {
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false,
+        day: i
+      });
+    }
+    
+    return days;
+  };
+  
+  const changeMonth = (delta) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1));
+  };
+  
+  const isTodayDate = (date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
+  
+  const isSelected = (date) => {
+    return selectedDate && 
+           date.getDate() === selectedDate.getDate() &&
+           date.getMonth() === selectedDate.getMonth() &&
+           date.getFullYear() === selectedDate.getFullYear();
+  };
+  
+  const handleDateClick = (date) => {
+    onDateSelect(date);
+    onClose();
+  };
+  
+  const years = [];
+  const currentYear = currentMonth.getFullYear();
+  for (let i = currentYear - 5; i <= currentYear + 5; i++) {
+    years.push(i);
+  }
+  
+  return (
+    <div className="datepicker-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="datepicker-header">
+        <div className="datepicker-nav">
+          <button onClick={() => changeMonth(-1)} className="datepicker-nav-btn">
+            <i className="fas fa-chevron-left"></i>
+          </button>
+          <button 
+            className="datepicker-month-year"
+            onClick={() => setViewMode(viewMode === 'month' ? 'year' : 'month')}
+          >
+            {viewMode === 'month' ? (
+              <span>{months[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
+            ) : (
+              <span>{currentMonth.getFullYear()}</span>
+            )}
+            <i className="fas fa-chevron-down"></i>
+          </button>
+          <button onClick={() => changeMonth(1)} className="datepicker-nav-btn">
+            <i className="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <button className="datepicker-close" onClick={onClose}>
+          <i className="fas fa-times"></i>
+        </button>
+      </div>
+      
+      {viewMode === 'month' ? (
+        <>
+          <div className="datepicker-weekdays">
+            {weekdays.map(day => (
+              <div key={day} className="datepicker-weekday">{day}</div>
+            ))}
+          </div>
+          <div className="datepicker-days">
+            {getDaysInMonth(currentMonth).map((day, idx) => (
+              <button
+                key={idx}
+                className={`datepicker-day ${!day.isCurrentMonth ? 'other-month' : ''} ${isTodayDate(day.date) ? 'today' : ''} ${isSelected(day.date) ? 'selected' : ''}`}
+                onClick={() => handleDateClick(day.date)}
+              >
+                {day.day}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="datepicker-years">
+          {years.map(year => (
+            <button
+              key={year}
+              className={`datepicker-year ${year === currentMonth.getFullYear() ? 'active' : ''}`}
+              onClick={() => {
+                setCurrentMonth(new Date(year, currentMonth.getMonth(), 1));
+                setViewMode('month');
+              }}
+            >
+              {year}
+            </button>
+          ))}
+        </div>
+      )}
+      
+      <div className="datepicker-footer">
+        <button className="datepicker-today-btn" onClick={() => {
+          const today = new Date();
+          handleDateClick(today);
+        }}>
+          <i className="fas fa-calendar-day"></i> Сегодня
+        </button>
+      </div>
     </div>
   );
 };
@@ -308,13 +512,19 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
       <table className="schedule-grid">
         <thead>
           <tr>
-            <th className="time-header">Время</th>
+            <th className="time-header">
+              <div className="time-header-content">
+                <i className="fas fa-clock"></i>
+                <span>Время</span>
+              </div>
+            </th>
             {DAYS.map((day, idx) => {
               const date = weekDates?.[idx];
-              const isToday = date && date.toDateString() === new Date().toDateString();
+              const isTodayDate = date && date.toDateString() === new Date().toDateString();
+              const isSelectedDate = selectedDate && date && date.toDateString() === selectedDate.toDateString();
               const isWeekend = idx === 5 || idx === 6;
               return (
-                <th key={day} className={`day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}>
+                <th key={day} className={`day-header ${isTodayDate ? 'today' : ''} ${isSelectedDate ? 'selected' : ''} ${isWeekend ? 'weekend' : ''}`}>
                   <div className="day-header-content">
                     <span className="day-name">{day}</span>
                     <span className="day-date">{date ? formatDate(date) : ''}</span>
@@ -337,18 +547,25 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                 const lessons = scheduleMatrix[dayIndex][pair.number - 1];
                 const hasLessons = lessons.length > 0;
                 const date = weekDates?.[dayIndex];
+                const isTodayDate = date && date.toDateString() === new Date().toDateString();
+                const isSelectedDate = selectedDate && date && date.toDateString() === selectedDate.toDateString();
+                const isWeekend = dayIndex === 5 || dayIndex === 6;
                 const dateStr = date ? formatForInput(date) : '';
                 
                 return (
-                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'}`}>
+                  <td key={`${dayIndex}-${pair.number}`} className={`lesson-cell ${hasLessons ? 'has-lessons' : 'empty'} ${isTodayDate ? 'today-column' : ''} ${isSelectedDate ? 'selected-column' : ''} ${isWeekend ? 'weekend-column' : ''}`}>
                     {hasLessons ? (
                       <div className="lessons-container">
                         {lessons.map((lesson, idx) => (
-                          <div key={lesson.id || idx} className="lesson-card-modern">
+                          <div key={lesson.id || idx} className="lesson-card-modern" style={{ borderLeftColor: lesson.is_exception ? 'var(--warning)' : 'var(--primary)' }}>
                             <div className="lesson-header">
                               <h4 className="lesson-title">{lesson.subject_name}</h4>
                               <span className="lesson-group-tag">{lesson.group_name}</span>
-                              {lesson.is_exception && <span className="exception-badge"><i className="fas fa-edit"></i> изменено</span>}
+                              {lesson.is_exception && (
+                                <span className="exception-badge" title="Изменено вручную">
+                                  <i className="fas fa-edit"></i>
+                                </span>
+                              )}
                             </div>
                             <div className="lesson-body">
                               <div className="lesson-info">
@@ -361,25 +578,60 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
                                   <span>{lesson.classroom_name}</span>
                                 </div>
                               )}
-                              {lesson.notes && <div className="lesson-notes-badge">{lesson.notes}</div>}
+                              {lesson.date && (
+                                <div className="lesson-info">
+                                  <i className="fas fa-calendar-alt"></i>
+                                  <span>{formatDateRu(lesson.date)}</span>
+                                </div>
+                              )}
+                              {lesson.notes && (
+                                <div className="lesson-notes-badge" title={lesson.notes}>
+                                  <i className="fas fa-sticky-note"></i>
+                                  <span>{lesson.notes.length > 35 ? lesson.notes.substring(0, 35) + '...' : lesson.notes}</span>
+                                </div>
+                              )}
                             </div>
                             {canEdit && (
                               <div className="lesson-actions-modern">
-                                <button className="lesson-action-btn edit" onClick={() => onEditClick(lesson)}><i className="fas fa-edit"></i></button>
-                                <button className="lesson-action-btn delete" onClick={() => onDeleteClick(lesson.id)}><i className="fas fa-trash-alt"></i></button>
+                                <button className="lesson-action-btn edit" onClick={() => onEditClick(lesson)} title="Редактировать">
+                                  <i className="fas fa-edit"></i>
+                                </button>
+                                <button className="lesson-action-btn delete" onClick={() => onDeleteClick(lesson.id)} title="Удалить">
+                                  <i className="fas fa-trash-alt"></i>
+                                </button>
                               </div>
                             )}
                           </div>
                         ))}
-                        {canEdit && onAddClick && (
-                          <button className="add-lesson-btn-mini" onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: dateStr })}>
+                        {canEdit && onAddClick && lessons.length < 6 && (
+                          <button 
+                            className="add-lesson-btn-mini"
+                            onClick={() => {
+                              onAddClick({ 
+                                day_of_week: dayIndex + 1, 
+                                pair_number: pair.number, 
+                                date: dateStr
+                              });
+                            }}
+                            title="Добавить занятие"
+                          >
                             <i className="fas fa-plus"></i> Добавить
                           </button>
                         )}
                       </div>
                     ) : (
                       canEdit && onAddClick && (
-                        <button className="add-lesson-btn" onClick={() => onAddClick({ day_of_week: dayIndex + 1, pair_number: pair.number, date: dateStr })}>
+                        <button 
+                          className="add-lesson-btn"
+                          onClick={() => {
+                            onAddClick({ 
+                              day_of_week: dayIndex + 1, 
+                              pair_number: pair.number, 
+                              date: dateStr
+                            });
+                          }}
+                          title="Добавить занятие"
+                        >
                           <i className="fas fa-plus"></i>
                         </button>
                       )
@@ -391,6 +643,126 @@ const ScheduleGrid = ({ data, canEdit = false, onEditClick, onDeleteClick, onAdd
           ))}
         </tbody>
       </table>
+    </div>
+  );
+};
+
+// ============ FilterSection Component ============
+const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, currentDate, onPrevWeek, onNextWeek, onCurrentWeek, hasActiveFilters, showGroupFilter = true, isStudent = false, selectedGroupId, onGroupChange }) => {
+  const weekDates = getWeekDates(currentDate);
+  const weekStart = weekDates[0];
+  const weekEnd = weekDates[6];
+  
+  const groupOptions = groups?.map(g => ({ value: String(g.id), label: g.name })) || [];
+  const teacherOptions = teachers?.map(t => ({ value: String(t.id), label: t.name })) || [];
+  const subjectOptions = subjects?.map(s => ({ value: String(s.id), label: s.name })) || [];
+  const classroomOptions = classrooms?.map(c => ({ value: String(c.id), label: c.name })) || [];
+  const dayOptions = DAYS.map((day, idx) => ({ value: String(idx + 1), label: day }));
+  const pairOptions = PAIRS.map(p => ({ value: String(p.number), label: `${p.name} (${p.time})` }));
+  
+  return (
+    <div className="filter-section">
+      <div className="filter-section-header">
+        <div className="week-navigation">
+          <button className="calendar-icon-btn" onClick={onOpenCalendar} title="Выбрать дату">
+            <i className="fas fa-calendar-alt"></i>
+            {currentDate && <span className="selected-date-badge">{currentDate.getDate()}.{currentDate.getMonth() + 1}</span>}
+          </button>
+          
+          <div className="week-controls">
+            <button onClick={onPrevWeek} className="week-nav-btn" title="Предыдущая неделя">
+              <i className="fas fa-chevron-left"></i>
+            </button>
+            <div className="week-display">
+              <i className="fas fa-calendar-week"></i>
+              <span>{formatDate(weekStart)} - {formatDate(weekEnd)}</span>
+              <span className="week-number">({getWeekNumber(weekStart)} неделя)</span>
+            </div>
+            <button onClick={onNextWeek} className="week-nav-btn" title="Следующая неделя">
+              <i className="fas fa-chevron-right"></i>
+            </button>
+            <button onClick={onCurrentWeek} className="week-today-btn" title="Текущая неделя">
+              <i className="fas fa-calendar-day"></i> Сегодня
+            </button>
+          </div>
+        </div>
+        <button className="reset-filters-btn" onClick={onReset}>
+          <i className="fas fa-undo-alt"></i> Сбросить фильтры
+        </button>
+      </div>
+      
+      <div className="filter-grid">
+        {showGroupFilter && !isStudent && (
+          <div className="filter-group">
+            <SearchableSelect
+              options={groupOptions}
+              value={selectedGroupId ? String(selectedGroupId) : filters.groupId}
+              onChange={(val) => {
+                if (onGroupChange) onGroupChange(val);
+                onFilterChange('groupId', val);
+              }}
+              placeholder="Выберите группу"
+              label="Группа"
+              icon="fas fa-users"
+            />
+          </div>
+        )}
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={teacherOptions}
+            value={filters.teacherId}
+            onChange={(val) => onFilterChange('teacherId', val)}
+            placeholder="Выберите преподавателя"
+            label="Преподаватель"
+            icon="fas fa-chalkboard-teacher"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={subjectOptions}
+            value={filters.subjectId}
+            onChange={(val) => onFilterChange('subjectId', val)}
+            placeholder="Выберите предмет"
+            label="Предмет"
+            icon="fas fa-book"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={dayOptions}
+            value={filters.dayOfWeek}
+            onChange={(val) => onFilterChange('dayOfWeek', val)}
+            placeholder="Выберите день"
+            label="День недели"
+            icon="fas fa-calendar-day"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={pairOptions}
+            value={filters.pairNumber}
+            onChange={(val) => onFilterChange('pairNumber', val)}
+            placeholder="Выберите пару"
+            label="Пара"
+            icon="fas fa-clock"
+          />
+        </div>
+
+        <div className="filter-group">
+          <SearchableSelect
+            options={classroomOptions}
+            value={filters.classroomId}
+            onChange={(val) => onFilterChange('classroomId', val)}
+            placeholder="Выберите аудиторию"
+            label="Аудитория"
+            icon="fas fa-door-open"
+          />
+        </div>
+      </div>
     </div>
   );
 };
@@ -444,6 +816,7 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
   };
   
   const deleteTemplate = async (dayOfWeek, pairNumber) => {
+    if (!confirm('Удалить шаблон для этой пары?')) return;
     try {
       const res = await fetch(`/api/schedule-templates?groupId=${selectedGroup}&dayOfWeek=${dayOfWeek}&pairNumber=${pairNumber}`, {
         method: 'DELETE',
@@ -533,7 +906,11 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
       dayName: DAYS[dayOfWeek - 1],
       pairName: PAIRS[pairNumber - 1].name,
       pairTime: PAIRS[pairNumber - 1].time,
-      template: existingTemplate || { teacher_id: '', subject_id: '', classroom_id: '' }
+      template: existingTemplate ? { 
+        teacher_id: existingTemplate.teacher_id || '',
+        subject_id: existingTemplate.subject_id || '',
+        classroom_id: existingTemplate.classroom_id || ''
+      } : { teacher_id: '', subject_id: '', classroom_id: '' }
     });
     setShowTemplateEditor(true);
   };
@@ -572,9 +949,9 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
                     <td key={`${dayIdx}-${pair.number}`} className="lesson-cell">
                       {tpl ? (
                         <div className="template-lesson-card">
-                          <div className="template-lesson-subject">{tpl.subject_name || '—'}</div>
-                          <div className="template-lesson-teacher">{tpl.teacher_name || '—'}</div>
-                          <div className="template-lesson-classroom">{tpl.classroom_name || '—'}</div>
+                          <div className="template-lesson-subject"><strong>{tpl.subject_name || '—'}</strong></div>
+                          <div className="template-lesson-teacher"><i className="fas fa-chalkboard-teacher"></i> {tpl.teacher_name || '—'}</div>
+                          <div className="template-lesson-classroom"><i className="fas fa-door-open"></i> {tpl.classroom_name || '—'}</div>
                           <div className="template-lesson-actions">
                             <button className="edit-template-btn" onClick={() => openTemplateEditor(dayIdx + 1, pair.number, tpl)}>
                               <i className="fas fa-edit"></i>
@@ -616,21 +993,6 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
       
       {selectedGroup && (
         <>
-          <div className="template-info">
-            <div className="info-banner">
-              <i className="fas fa-info-circle"></i>
-              <div>
-                <strong>Как работает система шаблонов:</strong>
-                <ul>
-                  <li>Заполните шаблон для выбранной группы (какая пара в какой день)</li>
-                  <li>Нажмите "Сгенерировать на неделю" — занятия создадутся на все дни выбранной недели</li>
-                  <li>Любые изменения в расписании на конкретной неделе будут сохранены и не затронут другие недели</li>
-                  <li>При повторной генерации обновятся только те занятия, которые не были изменены вручную</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
           <div className="filter-section" style={{ margin: '1rem', padding: '1rem' }}>
             <div className="filter-section-header">
               <div className="week-controls" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -657,6 +1019,21 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
             </div>
           </div>
           
+          <div className="template-info" style={{ margin: '0 1rem 1rem 1rem', padding: '1rem', background: 'var(--surface-muted)', borderRadius: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+              <i className="fas fa-info-circle" style={{ fontSize: '1.5rem', color: 'var(--primary)' }}></i>
+              <div>
+                <strong>Как работает система шаблонов:</strong>
+                <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0 }}>
+                  <li>Заполните шаблон для выбранной группы (какая пара в какой день)</li>
+                  <li>Нажмите "Сгенерировать на неделю" — занятия создадутся на все дни выбранной недели</li>
+                  <li>Любые изменения в расписании на конкретной неделе будут сохранены и не затронут другие недели</li>
+                  <li>При повторной генерации обновятся только те занятия, которые не были изменены вручную</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
           {renderTemplateGrid()}
         </>
       )}
@@ -677,13 +1054,13 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
               <button className="modal-close" onClick={() => setShowTemplateEditor(false)}><i className="fas fa-times"></i></button>
             </div>
             <div className="modal-form">
-              <div className="info-row" style={{ marginBottom: '1rem', padding: '0.5rem', background: 'var(--surface-muted)', borderRadius: '0.75rem' }}>
+              <div className="info-row" style={{ marginBottom: '1rem', padding: '0.75rem', background: 'var(--surface-muted)', borderRadius: '0.75rem' }}>
                 <span><strong>День:</strong> {editingSlot.dayName}</span>
                 <span style={{ marginLeft: '1rem' }}><strong>Пара:</strong> {editingSlot.pairName} ({editingSlot.pairTime})</span>
               </div>
               
               <div className="form-group">
-                <label>Предмет</label>
+                <label><i className="fas fa-book"></i> Предмет</label>
                 <select 
                   value={editingSlot.template.subject_id || ''}
                   onChange={(e) => setEditingSlot({
@@ -697,7 +1074,7 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
               </div>
               
               <div className="form-group">
-                <label>Преподаватель</label>
+                <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
                 <select 
                   value={editingSlot.template.teacher_id || ''}
                   onChange={(e) => setEditingSlot({
@@ -711,7 +1088,7 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
               </div>
               
               <div className="form-group">
-                <label>Аудитория (опционально)</label>
+                <label><i className="fas fa-door-open"></i> Аудитория (опционально)</label>
                 <select 
                   value={editingSlot.template.classroom_id || ''}
                   onChange={(e) => setEditingSlot({
@@ -733,7 +1110,7 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
                   });
                   setShowTemplateEditor(false);
                 }}>
-                  <i className="fas fa-save"></i> Сохранить
+                  <i className="fas fa-save"></i> Сохранить в шаблон
                 </button>
                 <button className="cancel-btn" onClick={() => setShowTemplateEditor(false)} style={{ padding: '0.75rem 1.5rem', background: 'var(--surface-muted)', border: 'none', borderRadius: '0.75rem', cursor: 'pointer' }}>
                   Отмена
@@ -743,6 +1120,186 @@ const TemplateManager = ({ groups, teachers, subjects, classrooms, token, showNo
           </div>
         </div>,
         document.body
+      )}
+    </div>
+  );
+};
+
+// ============ ScheduleView Component ============
+const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId, loadScheduleForWeek }) => {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState(userRole === 'student' ? userGroupId : null);
+  
+  const isStudent = userRole === 'student';
+  const [filters, setFilters] = useState({
+    groupId: isStudent && userGroupId ? String(userGroupId) : '',
+    teacherId: '',
+    subjectId: '',
+    dayOfWeek: '',
+    pairNumber: '',
+    classroomId: ''
+  });
+
+  useEffect(() => {
+    if (isStudent && userGroupId) {
+      setHasAppliedFilter(true);
+      setSelectedGroupId(userGroupId);
+    }
+  }, [isStudent, userGroupId]);
+
+  const weekDates = getWeekDates(currentDate);
+
+  useEffect(() => {
+    if (weekDates.length > 0 && loadScheduleForWeek && hasAppliedFilter) {
+      const startDate = formatForInput(weekDates[0]);
+      const endDate = formatForInput(weekDates[6]);
+      const groupId = selectedGroupId || filters.groupId;
+      loadScheduleForWeek(startDate, endDate, groupId);
+    }
+  }, [weekDates, loadScheduleForWeek, selectedGroupId, filters.groupId, hasAppliedFilter]);
+
+  const filteredSchedule = useMemo(() => {
+    let filtered = [...schedule];
+    
+    if (filters.teacherId) {
+      filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
+    }
+    if (filters.subjectId) {
+      filtered = filtered.filter(s => s.subject_id === parseInt(filters.subjectId));
+    }
+    if (filters.dayOfWeek) {
+      filtered = filtered.filter(s => s.day_of_week === parseInt(filters.dayOfWeek));
+    }
+    if (filters.pairNumber) {
+      filtered = filtered.filter(s => s.pair_number === parseInt(filters.pairNumber));
+    }
+    if (filters.classroomId) {
+      filtered = filtered.filter(s => s.classroom_id === parseInt(filters.classroomId));
+    }
+    
+    return filtered;
+  }, [schedule, filters]);
+
+  const handleFilterChange = (key, value) => {
+    if (key === 'groupId') {
+      setSelectedGroupId(value);
+    }
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setHasAppliedFilter(true);
+  };
+
+  const resetFilters = () => {
+    if (isStudent && userGroupId) {
+      setFilters({
+        groupId: String(userGroupId),
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setSelectedGroupId(userGroupId);
+      setHasAppliedFilter(true);
+    } else {
+      setFilters({
+        groupId: '',
+        teacherId: '',
+        subjectId: '',
+        dayOfWeek: '',
+        pairNumber: '',
+        classroomId: ''
+      });
+      setSelectedGroupId(null);
+      setHasAppliedFilter(false);
+    }
+    setCurrentDate(new Date());
+  };
+
+  const handleDateSelect = (date) => {
+    setCurrentDate(date);
+    setShowCalendar(false);
+  };
+
+  const handlePrevWeek = () => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(currentDate.getDate() - 7);
+    setCurrentDate(newDate);
+  };
+
+  const handleNextWeek = () => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(currentDate.getDate() + 7);
+    setCurrentDate(newDate);
+  };
+
+  const handleCurrentWeek = () => {
+    setCurrentDate(new Date());
+  };
+
+  const hasActiveFilters = filters.teacherId || filters.subjectId || filters.dayOfWeek || filters.pairNumber || filters.classroomId;
+
+  if (loading) {
+    return (
+      <div className="loading-state">
+        <div className="spinner"></div>
+        <p>Загрузка расписания...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="schedule-container">
+      <FilterSection 
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        groups={groups}
+        teachers={teachers}
+        subjects={subjects}
+        classrooms={classrooms}
+        onReset={resetFilters}
+        onOpenCalendar={() => setShowCalendar(true)}
+        currentDate={currentDate}
+        onPrevWeek={handlePrevWeek}
+        onNextWeek={handleNextWeek}
+        onCurrentWeek={handleCurrentWeek}
+        hasActiveFilters={hasActiveFilters || isStudent}
+        showGroupFilter={!isStudent}
+        isStudent={isStudent}
+        selectedGroupId={selectedGroupId}
+        onGroupChange={setSelectedGroupId}
+      />
+      
+      {showCalendar && createPortal(
+        <div className="datepicker-overlay" onClick={() => setShowCalendar(false)}>
+          <DatePicker 
+            onDateSelect={handleDateSelect}
+            onClose={() => setShowCalendar(false)}
+            selectedDate={currentDate}
+          />
+        </div>,
+        document.body
+      )}
+      
+      {!hasAppliedFilter && !isStudent ? (
+        <div className="filter-placeholder">
+          <i className="fas fa-filter"></i>
+          <h3>Выберите параметры для просмотра расписания</h3>
+          <p>Используйте фильтры выше, чтобы найти нужное расписание</p>
+        </div>
+      ) : filteredSchedule.length === 0 ? (
+        <div className="empty-state">
+          <i className="fas fa-search"></i>
+          <p>Нет занятий по выбранным фильтрам</p>
+        </div>
+      ) : (
+        <ScheduleGrid 
+          data={filteredSchedule} 
+          canEdit={false} 
+          weekDates={weekDates}
+          selectedDate={currentDate}
+        />
       )}
     </div>
   );
@@ -775,7 +1332,6 @@ function HomeContent() {
   
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [registerData, setRegisterData] = useState({ username: '', password: '', fullName: '', role: 'student', groupId: '' });
-  const [newLesson, setNewLesson] = useState({ group_id: '', teacher_id: '', subject_id: '', classroom_id: '', pair_number: '1', day_of_week: '1', date: '' });
   const [editingLesson, setEditingLesson] = useState(null);
   const [newGroup, setNewGroup] = useState('');
   const [newTeacher, setNewTeacher] = useState('');
@@ -1101,6 +1657,10 @@ function HomeContent() {
       <div className="loading-screen">
         <div className="spinner-large"></div>
         <p>Загрузка системы...</p>
+        <button className="theme-toggle-loading" onClick={toggleTheme}>
+          <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+          {theme === 'light' ? ' Тёмная тема' : ' Светлая тема'}
+        </button>
       </div>
     );
   }
@@ -1112,11 +1672,25 @@ function HomeContent() {
         <div className="landing-page">
           <div className="landing-content">
             <div className="landing-hero">
-              <div className="hero-badge"><span>Расписание колледжа</span></div>
-              <h1 className="hero-title">Система управления<br/><span className="gradient-highlight">расписанием</span></h1>
+              <div className="hero-badge">
+                <span><i className="fas fa-graduation-cap"></i> Расписание</span>
+              </div>
+              <h1 className="hero-title">
+                Учебное расписание
+                <br/>
+                <span className="gradient-highlight">Колледжа</span>
+              </h1>
+              <p className="hero-description">
+                Система управления расписанием с поддержкой шаблонов и исключений
+              </p>
               <div className="hero-buttons">
-                <button className="btn-primary" onClick={() => setShowLogin(true)}><i className="fas fa-sign-in-alt"></i> Войти</button>
-                <button className="btn-secondary" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i> {theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</button>
+                <button className="btn-primary" onClick={() => setShowLogin(true)}>
+                  <i className="fas fa-sign-in-alt"></i> Войти в систему
+                </button>
+                <button className="btn-secondary" onClick={toggleTheme}>
+                  <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+                  {theme === 'light' ? ' Тёмная тема' : ' Светлая тема'}
+                </button>
               </div>
             </div>
           </div>
@@ -1125,11 +1699,22 @@ function HomeContent() {
         {showLogin && createPortal(
           <div className="modal" onClick={() => setShowLogin(false)}>
             <div className="modal-container" onClick={e => e.stopPropagation()}>
-              <div className="modal-header"><h2>Вход в систему</h2><button className="modal-close" onClick={() => setShowLogin(false)}><i className="fas fa-times"></i></button></div>
+              <div className="modal-header">
+                <h2><i className="fas fa-sign-in-alt"></i> Вход в систему</h2>
+                <button className="modal-close" onClick={() => setShowLogin(false)}><i className="fas fa-times"></i></button>
+              </div>
               <form onSubmit={handleLogin} className="modal-form">
-                <div className="form-group"><label>Логин</label><input type="text" placeholder="Логин" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} required /></div>
-                <div className="form-group"><label>Пароль</label><input type="password" placeholder="Пароль" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} required /></div>
-                <button type="submit" className="submit-btn">Войти</button>
+                <div className="form-group">
+                  <label><i className="fas fa-user"></i> Логин</label>
+                  <input type="text" placeholder="Введите логин" value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} required autoFocus />
+                </div>
+                <div className="form-group">
+                  <label><i className="fas fa-lock"></i> Пароль</label>
+                  <input type="password" placeholder="Введите пароль" value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} required />
+                </div>
+                <button type="submit" className="submit-btn">
+                  <i className="fas fa-sign-in-alt"></i> Войти
+                </button>
               </form>
             </div>
           </div>,
@@ -1151,17 +1736,22 @@ function HomeContent() {
           <span className="brand-name">Расписание</span>
           <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}><i className="fas fa-times"></i></button>
         </div>
+        
         <div className="sidebar-profile">
-          <div className="profile-avatar"><i className={`fas ${user.role === 'admin' ? 'fa-crown' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i></div>
+          <div className="profile-avatar">
+            <i className={`fas ${user.role === 'admin' ? 'fa-crown' : user.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
+          </div>
           <div className="profile-info">
             <div className="profile-name">{user.fullName}</div>
             <div className="profile-role">{ROLES[user.role]}</div>
           </div>
         </div>
+        
         <nav className="sidebar-nav">
           <button className={`nav-item ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('schedule'); setSidebarOpen(false); }}>
             <i className="fas fa-calendar-week"></i><span>Расписание</span>
           </button>
+          
           {(user.role === 'admin' || user.role === 'methodist') && (
             <>
               <button className={`nav-item ${activeTab === 'manage-schedule' ? 'active' : ''}`} onClick={() => { setActiveTab('manage-schedule'); setSidebarOpen(false); }}>
@@ -1175,15 +1765,22 @@ function HomeContent() {
               </button>
             </>
           )}
+          
           {user.role === 'admin' && (
             <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}>
               <i className="fas fa-users-cog"></i><span>Пользователи</span>
             </button>
           )}
         </nav>
+        
         <div className="sidebar-footer">
-          <button className="theme-toggle-btn" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i><span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span></button>
-          <button className="logout-btn" onClick={handleLogout}><i className="fas fa-sign-out-alt"></i><span>Выйти</span></button>
+          <button className="theme-toggle-btn" onClick={toggleTheme}>
+            <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+            <span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span>
+          </button>
+          <button className="logout-btn" onClick={handleLogout}>
+            <i className="fas fa-sign-out-alt"></i><span>Выйти</span>
+          </button>
         </div>
       </aside>
       
@@ -1191,10 +1788,22 @@ function HomeContent() {
       
       <main className="app-main">
         <header className="app-header">
-          <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}><i className="fas fa-bars"></i></button>
-          <div className="header-title"><h1>{activeTab === 'schedule' ? 'Расписание занятий' : activeTab === 'manage-schedule' ? 'Управление расписанием' : activeTab === 'templates' ? 'Шаблоны расписания' : activeTab === 'directories' ? 'Справочники' : 'Пользователи'}</h1></div>
+          <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}>
+            <i className="fas fa-bars"></i>
+          </button>
+          <div className="header-title">
+            <h1>
+              {activeTab === 'schedule' && 'Расписание занятий'}
+              {activeTab === 'manage-schedule' && 'Управление расписанием'}
+              {activeTab === 'templates' && 'Шаблоны расписания'}
+              {activeTab === 'directories' && 'Справочники'}
+              {activeTab === 'users' && 'Управление пользователями'}
+            </h1>
+          </div>
           <div className="header-actions-right">
-            <button className="theme-toggle-header" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i></button>
+            <button className="theme-toggle-header" onClick={toggleTheme}>
+              <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
+            </button>
             <div className="role-badge">{ROLES[user.role]}</div>
           </div>
         </header>
@@ -1203,16 +1812,35 @@ function HomeContent() {
           {activeTab === 'schedule' && (
             <div className="content-card">
               <div className="content-header">
-                <div className="header-left"><h2><i className="fas fa-calendar-alt"></i> Расписание</h2></div>
+                <div className="header-left">
+                  <h2><i className="fas fa-calendar-alt"></i> Расписание занятий</h2>
+                </div>
                 <div className="header-actions">
-                  <select value={selectedGroupFilter} onChange={(e) => setSelectedGroupFilter(e.target.value)} className="group-filter">
+                  <select 
+                    value={selectedGroupFilter} 
+                    onChange={(e) => setSelectedGroupFilter(e.target.value)} 
+                    className="group-filter"
+                  >
                     <option value="">Все группы</option>
                     {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
               </div>
-              {loading ? <div className="loading-state"><div className="spinner"></div></div> : (
-                <ScheduleGrid data={schedule} canEdit={false} weekDates={weekDates} />
+              
+              {loading ? (
+                <div className="loading-state"><div className="spinner"></div><p>Загрузка...</p></div>
+              ) : (
+                <ScheduleView 
+                  schedule={schedule}
+                  groups={groups}
+                  teachers={teachers}
+                  subjects={subjects}
+                  classrooms={classrooms}
+                  loading={loading}
+                  userRole={user?.role}
+                  userGroupId={user?.groupId}
+                  loadScheduleForWeek={loadScheduleForWeek}
+                />
               )}
             </div>
           )}
@@ -1220,21 +1848,75 @@ function HomeContent() {
           {activeTab === 'manage-schedule' && (user.role === 'admin' || user.role === 'methodist') && (
             <div className="content-card">
               <div className="content-header">
-                <div className="header-left"><h2><i className="fas fa-edit"></i> Управление расписанием</h2></div>
+                <div className="header-left">
+                  <h2><i className="fas fa-edit"></i> Управление расписанием</h2>
+                </div>
                 <div className="header-actions">
                   <div className="week-controls" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <button onClick={() => { const newDate = new Date(manageCurrentDate); newDate.setDate(manageCurrentDate.getDate() - 7); setManageCurrentDate(newDate); }} className="week-nav-btn"><i className="fas fa-chevron-left"></i></button>
-                    <div className="week-display">{formatDate(weekDates[0])} - {formatDate(weekDates[6])}</div>
-                    <button onClick={() => { const newDate = new Date(manageCurrentDate); newDate.setDate(manageCurrentDate.getDate() + 7); setManageCurrentDate(newDate); }} className="week-nav-btn"><i className="fas fa-chevron-right"></i></button>
-                    <button onClick={() => setManageCurrentDate(new Date())} className="week-today-btn">Сегодня</button>
+                    <button 
+                      onClick={() => { 
+                        const newDate = new Date(manageCurrentDate); 
+                        newDate.setDate(manageCurrentDate.getDate() - 7); 
+                        setManageCurrentDate(newDate); 
+                        loadSchedule();
+                      }} 
+                      className="week-nav-btn"
+                    >
+                      <i className="fas fa-chevron-left"></i>
+                    </button>
+                    <div className="week-display">
+                      <i className="fas fa-calendar-week"></i>
+                      <span>{formatDate(weekDates[0])} - {formatDate(weekDates[6])}</span>
+                    </div>
+                    <button 
+                      onClick={() => { 
+                        const newDate = new Date(manageCurrentDate); 
+                        newDate.setDate(manageCurrentDate.getDate() + 7); 
+                        setManageCurrentDate(newDate); 
+                        loadSchedule();
+                      }} 
+                      className="week-nav-btn"
+                    >
+                      <i className="fas fa-chevron-right"></i>
+                    </button>
+                    <button 
+                      onClick={() => { 
+                        setManageCurrentDate(new Date()); 
+                        loadSchedule();
+                      }} 
+                      className="week-today-btn"
+                    >
+                      <i className="fas fa-calendar-day"></i> Сегодня
+                    </button>
                   </div>
-                  <select value={selectedGroupFilter} onChange={(e) => setSelectedGroupFilter(e.target.value)} className="group-filter">
+                  
+                  <select 
+                    value={selectedGroupFilter} 
+                    onChange={(e) => {
+                      setSelectedGroupFilter(e.target.value);
+                      loadSchedule();
+                    }} 
+                    className="group-filter"
+                  >
                     <option value="">Все группы</option>
                     {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
               </div>
-              <ScheduleGrid data={schedule} canEdit={true} onEditClick={handleEditClick} onDeleteClick={handleDeleteLesson} onAddClick={handleAddScheduleClick} weekDates={weekDates} />
+              
+              {loading ? (
+                <div className="loading-state"><div className="spinner"></div></div>
+              ) : (
+                <ScheduleGrid 
+                  data={schedule} 
+                  canEdit={true}
+                  onEditClick={handleEditClick}
+                  onDeleteClick={handleDeleteLesson}
+                  onAddClick={handleAddScheduleClick}
+                  weekDates={weekDates}
+                  selectedDate={null}
+                />
+              )}
             </div>
           )}
           
@@ -1246,29 +1928,84 @@ function HomeContent() {
               classrooms={classrooms}
               token={token}
               showNotification={showNotification}
-              onTemplateChange={() => { loadSchedule(); setRefreshKey(prev => prev + 1); }}
+              onTemplateChange={() => { 
+                loadSchedule(); 
+                setRefreshKey(prev => prev + 1); 
+              }}
             />
           )}
           
           {activeTab === 'directories' && (user.role === 'admin' || user.role === 'methodist') && (
             <div className="content-card">
-              <div className="content-header"><h2><i className="fas fa-database"></i> Справочники</h2></div>
+              <div className="content-header">
+                <div className="header-left">
+                  <h2><i className="fas fa-database"></i> Справочники</h2>
+                </div>
+              </div>
+              
               <div className="directories-grid">
                 <div className="directory-card">
-                  <div className="directory-header"><i className="fas fa-users"></i><h3>Группы</h3><button className="add-dir-btn" onClick={() => setShowGroupModal(true)}><i className="fas fa-plus"></i></button></div>
-                  <div className="directory-list">{groups.map(g => <div key={g.id} className="directory-item"><span>{g.name}</span><button onClick={() => deleteDirectory('groups', g.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button></div>)}</div>
+                  <div className="directory-header">
+                    <i className="fas fa-users"></i>
+                    <h3>Группы</h3>
+                    <button className="add-dir-btn" onClick={() => setShowGroupModal(true)}><i className="fas fa-plus"></i></button>
+                  </div>
+                  <div className="directory-list">
+                    {groups.map(g => (
+                      <div key={g.id} className="directory-item">
+                        <span>{g.name}</span>
+                        <button onClick={() => deleteDirectory('groups', g.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+                
                 <div className="directory-card">
-                  <div className="directory-header"><i className="fas fa-chalkboard-teacher"></i><h3>Преподаватели</h3><button className="add-dir-btn" onClick={() => setShowTeacherModal(true)}><i className="fas fa-plus"></i></button></div>
-                  <div className="directory-list">{teachers.map(t => <div key={t.id} className="directory-item"><span>{t.name}</span><button onClick={() => deleteDirectory('teachers', t.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button></div>)}</div>
+                  <div className="directory-header">
+                    <i className="fas fa-chalkboard-teacher"></i>
+                    <h3>Преподаватели</h3>
+                    <button className="add-dir-btn" onClick={() => setShowTeacherModal(true)}><i className="fas fa-plus"></i></button>
+                  </div>
+                  <div className="directory-list">
+                    {teachers.map(t => (
+                      <div key={t.id} className="directory-item">
+                        <span>{t.name}</span>
+                        <button onClick={() => deleteDirectory('teachers', t.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+                
                 <div className="directory-card">
-                  <div className="directory-header"><i className="fas fa-book"></i><h3>Предметы</h3><button className="add-dir-btn" onClick={() => setShowSubjectModal(true)}><i className="fas fa-plus"></i></button></div>
-                  <div className="directory-list">{subjects.map(s => <div key={s.id} className="directory-item"><span>{s.name}</span><button onClick={() => deleteDirectory('subjects', s.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button></div>)}</div>
+                  <div className="directory-header">
+                    <i className="fas fa-book"></i>
+                    <h3>Предметы</h3>
+                    <button className="add-dir-btn" onClick={() => setShowSubjectModal(true)}><i className="fas fa-plus"></i></button>
+                  </div>
+                  <div className="directory-list">
+                    {subjects.map(s => (
+                      <div key={s.id} className="directory-item">
+                        <span>{s.name}</span>
+                        <button onClick={() => deleteDirectory('subjects', s.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
                 <div className="directory-card">
-                  <div className="directory-header"><i className="fas fa-door-open"></i><h3>Аудитории</h3><button className="add-dir-btn" onClick={() => setShowClassroomModal(true)}><i className="fas fa-plus"></i></button></div>
-                  <div className="directory-list">{classrooms.map(c => <div key={c.id} className="directory-item"><span>{c.name}</span><button onClick={() => deleteDirectory('classrooms', c.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button></div>)}</div>
+                  <div className="directory-header">
+                    <i className="fas fa-door-open"></i>
+                    <h3>Аудитории</h3>
+                    <button className="add-dir-btn" onClick={() => setShowClassroomModal(true)}><i className="fas fa-plus"></i></button>
+                  </div>
+                  <div className="directory-list">
+                    {classrooms.map(c => (
+                      <div key={c.id} className="directory-item">
+                        <span>{c.name}</span>
+                        <button onClick={() => deleteDirectory('classrooms', c.id)} className="delete-item-btn"><i className="fas fa-trash-alt"></i></button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1276,55 +2013,267 @@ function HomeContent() {
           
           {activeTab === 'users' && user.role === 'admin' && (
             <div className="content-card">
-              <div className="content-header"><h2><i className="fas fa-users-cog"></i> Пользователи</h2><button className="action-button primary" onClick={() => setShowRegister(true)}>Создать</button></div>
+              <div className="content-header">
+                <div className="header-left">
+                  <h2><i className="fas fa-users-cog"></i> Управление пользователями</h2>
+                </div>
+                <button className="action-button primary" onClick={() => setShowRegister(true)}>
+                  <i className="fas fa-user-plus"></i> Создать пользователя
+                </button>
+              </div>
+              
               <div className="users-section">
-                <div className="users-list">{users.map(u => <div key={u.id} className="user-card"><div className="user-avatar"><i className={`fas ${u.role === 'admin' ? 'fa-crown' : u.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i></div><div className="user-details"><div className="user-name">{u.full_name}</div><div className="user-meta">@{u.username} • {ROLES[u.role]}</div></div>{u.id !== user?.id && <button onClick={() => handleDeleteUser(u.id)} className="delete-user-btn"><i className="fas fa-trash-alt"></i></button>}</div>)}</div>
+                <h3><i className="fas fa-list"></i> Список пользователей</h3>
+                <div className="users-list">
+                  {users.map(u => (
+                    <div key={u.id} className="user-card">
+                      <div className="user-avatar">
+                        <i className={`fas ${u.role === 'admin' ? 'fa-crown' : u.role === 'teacher' ? 'fa-chalkboard-teacher' : 'fa-user-graduate'}`}></i>
+                      </div>
+                      <div className="user-details">
+                        <div className="user-name">{u.full_name}</div>
+                        <div className="user-meta">@{u.username} • {ROLES[u.role]}{u.group_name && ` • Группа: ${u.group_name}`}</div>
+                      </div>
+                      {u.id !== user?.id && (
+                        <button onClick={() => handleDeleteUser(u.id)} className="delete-user-btn">
+                          <i className="fas fa-trash-alt"></i>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
         </div>
       </main>
       
-      {/* Modals */}
+      {/* Modal для добавления/редактирования занятия */}
       {showEditModal && editingLesson && createPortal(
         <div className="modal" onClick={() => setShowEditModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2>{editingLesson.id ? 'Редактировать' : 'Добавить'} занятие</h2><button className="modal-close" onClick={() => setShowEditModal(false)}><i className="fas fa-times"></i></button></div>
+            <div className="modal-header">
+              <h2><i className="fas fa-calendar-plus"></i> {editingLesson.id ? 'Редактировать занятие' : 'Добавить занятие'}</h2>
+              <button className="modal-close" onClick={() => setShowEditModal(false)}><i className="fas fa-times"></i></button>
+            </div>
             <form onSubmit={editingLesson.id ? handleUpdateLesson : handleAddLesson} className="modal-form">
-              <div className="form-group"><label>Группа</label><select value={editingLesson.group_id || ''} onChange={e => setEditingLesson({...editingLesson, group_id: e.target.value})} required><option value="">Выберите группу</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
-              <div className="form-group"><label>Предмет</label><select value={editingLesson.subject_id || ''} onChange={e => setEditingLesson({...editingLesson, subject_id: e.target.value})} required><option value="">Выберите предмет</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div className="form-group"><label>Преподаватель</label><select value={editingLesson.teacher_id || ''} onChange={e => setEditingLesson({...editingLesson, teacher_id: e.target.value})} required><option value="">Выберите преподавателя</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
-              <div className="form-group"><label>Аудитория</label><select value={editingLesson.classroom_id || ''} onChange={e => setEditingLesson({...editingLesson, classroom_id: e.target.value})}><option value="">Не выбрана</option>{classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-              <div className="form-row"><div className="form-group half"><label>День</label><select value={editingLesson.day_of_week || '1'} onChange={e => setEditingLesson({...editingLesson, day_of_week: e.target.value})}>{DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}</select></div><div className="form-group half"><label>Пара</label><select value={editingLesson.pair_number || '1'} onChange={e => setEditingLesson({...editingLesson, pair_number: e.target.value})}>{PAIRS.map(p => <option key={p.number} value={p.number}>{p.name}</option>)}</select></div></div>
-              <div className="form-group"><label>Дата</label><input type="date" value={editingLesson.date || ''} onChange={e => setEditingLesson({...editingLesson, date: e.target.value})} required /></div>
-              <button type="submit" className="submit-btn">Сохранить</button>
+              <div className="form-group">
+                <label><i className="fas fa-users"></i> Группа</label>
+                <select 
+                  value={editingLesson.group_id || ''} 
+                  onChange={(e) => setEditingLesson({...editingLesson, group_id: e.target.value})} 
+                  required
+                >
+                  <option value="">Выберите группу</option>
+                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label><i className="fas fa-book"></i> Предмет</label>
+                <select 
+                  value={editingLesson.subject_id || ''} 
+                  onChange={(e) => setEditingLesson({...editingLesson, subject_id: e.target.value})} 
+                  required
+                >
+                  <option value="">Выберите предмет</option>
+                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
+                <select 
+                  value={editingLesson.teacher_id || ''} 
+                  onChange={(e) => setEditingLesson({...editingLesson, teacher_id: e.target.value})} 
+                  required
+                >
+                  <option value="">Выберите преподавателя</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              
+              <div className="form-group">
+                <label><i className="fas fa-door-open"></i> Аудитория</label>
+                <select 
+                  value={editingLesson.classroom_id || ''} 
+                  onChange={(e) => setEditingLesson({...editingLesson, classroom_id: e.target.value})}
+                >
+                  <option value="">Не выбрана</option>
+                  {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label><i className="fas fa-calendar-day"></i> День недели</label>
+                  <select 
+                    value={editingLesson.day_of_week || '1'} 
+                    onChange={(e) => setEditingLesson({...editingLesson, day_of_week: e.target.value})}
+                    required
+                  >
+                    {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label><i className="fas fa-clock"></i> Пара</label>
+                  <select 
+                    value={editingLesson.pair_number || '1'} 
+                    onChange={(e) => setEditingLesson({...editingLesson, pair_number: e.target.value})}
+                    required
+                  >
+                    {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label><i className="fas fa-calendar-alt"></i> Дата занятия</label>
+                <input 
+                  type="date" 
+                  value={editingLesson.date || ''}
+                  onChange={(e) => setEditingLesson({...editingLesson, date: e.target.value})}
+                  required
+                />
+                <small className="filter-hint">Выберите конкретную дату занятия</small>
+              </div>
+              
+              <button type="submit" className="submit-btn">
+                <i className="fas fa-save"></i> {editingLesson.id ? ' Сохранить изменения' : ' Добавить занятие'}
+              </button>
             </form>
           </div>
         </div>,
         document.body
       )}
       
+      {/* Modal для создания пользователя */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2>Создать пользователя</h2><button className="modal-close" onClick={() => setShowRegister(false)}><i className="fas fa-times"></i></button></div>
+            <div className="modal-header">
+              <h2><i className="fas fa-user-plus"></i> Создать пользователя</h2>
+              <button className="modal-close" onClick={() => setShowRegister(false)}><i className="fas fa-times"></i></button>
+            </div>
             <form onSubmit={handleRegister} className="modal-form">
-              <div className="form-group"><input placeholder="Логин" value={registerData.username} onChange={e => setRegisterData({...registerData, username: e.target.value})} required /></div>
-              <div className="form-group"><input type="password" placeholder="Пароль" value={registerData.password} onChange={e => setRegisterData({...registerData, password: e.target.value})} required /></div>
-              <div className="form-group"><input placeholder="ФИО" value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required /></div>
-              <div className="form-group"><select value={registerData.role} onChange={e => setRegisterData({...registerData, role: e.target.value})}><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="admin">Администратор</option></select></div>
-              {registerData.role === 'student' && (<div className="form-group"><select value={registerData.groupId} onChange={e => setRegisterData({...registerData, groupId: e.target.value})}><option value="">Группа</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>)}
-              <button type="submit" className="submit-btn">Создать</button>
+              <div className="form-group">
+                <label>Логин</label>
+                <input placeholder="Логин" value={registerData.username} onChange={e => setRegisterData({...registerData, username: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label>Пароль</label>
+                <input type="password" placeholder="Пароль" value={registerData.password} onChange={e => setRegisterData({...registerData, password: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label>ФИО</label>
+                <input placeholder="ФИО" value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required />
+              </div>
+              <div className="form-group">
+                <label>Роль</label>
+                <select value={registerData.role} onChange={e => setRegisterData({...registerData, role: e.target.value})}>
+                  <option value="student">Студент</option>
+                  <option value="teacher">Преподаватель</option>
+                  <option value="admin">Администратор</option>
+                </select>
+              </div>
+              {registerData.role === 'student' && (
+                <div className="form-group">
+                  <label>Группа</label>
+                  <select value={registerData.groupId} onChange={e => setRegisterData({...registerData, groupId: e.target.value})}>
+                    <option value="">Выберите группу</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <button type="submit" className="submit-btn">
+                <i className="fas fa-check"></i> Создать
+              </button>
             </form>
           </div>
         </div>,
         document.body
       )}
       
-      {showGroupModal && createPortal(<div className="modal" onClick={() => setShowGroupModal(false)}><div className="modal-container"><div className="modal-header"><h2>Добавить группу</h2><button className="modal-close" onClick={() => setShowGroupModal(false)}><i className="fas fa-times"></i></button></div><form onSubmit={(e) => { e.preventDefault(); addDirectory('groups', newGroup, setShowGroupModal, setNewGroup); }}><input placeholder="Название" value={newGroup} onChange={e => setNewGroup(e.target.value)} required /><button type="submit">Добавить</button></form></div></div>, document.body)}
-      {showTeacherModal && createPortal(<div className="modal" onClick={() => setShowTeacherModal(false)}><div className="modal-container"><div className="modal-header"><h2>Добавить преподавателя</h2><button className="modal-close" onClick={() => setShowTeacherModal(false)}><i className="fas fa-times"></i></button></div><form onSubmit={(e) => { e.preventDefault(); addDirectory('teachers', newTeacher, setShowTeacherModal, setNewTeacher); }}><input placeholder="ФИО" value={newTeacher} onChange={e => setNewTeacher(e.target.value)} required /><button type="submit">Добавить</button></form></div></div>, document.body)}
-      {showSubjectModal && createPortal(<div className="modal" onClick={() => setShowSubjectModal(false)}><div className="modal-container"><div className="modal-header"><h2>Добавить предмет</h2><button className="modal-close" onClick={() => setShowSubjectModal(false)}><i className="fas fa-times"></i></button></div><form onSubmit={(e) => { e.preventDefault(); addDirectory('subjects', newSubject, setShowSubjectModal, setNewSubject); }}><input placeholder="Название" value={newSubject} onChange={e => setNewSubject(e.target.value)} required /><button type="submit">Добавить</button></form></div></div>, document.body)}
-      {showClassroomModal && createPortal(<div className="modal" onClick={() => setShowClassroomModal(false)}><div className="modal-container"><div className="modal-header"><h2>Добавить аудиторию</h2><button className="modal-close" onClick={() => setShowClassroomModal(false)}><i className="fas fa-times"></i></button></div><form onSubmit={(e) => { e.preventDefault(); addDirectory('classrooms', newClassroom, setShowClassroomModal, setNewClassroom); }}><input placeholder="Номер" value={newClassroom} onChange={e => setNewClassroom(e.target.value)} required /><button type="submit">Добавить</button></form></div></div>, document.body)}
+      {/* Modal для добавления группы */}
+      {showGroupModal && createPortal(
+        <div className="modal" onClick={() => setShowGroupModal(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><i className="fas fa-users"></i> Добавить группу</h2>
+              <button className="modal-close" onClick={() => setShowGroupModal(false)}><i className="fas fa-times"></i></button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); addDirectory('groups', newGroup, setShowGroupModal, setNewGroup); }} className="modal-form">
+              <div className="form-group">
+                <label>Название группы</label>
+                <input placeholder="Например: ИС-21" value={newGroup} onChange={e => setNewGroup(e.target.value)} required autoFocus />
+              </div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+      
+      {/* Modal для добавления преподавателя */}
+      {showTeacherModal && createPortal(
+        <div className="modal" onClick={() => setShowTeacherModal(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><i className="fas fa-chalkboard-teacher"></i> Добавить преподавателя</h2>
+              <button className="modal-close" onClick={() => setShowTeacherModal(false)}><i className="fas fa-times"></i></button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); addDirectory('teachers', newTeacher, setShowTeacherModal, setNewTeacher); }} className="modal-form">
+              <div className="form-group">
+                <label>ФИО преподавателя</label>
+                <input placeholder="Иванов Иван Иванович" value={newTeacher} onChange={e => setNewTeacher(e.target.value)} required autoFocus />
+              </div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+      
+      {/* Modal для добавления предмета */}
+      {showSubjectModal && createPortal(
+        <div className="modal" onClick={() => setShowSubjectModal(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><i className="fas fa-book"></i> Добавить предмет</h2>
+              <button className="modal-close" onClick={() => setShowSubjectModal(false)}><i className="fas fa-times"></i></button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); addDirectory('subjects', newSubject, setShowSubjectModal, setNewSubject); }} className="modal-form">
+              <div className="form-group">
+                <label>Название предмета</label>
+                <input placeholder="Например: Математика" value={newSubject} onChange={e => setNewSubject(e.target.value)} required autoFocus />
+              </div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+      
+      {/* Modal для добавления аудитории */}
+      {showClassroomModal && createPortal(
+        <div className="modal" onClick={() => setShowClassroomModal(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2><i className="fas fa-door-open"></i> Добавить аудиторию</h2>
+              <button className="modal-close" onClick={() => setShowClassroomModal(false)}><i className="fas fa-times"></i></button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); addDirectory('classrooms', newClassroom, setShowClassroomModal, setNewClassroom); }} className="modal-form">
+              <div className="form-group">
+                <label>Номер аудитории</label>
+                <input placeholder="Например: 305" value={newClassroom} onChange={e => setNewClassroom(e.target.value)} required autoFocus />
+              </div>
+              <button type="submit" className="submit-btn"><i className="fas fa-plus"></i> Добавить</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
