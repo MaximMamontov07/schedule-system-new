@@ -1160,31 +1160,105 @@ function HomeContent() {
 };
 
   const handleDeleteClick = (lesson) => {
-    if (!canEditSchedule) return;
-    const applyAll = confirm('Удалить навсегда из шаблона?\nOK — удалить из шаблона, Отмена — отменить только на эту неделю.');
-    handleDeleteSlot(lesson, applyAll);
-  };
+  if (!canEditSchedule) {
+    showNotification('Нет прав', 'error');
+    return;
+  }
+  
+  console.log('🗑 Нажато удаление, lesson:', lesson);
+  
+  // Определяем, есть ли переопределение
+  const hasOverride = lesson.override_id && lesson.source !== 'template';
+  
+  let message = '';
+  if (hasOverride) {
+    message = 'Удалить изменение для этой недели?\n\nOK — удалить переопределение\nОтмена — отменить занятие и в шаблоне';
+  } else if (lesson.template_id) {
+    message = 'Что удалить?\n\nOK — отменить только на эту неделю\nОтмена — удалить из шаблона навсегда';
+  } else {
+    message = 'Удалить это занятие?';
+  }
+  
+  const userChoice = confirm(message);
+  
+  if (hasOverride) {
+    // Если есть override_id и source != template — удаляем переопределение
+    handleDeleteSlot(lesson, false);
+  } else if (lesson.template_id) {
+    // Если есть template_id — пользователь выбирает
+    // OK = отменить на неделю (apply_all = false)
+    // Отмена = удалить из шаблона (apply_all = true)
+    handleDeleteSlot(lesson, !userChoice); // !userChoice потому что Cancel = false в confirm
+  } else {
+    // На всякий случай
+    handleDeleteSlot(lesson, false);
+  }
+};
 
-  const handleDeleteSlot = async (lesson, applyAll) => {
-    const lessonDate = parseLocalDate(lesson.date);
-    const monday = getMonday(lessonDate);
-    const weekStart = formatForInput(monday);
-    try {
-      const res = await fetch('/api/schedule/lesson', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ group_id: lesson.group_id, pair_number: lesson.pair_number, day_of_week: lesson.day_of_week, week_start_date: weekStart, apply_all: applyAll })
-      });
-      const result = await res.json();
-      if (res.ok) {
-        scheduleCache.clear();
-        showNotification(applyAll ? 'Удалено из шаблона' : 'Занятие отменено', 'success');
-        if (activeTab === 'manage-schedule') await loadScheduleForWeekForManage();
-        else await loadData();
-        if (activeTab === 'template') loadTemplates();
-      } else { showNotification(result.error || 'Ошибка', 'error'); }
-    } catch (e) { showNotification('Ошибка соединения', 'error'); }
+const handleDeleteSlot = async (lesson, applyAll) => {
+  if (!canEditSchedule) {
+    showNotification('Нет прав', 'error');
+    return;
+  }
+  
+  console.log('🗑 handleDeleteSlot вызван');
+  console.log('  lesson:', lesson);
+  console.log('  applyAll:', applyAll);
+  
+  const lessonDate = parseLocalDate(lesson.date);
+  if (!lessonDate || isNaN(lessonDate.getTime())) {
+    showNotification('Некорректная дата занятия', 'error');
+    return;
+  }
+  
+  const monday = getMonday(lessonDate);
+  const weekStart = formatForInput(monday);
+  
+  const body = {
+    group_id: lesson.group_id,
+    pair_number: lesson.pair_number,
+    day_of_week: lesson.day_of_week,
+    week_start_date: weekStart,
+    apply_all: applyAll,
+    template_id: lesson.template_id || null,
+    override_id: lesson.override_id || null
   };
+  
+  console.log('📤 DELETE body:', JSON.stringify(body, null, 2));
+  
+  try {
+    const res = await fetch('/api/schedule/lesson', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    
+    const result = await res.json();
+    console.log('📥 DELETE ответ:', result);
+    
+    if (res.ok) {
+      scheduleCache.clear();
+      showNotification(
+        applyAll ? '✅ Удалено из шаблона' : '✅ Занятие отменено на эту неделю',
+        'success'
+      );
+      
+      // Перезагружаем данные
+      if (activeTab === 'manage-schedule') {
+        await loadScheduleForWeekForManage();
+      } else if (activeTab === 'template') {
+        loadTemplates();
+      } else {
+        await loadData();
+      }
+    } else {
+      showNotification(result.error || 'Ошибка удаления', 'error');
+    }
+  } catch (e) {
+    console.error('❌ Ошибка удаления:', e);
+    showNotification('Ошибка соединения', 'error');
+  }
+};
 
   const handleSaveLesson = async (e) => {
   e.preventDefault();

@@ -220,6 +220,7 @@ export async function POST(request) {
 }
 
 // DELETE – отмена занятия (только admin/methodist)
+// DELETE – отмена занятия (только admin/methodist)
 export async function DELETE(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -229,27 +230,49 @@ export async function DELETE(request) {
 
     const db = await getDb();
     const body = await request.json();
-    const { group_id, pair_number, day_of_week, week_start_date, apply_all, template_id, override_id } = body;
+    const { 
+      group_id, pair_number, day_of_week, week_start_date, 
+      apply_all, template_id, override_id 
+    } = body;
 
-    console.log('🗑 DELETE body:', JSON.stringify(body, null, 2));
+    console.log('🗑 DELETE запрос:');
+    console.log('  group_id:', group_id);
+    console.log('  pair_number:', pair_number);
+    console.log('  day_of_week:', day_of_week);
+    console.log('  week_start_date:', week_start_date);
+    console.log('  apply_all:', apply_all);
+    console.log('  template_id:', template_id);
+    console.log('  override_id:', override_id);
 
     if (!group_id || !pair_number || !day_of_week) {
-      return NextResponse.json({ error: 'Недостаточно данных' }, { status: 400 });
+      return NextResponse.json({ error: 'Недостаточно данных (group_id, pair_number, day_of_week)' }, { status: 400 });
     }
 
     const gid = parseInt(group_id);
     const pair = parseInt(pair_number);
     const day = parseInt(day_of_week);
 
+    // Удаление из шаблона (apply_all = true)
     if (apply_all) {
-      console.log('🗑 Удаляем из шаблона');
-      await db.query(`DELETE FROM schedule_templates WHERE id = $1`, [template_id]);
-      if (override_id) {
-        await db.query(`DELETE FROM schedule_overrides WHERE id = $1`, [override_id]);
+      if (!template_id) {
+        return NextResponse.json({ error: 'Не указан template_id для удаления из шаблона' }, { status: 400 });
       }
+      
+      console.log('🗑 Удаляем из шаблона, id:', template_id);
+      await db.query(`DELETE FROM schedule_templates WHERE id = $1`, [template_id]);
+      
+      // Также удаляем связанные переопределения
+      if (week_start_date) {
+        await db.query(`
+          DELETE FROM schedule_overrides 
+          WHERE week_start_date = $1 AND group_id = $2 AND day_of_week = $3 AND pair_number = $4
+        `, [week_start_date, gid, day, pair]);
+      }
+      
       return NextResponse.json({ success: true, source: 'template_deleted' });
     }
 
+    // Удаление переопределения для конкретной недели
     if (!week_start_date) {
       return NextResponse.json({ error: 'Укажите дату начала недели' }, { status: 400 });
     }
@@ -258,8 +281,11 @@ export async function DELETE(request) {
       // Удаляем существующее переопределение
       console.log('🗑 Удаляем переопределение, id:', override_id);
       await db.query(`DELETE FROM schedule_overrides WHERE id = $1`, [override_id]);
-    } else if (template_id) {
-      // Создаём переопределение с cancelled
+      return NextResponse.json({ success: true, source: 'override_deleted' });
+    }
+
+    if (template_id) {
+      // Создаём переопределение с cancelled (отмена занятия шаблона на эту неделю)
       console.log('🚫 Отменяем занятие шаблона на неделю:', week_start_date);
       await db.query(`
         INSERT INTO schedule_overrides
@@ -273,9 +299,10 @@ export async function DELETE(request) {
                       notes = NULL,
                       updated_at = NOW()
       `, [week_start_date, gid, day, pair]);
+      return NextResponse.json({ success: true, source: 'override_cancelled' });
     }
 
-    return NextResponse.json({ success: true, source: 'override_deleted' });
+    return NextResponse.json({ error: 'Не указан ни template_id, ни override_id' }, { status: 400 });
 
   } catch (error) {
     console.error('❌ Lesson DELETE error:', error);
