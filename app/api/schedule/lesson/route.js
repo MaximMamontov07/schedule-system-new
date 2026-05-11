@@ -20,16 +20,11 @@ export async function POST(request) {
       pair_number, day_of_week, week_start_date, apply_all
     } = body;
 
-    console.log('📥 POST body:', body);
+    console.log('📥 POST body:', JSON.stringify(body, null, 2));
 
     // Проверка обязательных полей
     if (!group_id || !teacher_id || !subject_id || !pair_number || !day_of_week) {
       return NextResponse.json({ error: 'Обязательные поля не заполнены' }, { status: 400 });
-    }
-
-    // Если не apply_all и нет даты – ошибка
-    if (!apply_all && !week_start_date) {
-      return NextResponse.json({ error: 'Укажите дату начала недели или отметьте "Применить для всех"' }, { status: 400 });
     }
 
     // Преобразуем типы
@@ -66,7 +61,12 @@ export async function POST(request) {
       return NextResponse.json({ success: true, source: 'template' });
     }
 
-    // Для конкретной недели – проверяем существование шаблона
+    // Для конкретной недели
+    if (!week_start_date) {
+      return NextResponse.json({ error: 'Укажите дату начала недели' }, { status: 400 });
+    }
+
+    // Проверяем существование шаблона
     const templateExists = await db.query(
       'SELECT id FROM schedule_templates WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3',
       [gid, day, pair]
@@ -74,7 +74,7 @@ export async function POST(request) {
 
     if (templateExists.rows.length > 0) {
       // Есть шаблон – создаём/обновляем переопределение
-      console.log('✏️ Создаём переопределение для существующего шаблона');
+      console.log('✏️ Создаём переопределение (modified)');
       
       await db.query(`
         INSERT INTO schedule_overrides
@@ -90,7 +90,7 @@ export async function POST(request) {
       `, [week_start_date, gid, day, pair, tid, sid, cid]);
     } else {
       // Нет шаблона – создаём переопределение как новое занятие
-      console.log('➕ Создаём новое занятие для недели (без шаблона)');
+      console.log('➕ Создаём новое занятие (added)');
       
       await db.query(`
         INSERT INTO schedule_overrides
@@ -126,13 +126,10 @@ export async function DELETE(request) {
     const body = await request.json();
     const { group_id, pair_number, day_of_week, week_start_date, apply_all } = body;
 
-    console.log('🗑 DELETE body:', body);
+    console.log('🗑 DELETE body:', JSON.stringify(body, null, 2));
 
     if (!group_id || !pair_number || !day_of_week) {
       return NextResponse.json({ error: 'Недостаточно данных' }, { status: 400 });
-    }
-    if (!apply_all && !week_start_date) {
-      return NextResponse.json({ error: 'Укажите неделю или выберите "Удалить из шаблона"' }, { status: 400 });
     }
 
     const gid = parseInt(group_id);
@@ -158,6 +155,10 @@ export async function DELETE(request) {
       return NextResponse.json({ success: true, source: 'template_deleted' });
     }
 
+    if (!week_start_date) {
+      return NextResponse.json({ error: 'Укажите дату начала недели' }, { status: 400 });
+    }
+
     // Проверяем, есть ли шаблон
     const templateExists = await db.query(
       'SELECT id FROM schedule_templates WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3',
@@ -166,7 +167,7 @@ export async function DELETE(request) {
 
     if (templateExists.rows.length > 0) {
       // Отменяем занятие из шаблона только на эту неделю
-      console.log('🚫 Отменяем занятие на неделю:', week_start_date);
+      console.log('🚫 Отменяем занятие на неделю (cancelled):', week_start_date);
       
       await db.query(`
         INSERT INTO schedule_overrides
