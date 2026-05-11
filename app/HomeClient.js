@@ -716,9 +716,9 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   );
 };
 
-// ---------- TeacherPanel ----------
-const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
-  const weekDates = getWeekDates(new Date());
+// ---------- TeacherPanel (ДОБАВЛЕНА НАВИГАЦИЯ ПО НЕДЕЛЯМ) ----------
+const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, currentDate, onPrevWeek, onNextWeek, onCurrentWeek }) => {
+  const weekDates = getWeekDates(currentDate || new Date());
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
@@ -735,6 +735,24 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
 
   return (
     <div className="schedule-grid-wrapper">
+      {/* Навигация по неделям */}
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', padding: '1rem', flexWrap: 'wrap', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+        <button onClick={onPrevWeek} className="week-nav-btn" style={{ padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>
+          <i className="fas fa-chevron-left"></i> Пред.
+        </button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1.5rem', background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)', borderRadius: '2rem', color: 'white', fontWeight: 500 }}>
+          <i className="fas fa-calendar-week"></i>
+          <span>{formatDate(weekDates[0])} - {formatDate(weekDates[6])}</span>
+          <span style={{ opacity: 0.8, fontSize: '0.8rem' }}>({getWeekNumber(weekDates[0])} нед.)</span>
+        </span>
+        <button onClick={onNextWeek} className="week-nav-btn" style={{ padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>
+          След. <i className="fas fa-chevron-right"></i>
+        </button>
+        <button onClick={onCurrentWeek} className="week-today-btn" style={{ padding: '0.5rem 1rem', borderRadius: '2rem', background: 'var(--success)', color: 'white', border: 'none', cursor: 'pointer' }}>
+          <i className="fas fa-calendar-day"></i> Сегодня
+        </button>
+      </div>
+
       <table className="schedule-grid">
         <thead>
           <tr>
@@ -867,6 +885,7 @@ function HomeContent() {
   const [newClassroom, setNewClassroom] = useState('');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('');
   const [manageCurrentDate, setManageCurrentDate] = useState(new Date());
+  const [teacherCurrentDate, setTeacherCurrentDate] = useState(new Date()); // ДОБАВЛЕНО
   const [localData, setLocalData] = useState({});
   const [hasChanges, setHasChanges] = useState({});
   const [saving, setSaving] = useState({});
@@ -915,6 +934,24 @@ function HomeContent() {
     const weekDates = getWeekDates(manageCurrentDate);
     await loadScheduleForWeek(formatForInput(weekDates[0]), formatForInput(weekDates[6]), selectedGroupFilter, true);
   }, [manageCurrentDate, selectedGroupFilter, loadScheduleForWeek]);
+
+  // ДОБАВЛЕНО: загрузка расписания преподавателя
+  const loadTeacherSchedule = useCallback(async (date) => {
+    if (!token || !isTeacher) return;
+    const teacher = teachers.find(t => t.user_id === user?.id);
+    if (!teacher) return;
+    const weekDates = getWeekDates(date || new Date());
+    const url = `/api/schedule?weekStart=${formatForInput(weekDates[0])}&teacherId=${teacher.id}`;
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setSchedule(data);
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки расписания преподавателя:', e);
+    }
+  }, [token, isTeacher, teachers, user]);
 
   const loadData = useCallback(async () => {
     try {
@@ -1148,195 +1185,187 @@ function HomeContent() {
   }, [selectedGroupFilter]);
 
   const handleEditClick = (lesson) => {
-  console.log('✏️ Редактирование занятия:', lesson);
-  setEditingLesson({
-    ...lesson,
-    date: lesson.date || '',
-    apply_all: lesson.source === 'template',
-    template_id: lesson.template_id || null,
-    override_id: lesson.override_id || null
-  });
-  setShowEditModal(true);
-};
+    console.log('✏️ Редактирование занятия:', lesson);
+    setEditingLesson({
+      ...lesson,
+      date: lesson.date || '',
+      apply_all: lesson.source === 'template',
+      template_id: lesson.template_id || null,
+      override_id: lesson.override_id || null
+    });
+    setShowEditModal(true);
+  };
 
   const handleDeleteClick = (lesson) => {
-  if (!canEditSchedule) {
-    showNotification('Нет прав', 'error');
-    return;
-  }
-  
-  console.log('🗑 Нажато удаление, lesson:', lesson);
-  
-  // Определяем, есть ли переопределение
-  const hasOverride = lesson.override_id && lesson.source !== 'template';
-  
-  let message = '';
-  if (hasOverride) {
-    message = 'Удалить изменение для этой недели?\n\nOK — удалить переопределение\nОтмена — отменить занятие и в шаблоне';
-  } else if (lesson.template_id) {
-    message = 'Что удалить?\n\nOK — отменить только на эту неделю\nОтмена — удалить из шаблона навсегда';
-  } else {
-    message = 'Удалить это занятие?';
-  }
-  
-  const userChoice = confirm(message);
-  
-  if (hasOverride) {
-    // Если есть override_id и source != template — удаляем переопределение
-    handleDeleteSlot(lesson, false);
-  } else if (lesson.template_id) {
-    // Если есть template_id — пользователь выбирает
-    // OK = отменить на неделю (apply_all = false)
-    // Отмена = удалить из шаблона (apply_all = true)
-    handleDeleteSlot(lesson, !userChoice); // !userChoice потому что Cancel = false в confirm
-  } else {
-    // На всякий случай
-    handleDeleteSlot(lesson, false);
-  }
-};
-
-const handleDeleteSlot = async (lesson, applyAll) => {
-  if (!canEditSchedule) {
-    showNotification('Нет прав', 'error');
-    return;
-  }
-  
-  console.log('🗑 handleDeleteSlot вызван');
-  console.log('  lesson:', lesson);
-  console.log('  applyAll:', applyAll);
-  
-  const lessonDate = parseLocalDate(lesson.date);
-  if (!lessonDate || isNaN(lessonDate.getTime())) {
-    showNotification('Некорректная дата занятия', 'error');
-    return;
-  }
-  
-  const monday = getMonday(lessonDate);
-  const weekStart = formatForInput(monday);
-  
-  const body = {
-    group_id: lesson.group_id,
-    pair_number: lesson.pair_number,
-    day_of_week: lesson.day_of_week,
-    week_start_date: weekStart,
-    apply_all: applyAll,
-    template_id: lesson.template_id || null,
-    override_id: lesson.override_id || null
-  };
-  
-  console.log('📤 DELETE body:', JSON.stringify(body, null, 2));
-  
-  try {
-    const res = await fetch('/api/schedule/lesson', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body)
-    });
-    
-    const result = await res.json();
-    console.log('📥 DELETE ответ:', result);
-    
-    if (res.ok) {
-      scheduleCache.clear();
-      showNotification(
-        applyAll ? '✅ Удалено из шаблона' : '✅ Занятие отменено на эту неделю',
-        'success'
-      );
-      
-      // Перезагружаем данные
-      if (activeTab === 'manage-schedule') {
-        await loadScheduleForWeekForManage();
-      } else if (activeTab === 'template') {
-        loadTemplates();
-      } else {
-        await loadData();
-      }
-    } else {
-      showNotification(result.error || 'Ошибка удаления', 'error');
+    if (!canEditSchedule) {
+      showNotification('Нет прав', 'error');
+      return;
     }
-  } catch (e) {
-    console.error('❌ Ошибка удаления:', e);
-    showNotification('Ошибка соединения', 'error');
-  }
-};
+    
+    console.log('🗑 Нажато удаление, lesson:', lesson);
+    
+    const hasOverride = lesson.override_id && lesson.source !== 'template';
+    
+    let message = '';
+    if (hasOverride) {
+      message = 'Удалить изменение для этой недели?\n\nOK — удалить переопределение\nОтмена — отменить занятие и в шаблоне';
+    } else if (lesson.template_id) {
+      message = 'Что удалить?\n\nOK — отменить только на эту неделю\nОтмена — удалить из шаблона навсегда';
+    } else {
+      message = 'Удалить это занятие?';
+    }
+    
+    const userChoice = confirm(message);
+    
+    if (hasOverride) {
+      handleDeleteSlot(lesson, false);
+    } else if (lesson.template_id) {
+      handleDeleteSlot(lesson, !userChoice);
+    } else {
+      handleDeleteSlot(lesson, false);
+    }
+  };
+
+  const handleDeleteSlot = async (lesson, applyAll) => {
+    if (!canEditSchedule) {
+      showNotification('Нет прав', 'error');
+      return;
+    }
+    
+    console.log('🗑 handleDeleteSlot вызван');
+    console.log('  lesson:', lesson);
+    console.log('  applyAll:', applyAll);
+    
+    const lessonDate = parseLocalDate(lesson.date);
+    if (!lessonDate || isNaN(lessonDate.getTime())) {
+      showNotification('Некорректная дата занятия', 'error');
+      return;
+    }
+    
+    const monday = getMonday(lessonDate);
+    const weekStart = formatForInput(monday);
+    
+    const body = {
+      group_id: lesson.group_id,
+      pair_number: lesson.pair_number,
+      day_of_week: lesson.day_of_week,
+      week_start_date: weekStart,
+      apply_all: applyAll,
+      template_id: lesson.template_id || null,
+      override_id: lesson.override_id || null
+    };
+    
+    console.log('📤 DELETE body:', JSON.stringify(body, null, 2));
+    
+    try {
+      const res = await fetch('/api/schedule/lesson', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await res.json();
+      console.log('📥 DELETE ответ:', result);
+      
+      if (res.ok) {
+        scheduleCache.clear();
+        showNotification(
+          applyAll ? '✅ Удалено из шаблона' : '✅ Занятие отменено на эту неделю',
+          'success'
+        );
+        
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else if (activeTab === 'template') {
+          loadTemplates();
+        } else {
+          await loadData();
+        }
+      } else {
+        showNotification(result.error || 'Ошибка удаления', 'error');
+      }
+    } catch (e) {
+      console.error('❌ Ошибка удаления:', e);
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
 
   const handleSaveLesson = async (e) => {
-  e.preventDefault();
-  if (!canEditSchedule) return showNotification('Нет прав', 'error');
-  
-  console.log('🚀 handleSaveLesson вызвана');
-  console.log('📝 editingLesson:', JSON.stringify(editingLesson, null, 2));
-  
-  if (!editingLesson.apply_all && !editingLesson.date) {
-    return showNotification('Выберите дату или отметьте "Применить для всех"', 'error');
-  }
-  if (!editingLesson.group_id || !editingLesson.teacher_id || !editingLesson.subject_id) {
-    return showNotification('Заполните обязательные поля (группа, предмет, преподаватель)', 'error');
-  }
-
-  let weekStart = null;
-  if (!editingLesson.apply_all) {
-    const lessonDate = parseLocalDate(editingLesson.date);
-    if (!lessonDate || isNaN(lessonDate.getTime())) {
-      return showNotification('Некорректная дата', 'error');
-    }
-    weekStart = formatForInput(getMonday(lessonDate));
-    console.log('📅 Неделя переопределения:', weekStart);
-  }
-
-  const body = {
-    group_id: parseInt(editingLesson.group_id),
-    teacher_id: parseInt(editingLesson.teacher_id),
-    subject_id: parseInt(editingLesson.subject_id),
-    classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
-    pair_number: parseInt(editingLesson.pair_number),
-    day_of_week: parseInt(editingLesson.day_of_week),
-    week_start_date: weekStart,
-    apply_all: !!editingLesson.apply_all,
-    template_id: editingLesson.template_id || null,
-    override_id: editingLesson.override_id || null
-  };
-
-  console.log('📤 Отправка на /api/schedule/lesson:', JSON.stringify(body, null, 2));
-
-  try {
-    const res = await fetch('/api/schedule/lesson', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body)
-    });
+    e.preventDefault();
+    if (!canEditSchedule) return showNotification('Нет прав', 'error');
     
-    const result = await res.json();
-    console.log('📥 Ответ:', result);
-
-    if (res.ok) {
-      scheduleCache.clear();
-      showNotification(
-        editingLesson.apply_all ? '✅ Шаблон обновлён' : '✅ Изменение сохранено для недели',
-        'success'
-      );
-      
-      setShowEditModal(false);
-      setEditingLesson(null);
-      
-      // Перезагружаем данные
-      if (activeTab === 'manage-schedule') {
-        await loadScheduleForWeekForManage();
-      } else if (activeTab === 'template') {
-        loadTemplates();
-      } else {
-        await loadData();
-      }
-      
-      console.log('✅ Данные перезагружены');
-    } else {
-      showNotification(result.error || 'Ошибка', 'error');
+    console.log('🚀 handleSaveLesson вызвана');
+    console.log('📝 editingLesson:', JSON.stringify(editingLesson, null, 2));
+    
+    if (!editingLesson.apply_all && !editingLesson.date) {
+      return showNotification('Выберите дату или отметьте "Применить для всех"', 'error');
     }
-  } catch (e) {
-    console.error('❌ Ошибка:', e);
-    showNotification('Ошибка соединения', 'error');
-  }
-};
+    if (!editingLesson.group_id || !editingLesson.teacher_id || !editingLesson.subject_id) {
+      return showNotification('Заполните обязательные поля (группа, предмет, преподаватель)', 'error');
+    }
+
+    let weekStart = null;
+    if (!editingLesson.apply_all) {
+      const lessonDate = parseLocalDate(editingLesson.date);
+      if (!lessonDate || isNaN(lessonDate.getTime())) {
+        return showNotification('Некорректная дата', 'error');
+      }
+      weekStart = formatForInput(getMonday(lessonDate));
+      console.log('📅 Неделя переопределения:', weekStart);
+    }
+
+    const body = {
+      group_id: parseInt(editingLesson.group_id),
+      teacher_id: parseInt(editingLesson.teacher_id),
+      subject_id: parseInt(editingLesson.subject_id),
+      classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
+      pair_number: parseInt(editingLesson.pair_number),
+      day_of_week: parseInt(editingLesson.day_of_week),
+      week_start_date: weekStart,
+      apply_all: !!editingLesson.apply_all,
+      template_id: editingLesson.template_id || null,
+      override_id: editingLesson.override_id || null
+    };
+
+    console.log('📤 Отправка на /api/schedule/lesson:', JSON.stringify(body, null, 2));
+
+    try {
+      const res = await fetch('/api/schedule/lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await res.json();
+      console.log('📥 Ответ:', result);
+
+      if (res.ok) {
+        scheduleCache.clear();
+        showNotification(
+          editingLesson.apply_all ? '✅ Шаблон обновлён' : '✅ Изменение сохранено для недели',
+          'success'
+        );
+        
+        setShowEditModal(false);
+        setEditingLesson(null);
+        
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        } else if (activeTab === 'template') {
+          loadTemplates();
+        } else {
+          await loadData();
+        }
+        
+        console.log('✅ Данные перезагружены');
+      } else {
+        showNotification(result.error || 'Ошибка', 'error');
+      }
+    } catch (e) {
+      console.error('❌ Ошибка:', e);
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
 
   // ---------- Заметки преподавателя ----------
   const handleNotesChange = (lessonId, value) => {
@@ -1379,6 +1408,13 @@ const handleDeleteSlot = async (lesson, applyAll) => {
 
   useEffect(() => { if (!authChecking) loadData(); }, [authChecking, loadData]);
   useEffect(() => { if (token && canManageUsers) loadUsers(); }, [token, canManageUsers, loadUsers]);
+
+  // ИЗМЕНЕНО: эффект для преподавателя
+  useEffect(() => {
+    if (isTeacher && teachers.length > 0 && user) {
+      loadTeacherSchedule(teacherCurrentDate);
+    }
+  }, [isTeacher, teachers, user, teacherCurrentDate, loadTeacherSchedule]);
 
   useEffect(() => {
     if (isTeacher && schedule.length > 0 && user) {
@@ -1432,7 +1468,12 @@ const handleDeleteSlot = async (lesson, applyAll) => {
                   setLocalData(prev => ({ ...prev, [id]: { notes: l.notes || '' } }));
                   setHasChanges(prev => { const n = { ...prev }; delete n[id]; return n; });
                 }
-              }} />
+              }}
+              currentDate={teacherCurrentDate}
+              onPrevWeek={() => { const d = new Date(teacherCurrentDate); d.setDate(d.getDate() - 7); setTeacherCurrentDate(d); }}
+              onNextWeek={() => { const d = new Date(teacherCurrentDate); d.setDate(d.getDate() + 7); setTeacherCurrentDate(d); }}
+              onCurrentWeek={() => setTeacherCurrentDate(new Date())}
+            />
           }
         </div>
       );
