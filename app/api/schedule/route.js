@@ -89,7 +89,7 @@ export async function GET(request) {
 
     console.log('🔍 Main query params:', params);
     const mainResult = await db.query(mainQuery, params);
-    console.log('📊 Main result rows:', mainResult.rows.length);
+    console.log('Main result rows:', mainResult.rows.length);
 
     // Запрос для полностью новых занятий (status = 'added')
     let addedQuery = `
@@ -132,7 +132,7 @@ export async function GET(request) {
 
     console.log('🔍 Added query params:', addedParams);
     const addedResult = await db.query(addedQuery, addedParams);
-    console.log('📊 Added result rows:', addedResult.rows.length);
+    console.log('Added result rows:', addedResult.rows.length);
 
     const allRows = [...mainResult.rows, ...addedResult.rows];
     
@@ -154,8 +154,8 @@ export async function GET(request) {
 
     const formatted = uniqueRows.map(row => ({
   id: row.override_id || row.template_id || `${row.group_id}_${row.day_of_week}_${row.pair_number}`,
-  template_id: row.template_id,   // ✅ обязательно
-  override_id: row.override_id,   // ✅ обязательно
+  template_id: row.template_id,   
+  override_id: row.override_id,   
   group_id: row.group_id,
   group_name: row.group_name,
   teacher_id: row.teacher_id,
@@ -171,7 +171,7 @@ export async function GET(request) {
   date: row.lesson_date ? new Date(row.lesson_date).toISOString().split('T')[0] : null
 }));
 
-    console.log(`✅ Отправлено ${formatted.length} занятий`);
+    console.log(`Отправлено ${formatted.length} занятий`);
     return NextResponse.json(formatted);
     
   } catch (error) {

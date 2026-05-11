@@ -1006,9 +1006,9 @@ function HomeContent() {
       const wm = {}; lessons.forEach(l => { if (l.date) { const ws = formatForInput(getMonday(parseLocalDate(l.date))); if (!wm[ws]) wm[ws] = []; wm[ws].push(l); } });
       const sw = Object.keys(wm).sort(); const th = (lessons.length * 1.5).toFixed(1);
       const el = document.createElement('div');
-      el.innerHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Segoe UI,Arial,sans-serif;padding:25px;color:#1e293b}.h{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:25px;border-radius:12px;margin-bottom:20px}.h h1{font-size:26px;margin:0 0 8px}.h .tn{font-size:18px;opacity:.9}.h .meta{font-size:11px;opacity:.7;margin-top:10px}.s{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px}.c{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:15px;text-align:center}.c .v{font-size:30px;font-weight:700;color:#2c3e66}.c .l{font-size:10px;color:#64748b;text-transform:uppercase}.st{font-size:18px;font-weight:700;color:#2c3e66;border-bottom:3px solid #2c3e66;padding-bottom:8px;margin-bottom:15px}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px}th{background:#2c3e66;color:#fff;padding:10px 8px;text-align:left;text-transform:uppercase;font-size:9px}td{padding:8px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}.tr td{font-weight:700;background:#e2e8f0!important;border-top:2px solid #2c3e66}.ws{margin-bottom:15px}.wt{font-weight:700;color:#2c3e66;padding:6px 10px;background:#f1f5f9;border-radius:6px;margin-bottom:6px;font-size:12px}.f{margin-top:20px;padding-top:15px;border-top:2px solid #e2e8f0;text-align:center;font-size:9px;color:#94a3b8}</style></head><body><div class="h"><h1>📊 Отчет о нагрузке</h1><div class="tn">👨‍🏫 ${teacher.name}</div><div class="meta">Период: ${sw.length?formatDateRu(sw[0])+' — '+formatDateRu(sw[sw.length-1]):'Нет данных'} • ${new Date().toLocaleString('ru-RU')}</div></div><div class="s"><div class="c"><div class="v">${th}</div><div class="l">Всего часов</div></div><div class="c"><div class="v">${lessons.length}</div><div class="l">Занятий</div></div><div class="c"><div class="v">${Object.keys(sh).length}</div><div class="l">Предметов</div></div><div class="c"><div class="v">${new Set(lessons.map(l=>l.group_name)).size}</div><div class="l">Групп</div></div><div class="c"><div class="v">${sw.length}</div><div class="l">Недель</div></div></div><h2 class="st">📚 Сводка по предметам</h2><table><thead><tr><th>№</th><th>Предмет</th><th>Занятий</th><th>Часов</th><th>Группы</th></tr></thead><tbody>${Object.values(sh).sort((a,b)=>b.hrs-a.hrs).map((item,idx)=>`<tr><td>${idx+1}</td><td><strong>${item.name}</strong></td><td>${item.cnt} пар(ы)</td><td><strong>${item.hrs.toFixed(1)} ч.</strong></td><td>${[...item.grps].join(', ')}</td></tr>`).join('')}<tr class="tr"><td colspan="2"><strong>ИТОГО</strong></td><td><strong>${lessons.length} пар</strong></td><td colspan="2"><strong>${th} часов</strong></td></tr></tbody></table><h2 class="st">📅 Детализация по неделям</h2>${sw.map(ws=>{const wd=wm[ws];const we=new Date(parseLocalDate(ws));we.setDate(we.getDate()+6);const wn=getWeekNumber(parseLocalDate(ws));return`<div class="ws"><div class="wt">📌 Неделя ${wn} • ${formatDateRu(ws)} — ${formatDateRu(formatForInput(we))} <span style="float:right;font-weight:400">${wd.length} пар • ${(wd.length*1.5).toFixed(1)} ч.</span></div><table><thead><tr><th>Дата</th><th>День</th><th>Пара</th><th>Предмет</th><th>Группа</th><th>Ауд.</th></tr></thead><tbody>${wd.sort((a,b)=>{if(a.date<b.date)return-1;if(a.date>b.date)return 1;return a.pair_number-b.pair_number}).map(l=>`<tr><td>${l.date?formatDateRu(l.date):'—'}</td><td>${DAYS[l.day_of_week-1]}</td><td><strong>${l.pair_number}</strong> (${PAIRS[l.pair_number-1]?.time||''})</td><td>${l.subject_name}</td><td>${l.group_name}</td><td>${l.classroom_name||'—'}</td></tr>`).join('')}</tbody></table></div>`}).join('')}<div class="f"><p>Отчет сгенерирован автоматически • ${new Date().toLocaleString('ru-RU')}</p></div></body></html>`;
+      el.innerHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Segoe UI,Arial,sans-serif;padding:25px;color:#1e293b}.h{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:25px;border-radius:12px;margin-bottom:20px}.h h1{font-size:26px;margin:0 0 8px}.h .tn{font-size:18px;opacity:.9}.h .meta{font-size:11px;opacity:.7;margin-top:10px}.s{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px}.c{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:15px;text-align:center}.c .v{font-size:30px;font-weight:700;color:#2c3e66}.c .l{font-size:10px;color:#64748b;text-transform:uppercase}.st{font-size:18px;font-weight:700;color:#2c3e66;border-bottom:3px solid #2c3e66;padding-bottom:8px;margin-bottom:15px}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px}th{background:#2c3e66;color:#fff;padding:10px 8px;text-align:left;text-transform:uppercase;font-size:9px}td{padding:8px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}.tr td{font-weight:700;background:#e2e8f0!important;border-top:2px solid #2c3e66}.ws{margin-bottom:15px}.wt{font-weight:700;color:#2c3e66;padding:6px 10px;background:#f1f5f9;border-radius:6px;margin-bottom:6px;font-size:12px}.f{margin-top:20px;padding-top:15px;border-top:2px solid #e2e8f0;text-align:center;font-size:9px;color:#94a3b8}</style></head><body><div class="h"><h1>Отчет о нагрузке</h1><div class="tn">${teacher.name}</div><div class="meta">Период: ${sw.length?formatDateRu(sw[0])+' — '+formatDateRu(sw[sw.length-1]):'Нет данных'} • ${new Date().toLocaleString('ru-RU')}</div></div><div class="s"><div class="c"><div class="v">${th}</div><div class="l">Всего часов</div></div><div class="c"><div class="v">${lessons.length}</div><div class="l">Занятий</div></div><div class="c"><div class="v">${Object.keys(sh).length}</div><div class="l">Предметов</div></div><div class="c"><div class="v">${new Set(lessons.map(l=>l.group_name)).size}</div><div class="l">Групп</div></div><div class="c"><div class="v">${sw.length}</div><div class="l">Недель</div></div></div><h2 class="st">Сводка по предметам</h2><table><thead><tr><th>№</th><th>Предмет</th><th>Занятий</th><th>Часов</th><th>Группы</th></tr></thead><tbody>${Object.values(sh).sort((a,b)=>b.hrs-a.hrs).map((item,idx)=>`<tr><td>${idx+1}</td><td><strong>${item.name}</strong></td><td>${item.cnt} пар(ы)</td><td><strong>${item.hrs.toFixed(1)} ч.</strong></td><td>${[...item.grps].join(', ')}</td></tr>`).join('')}<tr class="tr"><td colspan="2"><strong>ИТОГО</strong></td><td><strong>${lessons.length} пар</strong></td><td colspan="2"><strong>${th} часов</strong></td></tr></tbody></table><h2 class="st">Детализация по неделям</h2>${sw.map(ws=>{const wd=wm[ws];const we=new Date(parseLocalDate(ws));we.setDate(we.getDate()+6);const wn=getWeekNumber(parseLocalDate(ws));return`<div class="ws"><div class="wt">📌 Неделя ${wn} • ${formatDateRu(ws)} — ${formatDateRu(formatForInput(we))} <span style="float:right;font-weight:400">${wd.length} пар • ${(wd.length*1.5).toFixed(1)} ч.</span></div><table><thead><tr><th>Дата</th><th>День</th><th>Пара</th><th>Предмет</th><th>Группа</th><th>Ауд.</th></tr></thead><tbody>${wd.sort((a,b)=>{if(a.date<b.date)return-1;if(a.date>b.date)return 1;return a.pair_number-b.pair_number}).map(l=>`<tr><td>${l.date?formatDateRu(l.date):'—'}</td><td>${DAYS[l.day_of_week-1]}</td><td><strong>${l.pair_number}</strong> (${PAIRS[l.pair_number-1]?.time||''})</td><td>${l.subject_name}</td><td>${l.group_name}</td><td>${l.classroom_name||'—'}</td></tr>`).join('')}</tbody></table></div>`}).join('')}<div class="f"><p>Отчет сгенерирован автоматически • ${new Date().toLocaleString('ru-RU')}</p></div></body></html>`;
       await html2pdf().set({ margin:[.4,.4,.4,.4], filename:`Отчет_${teacher.name.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.pdf`, image:{type:'jpeg',quality:.98}, html2canvas:{scale:2,useCORS:true}, jsPDF:{unit:'in',format:'a4',orientation:'portrait'}, pagebreak:{mode:['avoid-all','css','legacy']} }).from(el).save();
-      showNotification('✅ Отчет сформирован', 'success');
+      showNotification('Отчет сформирован', 'success');
     } catch (e) { showNotification('Ошибка', 'error'); }
   }, [teachers, schedule]);
 
@@ -1081,7 +1081,7 @@ function HomeContent() {
     ws['!cols'] = Object.keys(colWidths).map(c => ({ wch: Math.min(colWidths[c], 40) }));
     XLSX.utils.book_append_sheet(wb, ws, "Расписание");
     XLSX.writeFile(wb, `Расписание_${new Date().toISOString().split('T')[0]}.xlsx`);
-    showNotification('✅ Excel файл сохранен', 'success');
+    showNotification('Excel файл сохранен', 'success');
   }, [schedule, activeTab, isTeacher, teachers, user]);
 
       const exportToPDF = useCallback(async () => {
@@ -1097,7 +1097,7 @@ function HomeContent() {
       const el = document.createElement('div');
       el.innerHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Segoe UI,Arial,sans-serif;padding:20px;color:#1e293b}.h{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:20px;border-radius:10px;margin-bottom:15px}.h h1{font-size:24px;margin:0}.h p{font-size:13px;opacity:.9}.s{display:flex;gap:10px;margin-bottom:15px}.c{flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}.c .v{font-size:26px;font-weight:700;color:#2c3e66}.c .l{font-size:10px;color:#64748b;text-transform:uppercase}.d{margin-bottom:15px}.dt{font-weight:700;color:#2c3e66;padding:8px 12px;background:#f1f5f9;border-radius:6px;margin-bottom:8px;border-left:4px solid #2c3e66}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px}th{background:#2c3e66;color:#fff;padding:8px 6px;text-align:left;text-transform:uppercase;font-size:9px}td{padding:6px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600}.bg-c{background:#fee2e2;color:#991b1b}.bg-m{background:#fef3c7;color:#92400e}.bg-a{background:#dcfce7;color:#166534}.bg-t{background:#e0e7ff;color:#3730a3}.f{margin-top:15px;padding-top:10px;border-top:2px solid #e2e8f0;text-align:center;font-size:9px;color:#94a3b8}</style></head><body><div class="h"><h1>📅 ${title}</h1><p>${subtitle}</p></div><div class="s"><div class="c"><div class="v">${total}</div><div class="l">Занятий</div></div><div class="c"><div class="v">${hrs}</div><div class="l">Часов</div></div></div>${sorted.map(dk => { const ls = grouped[dk]; const dt = parseLocalDate(dk); const dn = dt ? DAYS[dt.getDay()===0?6:dt.getDay()-1] : ''; return `<div class="d"><div class="dt">📌 ${dk!=='—'?formatDateRu(dk):dk} ${dn} <span style="float:right;font-weight:400">${ls.length} пар(ы)</span></div><table><thead><tr><th>Пара</th><th>Время</th>${activeTab!=='my-lessons'&&user?.role!=='student'?'<th>Группа</th>':''}<th>Предмет</th><th>Преподаватель</th><th>Ауд.</th><th>Статус</th></tr></thead><tbody>${ls.sort((a,b)=>a.pair_number-b.pair_number).map(l=>`<tr><td><strong>${l.pair_number}</strong></td><td>${PAIRS[l.pair_number-1]?.time||''}</td>${activeTab!=='my-lessons'&&user?.role!=='student'?`<td>${l.group_name}</td>`:''}<td><strong>${l.subject_name}</strong></td><td>${l.teacher_name}</td><td>${l.classroom_name||'—'}</td><td><span class="badge bg-${(l.source||'template')[0]}">${l.source==='cancelled'?'❌ Отменено':l.source==='modified'?'✏️ Изменено':l.source==='added'?'➕ Добавлено':'📋 Шаблон'}</span></td></tr>`).join('')}</tbody></table></div>`; }).join('')}<div class="f"><p>Отчет сгенерирован автоматически • ${new Date().toLocaleString('ru-RU')}</p></div></body></html>`;
       await html2pdf().set({ margin:[.3,.3,.3,.3], filename:`Расписание_${new Date().toISOString().split('T')[0]}.pdf`, image:{type:'jpeg',quality:.98}, html2canvas:{scale:2,useCORS:true}, jsPDF:{unit:'in',format:'a4',orientation:'landscape'}, pagebreak:{mode:['avoid-all','css','legacy']} }).from(el).save();
-      showNotification('✅ PDF файл сохранен', 'success');
+      showNotification('PDF файл сохранен', 'success');
     } catch (e) { showNotification('Ошибка PDF', 'error'); }
   }, [schedule, activeTab, isTeacher, teachers, user, groups]);
 
@@ -1296,7 +1296,7 @@ function HomeContent() {
       if (res.ok) {
         scheduleCache.clear();
         showNotification(
-          applyAll ? '✅ Удалено из шаблона' : '✅ Занятие отменено на эту неделю',
+          applyAll ? 'Удалено из шаблона' : 'Занятие отменено на эту неделю',
           'success'
         );
         
@@ -1320,8 +1320,8 @@ function HomeContent() {
     e.preventDefault();
     if (!canEditSchedule) return showNotification('Нет прав', 'error');
     
-    console.log('🚀 handleSaveLesson вызвана');
-    console.log('📝 editingLesson:', JSON.stringify(editingLesson, null, 2));
+    console.log('handleSaveLesson вызвана');
+    console.log('ditingLesson:', JSON.stringify(editingLesson, null, 2));
     
     if (!editingLesson.apply_all && !editingLesson.date) {
       return showNotification('Выберите дату или отметьте "Применить для всех"', 'error');
@@ -1337,7 +1337,7 @@ function HomeContent() {
         return showNotification('Некорректная дата', 'error');
       }
       weekStart = formatForInput(getMonday(lessonDate));
-      console.log('📅 Неделя переопределения:', weekStart);
+      console.log('Неделя переопределения:', weekStart);
     }
 
     const body = {
@@ -1353,7 +1353,7 @@ function HomeContent() {
       override_id: editingLesson.override_id || null
     };
 
-    console.log('📤 Отправка на /api/schedule/lesson:', JSON.stringify(body, null, 2));
+    console.log('Отправка на /api/schedule/lesson:', JSON.stringify(body, null, 2));
 
     try {
       const res = await fetch('/api/schedule/lesson', {
@@ -1363,12 +1363,12 @@ function HomeContent() {
       });
       
       const result = await res.json();
-      console.log('📥 Ответ:', result);
+      console.log('Ответ:', result);
 
       if (res.ok) {
         scheduleCache.clear();
         showNotification(
-          editingLesson.apply_all ? '✅ Шаблон обновлён' : '✅ Изменение сохранено для недели',
+          editingLesson.apply_all ? 'Шаблон обновлён' : 'Изменение сохранено для недели',
           'success'
         );
         
@@ -1383,7 +1383,7 @@ function HomeContent() {
           await loadData();
         }
         
-        console.log('✅ Данные перезагружены');
+        console.log('Данные перезагружены');
       } else {
         showNotification(result.error || 'Ошибка', 'error');
       }

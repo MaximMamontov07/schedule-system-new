@@ -126,7 +126,7 @@ export async function POST(request) {
         console.log('➕ Шаблон создан, id:', result.rows[0]?.id);
       }
 
-      // 🔥 Удаляем ВСЕ переопределения для этой комбинации (любая неделя, любой статус)
+      
       const deletedOverrides = await db.query(`
         DELETE FROM schedule_overrides
         WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3
@@ -266,14 +266,14 @@ export async function DELETE(request) {
       
       if (template_id) {
         await db.query(`DELETE FROM schedule_templates WHERE id = $1`, [template_id]);
-        console.log('✅ Шаблон удалён, id:', template_id);
+        console.log('Шаблон удалён, id:', template_id);
       } else {
         // Если нет template_id, удаляем по координатам
         await db.query(`
           DELETE FROM schedule_templates 
           WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3
         `, [gid, day, pair]);
-        console.log('✅ Шаблон удалён по координатам');
+        console.log('Шаблон удалён по координатам');
       }
 
       // Удаляем ВСЕ связанные переопределения
@@ -308,13 +308,13 @@ export async function DELETE(request) {
     if (override_id) {
       console.log('🗑 Удаляем переопределение, id:', override_id);
       await db.query(`DELETE FROM schedule_overrides WHERE id = $1`, [override_id]);
-      console.log('✅ Переопределение удалено');
+      console.log('Переопределение удалено');
       return NextResponse.json({ success: true, source: 'override_deleted' });
     }
 
     // Если есть template_id — создаём cancelled для этой недели
     if (template_id) {
-      console.log('🚫 Отменяем занятие шаблона на неделю:', week_start_date);
+      console.log('Отменяем занятие шаблона на неделю:', week_start_date);
       await db.query(`
         INSERT INTO schedule_overrides
           (week_start_date, group_id, day_of_week, pair_number, status)
@@ -327,7 +327,7 @@ export async function DELETE(request) {
                       notes = NULL,
                       updated_at = NOW()
       `, [week_start_date, gid, day, pair]);
-      console.log('✅ Занятие отменено (cancelled)');
+      console.log('Занятие отменено (cancelled)');
       return NextResponse.json({ success: true, source: 'override_cancelled' });
     }
 
@@ -337,7 +337,7 @@ export async function DELETE(request) {
       DELETE FROM schedule_overrides
       WHERE week_start_date = $1 AND group_id = $2 AND day_of_week = $3 AND pair_number = $4
     `, [week_start_date, gid, day, pair]);
-    console.log('✅ Переопределение удалено по координатам');
+    console.log('Переопределение удалено по координатам');
     
     return NextResponse.json({ success: true, source: 'override_deleted' });
 

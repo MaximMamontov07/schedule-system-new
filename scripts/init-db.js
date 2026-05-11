@@ -37,7 +37,7 @@ const initDb = () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ Users table created');
+      console.log('Users table created');
       
       // Таблица групп
       db.run(`
@@ -47,7 +47,7 @@ const initDb = () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ Groups table created');
+      console.log('Groups table created');
       
       // Таблица преподавателей
       db.run(`
@@ -59,7 +59,7 @@ const initDb = () => {
           FOREIGN KEY (user_id) REFERENCES users(id)
         )
       `);
-      console.log('✅ Teachers table created');
+      console.log('Teachers table created');
       
       // Таблица предметов
       db.run(`
@@ -69,7 +69,7 @@ const initDb = () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ Subjects table created');
+      console.log('Subjects table created');
       
       // Таблица аудиторий
       db.run(`
@@ -83,7 +83,7 @@ const initDb = () => {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ Classrooms table created');
+      console.log('Classrooms table created');
       
       // Таблица расписания (с колонкой date)
       db.run(`
@@ -105,11 +105,11 @@ const initDb = () => {
           FOREIGN KEY (classroom_id) REFERENCES classrooms(id)
         )
       `);
-      console.log('✅ Schedule table created with date column');
+      console.log('Schedule table created with date column');
       
       // Создаём индекс для date
       db.run('CREATE INDEX idx_schedule_date ON schedule(date)');
-      console.log('✅ Index on date column created');
+      console.log('Index on date column created');
     });
 
     // Создаём пользователей и тестовые данные
@@ -143,13 +143,13 @@ const initDb = () => {
           function(err) {
             if (!err) {
               const teacherUserId = this.lastID;
-              console.log('👨‍🏫 Teacher user created (ID: ' + teacherUserId + ')');
+              console.log('Teacher user created (ID: ' + teacherUserId + ')');
               
               db.run(
                 'INSERT INTO teachers (name, user_id) VALUES (?, ?)',
                 ['Петров И.И.', teacherUserId],
                 function(err) {
-                  if (!err) console.log('✅ Teacher record created');
+                  if (!err) console.log('Teacher record created');
                 }
               );
             }
@@ -181,7 +181,7 @@ const initDb = () => {
           db.run("INSERT INTO classrooms (name, building, floor, capacity, type) VALUES ('208', 'Лабораторный корпус', 2, 20, 'lab')");
           db.run("INSERT INTO classrooms (name, building, floor, capacity, type) VALUES ('101', 'Главный корпус', 1, 60, 'lecture')");
           
-          console.log('📊 Test data added');
+          console.log('Test data added');
           
           setTimeout(() => {
             db.get("SELECT id FROM groups WHERE name = 'ИС-21'", (err, group) => {

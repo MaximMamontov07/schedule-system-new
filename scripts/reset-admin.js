@@ -34,9 +34,9 @@ async function resetAdmin() {
                   console.error('Error updating admin:', err);
                   reject(err);
                 } else {
-                  console.log('✅ Admin password reset successfully!');
-                  console.log('📧 Login: admin');
-                  console.log('🔑 Password: 1234');
+                  console.log('Admin password reset successfully!');
+                  console.log('Login: admin');
+                  console.log('Password: 1234');
                   resolve();
                 }
               }
@@ -51,9 +51,9 @@ async function resetAdmin() {
                   console.error('Error creating admin:', err);
                   reject(err);
                 } else {
-                  console.log('✅ Admin user created successfully!');
-                  console.log('📧 Login: admin');
-                  console.log('🔑 Password: 1234');
+                  console.log('Admin user created successfully!');
+                  console.log('Login: admin');
+                  console.log('Password: 1234');
                   resolve();
                 }
               }
