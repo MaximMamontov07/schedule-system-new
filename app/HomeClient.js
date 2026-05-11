@@ -882,40 +882,57 @@ function HomeContent() {
   const isTeacher = user && user.role === 'teacher';
 
   // Исправленная загрузка расписания без циклических зависимостей
-  const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null) => {
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-    let start = weekStart, end = weekEnd;
-    if (weekStart instanceof Date) start = formatForInput(weekStart);
-    if (weekEnd instanceof Date) end = formatForInput(weekEnd);
+ const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null, forceReload = false) => {
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  let start = weekStart, end = weekEnd;
+  if (weekStart instanceof Date) start = formatForInput(weekStart);
+  if (weekEnd instanceof Date) end = formatForInput(weekEnd);
 
-    const effectiveGroupId = groupId ?? selectedGroupFilter;
+  const effectiveGroupId = groupId ?? selectedGroupFilter;
+  const cacheKey = `${start}|${end}|${effectiveGroupId || ''}`;
 
-    const cacheKey = `${start}|${end}|${effectiveGroupId || ''}`;
-    const cached = scheduleCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 5000) {
-      setSchedule(cached.data);
-      return cached.data;
-    }
+  // Если forceReload - удаляем кэш
+  if (forceReload) {
+    scheduleCache.delete(cacheKey);
+  }
 
-    let url = `/api/schedule?weekStart=${start}`;
-    if (effectiveGroupId) url += `&groupId=${effectiveGroupId}`;
+  const cached = scheduleCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 5000 && !forceReload) {
+    console.log('📦 Использую кэш:', cacheKey);
+    setSchedule(cached.data);
+    return cached.data;
+  }
 
-    try {
-      const scheduleRes = await fetch(url, { headers });
-      const scheduleData = await scheduleRes.json();
-      scheduleCache.set(cacheKey, { data: scheduleData, timestamp: Date.now() });
-      setSchedule(scheduleData);
-      return scheduleData;
-    } catch (e) {
-      showNotification('Ошибка загрузки расписания', 'error');
-      return [];
-    }
-  }, [token, selectedGroupFilter]);
+  let url = `/api/schedule?weekStart=${start}`;
+  if (effectiveGroupId) url += `&groupId=${effectiveGroupId}`;
 
-  const loadScheduleForWeekForManage = useCallback(async () => {
-    const weekDates = getWeekDates(manageCurrentDate);
-    await loadScheduleForWeek(formatForInput(weekDates[0]), formatForInput(weekDates[6]), selectedGroupFilter);
-  }, [manageCurrentDate, selectedGroupFilter, loadScheduleForWeek]);
+  console.log('🌐 Загрузка расписания:', url);
+  
+  try {
+    const scheduleRes = await fetch(url, { headers });
+    const scheduleData = await scheduleRes.json();
+    console.log('📥 Получено занятий:', scheduleData.length);
+    
+    scheduleCache.set(cacheKey, { data: scheduleData, timestamp: Date.now() });
+    setSchedule(scheduleData);
+    return scheduleData;
+  } catch (e) {
+    console.error('❌ Ошибка загрузки расписания:', e);
+    showNotification('Ошибка загрузки расписания', 'error');
+    return [];
+  }
+}, [token, selectedGroupFilter]);
+
+ const loadScheduleForWeekForManage = useCallback(async () => {
+  const weekDates = getWeekDates(manageCurrentDate);
+  console.log('🔄 Загрузка для управления, неделя:', formatForInput(weekDates[0]));
+  await loadScheduleForWeek(
+    formatForInput(weekDates[0]), 
+    formatForInput(weekDates[6]), 
+    selectedGroupFilter, 
+    true  // всегда принудительно для управления
+  );
+}, [manageCurrentDate, selectedGroupFilter, loadScheduleForWeek]);
 
   const loadData = useCallback(async () => {
     try {
@@ -1200,6 +1217,10 @@ function HomeContent() {
   const handleDeleteSlot = async (lesson, applyAll) => {
   if (!canEditSchedule) return showNotification('Нет прав', 'error');
   
+  console.log('🗑 Начало удаления занятия');
+  console.log('🗑 lesson:', lesson);
+  console.log('🗑 applyAll:', applyAll);
+  
   const lessonDate = parseLocalDate(lesson.date);
   if (!lessonDate || isNaN(lessonDate.getTime())) {
     showNotification('Некорректная дата занятия', 'error');
@@ -1217,7 +1238,8 @@ function HomeContent() {
     apply_all: applyAll
   };
   
-  console.log('🗑 Удаление занятия:', body);
+  console.log('📤 Отправка запроса DELETE на /api/schedule/lesson');
+  console.log('📤 Тело запроса:', JSON.stringify(body, null, 2));
   
   try {
     const res = await fetch('/api/schedule/lesson', {
@@ -1225,35 +1247,80 @@ function HomeContent() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body)
     });
+    
     const result = await res.json();
-    console.log('📥 Ответ удаления:', result);
+    console.log('📥 Ответ сервера:', result);
+    console.log('📥 Статус ответа:', res.status);
     
     if (res.ok) {
+      // Очищаем ВЕСЬ кэш расписания
       scheduleCache.clear();
+      console.log('🗑 Кэш расписания очищен');
       
       if (applyAll) {
-        showNotification('Удалено из шаблона', 'success');
+        showNotification('✅ Удалено из шаблона', 'success');
       } else {
-        showNotification('Занятие отменено на эту неделю', 'success');
+        showNotification('✅ Занятие отменено на эту неделю', 'success');
       }
       
-      // Перезагружаем данные
-      if (activeTab === 'manage-schedule') {
-        console.log('🔄 Перезагрузка управления расписанием');
-        await loadScheduleForWeekForManage();
-      } else if (activeTab === 'template') {
-        console.log('🔄 Перезагрузка шаблона');
-        loadTemplates();
-      } else {
-        console.log('🔄 Перезагрузка основных данных');
-        await loadData();
+      // ПРИНУДИТЕЛЬНАЯ перезагрузка данных
+      console.log('🔄 Принудительная перезагрузка данных...');
+      
+      // Перезагружаем справочники
+      const [groupsRes, teachersRes, subjectsRes] = await Promise.all([
+        fetch('/api/groups'),
+        fetch('/api/teachers'),
+        fetch('/api/subjects')
+      ]);
+      setGroups(await groupsRes.json());
+      setTeachers(await teachersRes.json());
+      setSubjects(await subjectsRes.json());
+      
+      // Загружаем аудитории
+      try {
+        const classroomsRes = await fetch('/api/classrooms');
+        if (classroomsRes.ok) setClassrooms(await classroomsRes.json());
+      } catch (e) {
+        console.warn('Не удалось загрузить аудитории');
       }
+      
+      // Перезагружаем расписание с принудительным сбросом кэша
+      if (activeTab === 'manage-schedule') {
+        const weekDates = getWeekDates(manageCurrentDate);
+        await loadScheduleForWeek(
+          formatForInput(weekDates[0]), 
+          formatForInput(weekDates[6]), 
+          selectedGroupFilter, 
+          true  // forceReload
+        );
+        console.log('✅ Управление расписанием перезагружено');
+      } else {
+        const mondayDate = getMonday(new Date());
+        await loadScheduleForWeek(
+          formatForInput(mondayDate), 
+          null, 
+          selectedGroupFilter, 
+          true  // forceReload
+        );
+        console.log('✅ Основное расписание перезагружено');
+      }
+      
+      // Если активна вкладка шаблона - перезагружаем шаблон
+      if (activeTab === 'template') {
+        const templatesRes = await fetch('/api/schedule/template');
+        setTemplates(await templatesRes.json());
+        console.log('✅ Шаблон перезагружен');
+      }
+      
+      console.log('✅ Все данные успешно перезагружены');
+      
     } else {
       const err = await res.json();
       showNotification(err.error || 'Ошибка', 'error');
+      console.error('❌ Ошибка от сервера:', err);
     }
   } catch (e) {
-    console.error('❌ Ошибка:', e);
+    console.error('❌ Ошибка соединения:', e);
     showNotification('Ошибка соединения', 'error');
   }
 };
@@ -1261,13 +1328,17 @@ function HomeContent() {
  const handleSaveLesson = async (e) => {
   e.preventDefault();
   if (!canEditSchedule) return showNotification('Нет прав', 'error');
+  
+  console.log('📝 Начало сохранения занятия');
+  console.log('📝 editingLesson:', editingLesson);
+  
   if (!editingLesson.apply_all && !editingLesson.date) {
     showNotification('Выберите дату или отметьте "Применить для всех недель"', 'error');
     return;
   }
 
   if (!editingLesson.group_id || !editingLesson.teacher_id || !editingLesson.subject_id) {
-    showNotification('Заполните все обязательные поля', 'error');
+    showNotification('Заполните все обязательные поля (группа, предмет, преподаватель)', 'error');
     return;
   }
 
@@ -1279,6 +1350,7 @@ function HomeContent() {
       return;
     }
     weekStart = formatForInput(getMonday(lessonDate));
+    console.log('📅 Неделя для переопределения:', weekStart);
   }
 
   const body = {
@@ -1292,7 +1364,8 @@ function HomeContent() {
     apply_all: !!editingLesson.apply_all
   };
 
-  console.log('📤 Отправка занятия:', body);
+  console.log('📤 Отправка запроса на /api/schedule/lesson');
+  console.log('📤 Тело запроса:', JSON.stringify(body, null, 2));
 
   try {
     const res = await fetch('/api/schedule/lesson', {
@@ -1300,41 +1373,86 @@ function HomeContent() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body)
     });
+    
     const result = await res.json();
-    console.log('📥 Ответ:', result);
+    console.log('📥 Ответ сервера:', result);
+    console.log('📥 Статус ответа:', res.status);
 
     if (res.ok) {
+      // Очищаем ВЕСЬ кэш расписания
       scheduleCache.clear();
+      console.log('🗑 Кэш расписания очищен');
       
       if (editingLesson.apply_all) {
-        showNotification('Шаблон обновлён', 'success');
+        showNotification('✅ Шаблон обновлён', 'success');
       } else {
-        showNotification('Занятие сохранено на неделю', 'success');
+        showNotification('✅ Занятие сохранено на неделю', 'success');
       }
       
       setShowEditModal(false);
       setEditingLesson(null);
       
-      // Перезагружаем данные в зависимости от активной вкладки
-      if (activeTab === 'manage-schedule') {
-        console.log('🔄 Перезагрузка управления расписанием');
-        await loadScheduleForWeekForManage();
-      } else if (activeTab === 'template') {
-        console.log('🔄 Перезагрузка шаблона');
-        loadTemplates();
-      } else {
-        console.log('🔄 Перезагрузка основных данных');
-        await loadData();
+      // ПРИНУДИТЕЛЬНАЯ перезагрузка данных
+      console.log('🔄 Принудительная перезагрузка данных...');
+      
+      // Всегда перезагружаем справочники
+      const [groupsRes, teachersRes, subjectsRes] = await Promise.all([
+        fetch('/api/groups'),
+        fetch('/api/teachers'),
+        fetch('/api/subjects')
+      ]);
+      setGroups(await groupsRes.json());
+      setTeachers(await teachersRes.json());
+      setSubjects(await subjectsRes.json());
+      
+      // Загружаем аудитории с обработкой ошибок
+      try {
+        const classroomsRes = await fetch('/api/classrooms');
+        if (classroomsRes.ok) setClassrooms(await classroomsRes.json());
+      } catch (e) {
+        console.warn('Не удалось загрузить аудитории');
       }
+      
+      // Перезагружаем расписание с принудительным сбросом кэша
+      if (activeTab === 'manage-schedule') {
+        const weekDates = getWeekDates(manageCurrentDate);
+        await loadScheduleForWeek(
+          formatForInput(weekDates[0]), 
+          formatForInput(weekDates[6]), 
+          selectedGroupFilter, 
+          true  // forceReload
+        );
+        console.log('✅ Управление расписанием перезагружено');
+      } else {
+        const monday = getMonday(new Date());
+        await loadScheduleForWeek(
+          formatForInput(monday), 
+          null, 
+          selectedGroupFilter, 
+          true  // forceReload
+        );
+        console.log('✅ Основное расписание перезагружено');
+      }
+      
+      // Если активна вкладка шаблона - перезагружаем шаблон
+      if (activeTab === 'template') {
+        const templatesRes = await fetch('/api/schedule/template');
+        setTemplates(await templatesRes.json());
+        console.log('✅ Шаблон перезагружен');
+      }
+      
+      console.log('✅ Все данные успешно перезагружены');
+      
     } else if (res.status === 409 && result.conflict) {
       showNotification(result.error, 'error');
-      alert('Конфликт: ' + result.error);
+      alert('⚠️ Конфликт расписания!\n\n' + result.error);
     } else {
       showNotification(result.error || 'Ошибка сервера', 'error');
+      console.error('❌ Ошибка от сервера:', result);
     }
   } catch (e) {
-    console.error('❌ Ошибка:', e);
-    showNotification('Ошибка соединения', 'error');
+    console.error('❌ Ошибка соединения:', e);
+    showNotification('Ошибка соединения с сервером', 'error');
   }
 };
 
