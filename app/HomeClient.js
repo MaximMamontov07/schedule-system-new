@@ -1198,74 +1198,145 @@ function HomeContent() {
   };
 
   const handleDeleteSlot = async (lesson, applyAll) => {
-    const lessonDate = parseLocalDate(lesson.date);
-    const monday = getMonday(lessonDate);
-    const weekStart = formatForInput(monday);
-    try {
-      const res = await fetch('/api/schedule/lesson', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ group_id: lesson.group_id, pair_number: lesson.pair_number, day_of_week: lesson.day_of_week, week_start_date: weekStart, apply_all: applyAll })
-      });
-      if (res.ok) {
-        scheduleCache.clear();
-        showNotification(applyAll ? 'Удалено из шаблона' : 'Занятие отменено на эту неделю', 'success');
-        if (activeTab === 'manage-schedule') await loadScheduleForWeekForManage();
-        else await loadData();
-        if (activeTab === 'template') loadTemplates();
+  if (!canEditSchedule) return showNotification('Нет прав', 'error');
+  
+  const lessonDate = parseLocalDate(lesson.date);
+  if (!lessonDate || isNaN(lessonDate.getTime())) {
+    showNotification('Некорректная дата занятия', 'error');
+    return;
+  }
+  
+  const monday = getMonday(lessonDate);
+  const weekStart = formatForInput(monday);
+  
+  const body = {
+    group_id: lesson.group_id,
+    pair_number: lesson.pair_number,
+    day_of_week: lesson.day_of_week,
+    week_start_date: weekStart,
+    apply_all: applyAll
+  };
+  
+  console.log('🗑 Удаление занятия:', body);
+  
+  try {
+    const res = await fetch('/api/schedule/lesson', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    const result = await res.json();
+    console.log('📥 Ответ удаления:', result);
+    
+    if (res.ok) {
+      scheduleCache.clear();
+      
+      if (applyAll) {
+        showNotification('Удалено из шаблона', 'success');
       } else {
-        const err = await res.json();
-        showNotification(err.error, 'error');
+        showNotification('Занятие отменено на эту неделю', 'success');
       }
-    } catch (e) {
-      showNotification('Ошибка соединения', 'error');
+      
+      // Перезагружаем данные
+      if (activeTab === 'manage-schedule') {
+        console.log('🔄 Перезагрузка управления расписанием');
+        await loadScheduleForWeekForManage();
+      } else if (activeTab === 'template') {
+        console.log('🔄 Перезагрузка шаблона');
+        loadTemplates();
+      } else {
+        console.log('🔄 Перезагрузка основных данных');
+        await loadData();
+      }
+    } else {
+      const err = await res.json();
+      showNotification(err.error || 'Ошибка', 'error');
     }
+  } catch (e) {
+    console.error('❌ Ошибка:', e);
+    showNotification('Ошибка соединения', 'error');
+  }
+};
+
+ const handleSaveLesson = async (e) => {
+  e.preventDefault();
+  if (!canEditSchedule) return showNotification('Нет прав', 'error');
+  if (!editingLesson.apply_all && !editingLesson.date) {
+    showNotification('Выберите дату или отметьте "Применить для всех недель"', 'error');
+    return;
+  }
+
+  if (!editingLesson.group_id || !editingLesson.teacher_id || !editingLesson.subject_id) {
+    showNotification('Заполните все обязательные поля', 'error');
+    return;
+  }
+
+  let weekStart = null;
+  if (!editingLesson.apply_all) {
+    const lessonDate = parseLocalDate(editingLesson.date);
+    if (!lessonDate || isNaN(lessonDate.getTime())) {
+      showNotification('Некорректная дата', 'error');
+      return;
+    }
+    weekStart = formatForInput(getMonday(lessonDate));
+  }
+
+  const body = {
+    group_id: parseInt(editingLesson.group_id),
+    teacher_id: parseInt(editingLesson.teacher_id),
+    subject_id: parseInt(editingLesson.subject_id),
+    classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
+    pair_number: parseInt(editingLesson.pair_number),
+    day_of_week: parseInt(editingLesson.day_of_week),
+    week_start_date: weekStart,
+    apply_all: !!editingLesson.apply_all
   };
 
-  const handleSaveLesson = async (e) => {
-    e.preventDefault();
-    if (!canEditSchedule) return showNotification('Нет прав', 'error');
-    if (!editingLesson.apply_all && !editingLesson.date) return showNotification('Выберите дату или отметьте "Применить для всех"', 'error');
+  console.log('📤 Отправка занятия:', body);
 
-    let weekStart = null;
-    if (!editingLesson.apply_all) {
-      const lessonDate = parseLocalDate(editingLesson.date);
-      if (!lessonDate) return showNotification('Некорректная дата', 'error');
-      weekStart = formatForInput(getMonday(lessonDate));
-    }
+  try {
+    const res = await fetch('/api/schedule/lesson', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    const result = await res.json();
+    console.log('📥 Ответ:', result);
 
-    const body = {
-      group_id: parseInt(editingLesson.group_id), teacher_id: parseInt(editingLesson.teacher_id),
-      subject_id: parseInt(editingLesson.subject_id), classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
-      pair_number: parseInt(editingLesson.pair_number), day_of_week: parseInt(editingLesson.day_of_week),
-      week_start_date: weekStart, apply_all: !!editingLesson.apply_all
-    };
-
-    try {
-      const res = await fetch('/api/schedule/lesson', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body)
-      });
-      const result = await res.json();
-      if (res.ok) {
-        scheduleCache.clear();
-        showNotification(editingLesson.apply_all ? 'Шаблон обновлён' : 'Изменение сохранено', 'success');
-        setShowEditModal(false);
-        setEditingLesson(null);
-        if (activeTab === 'manage-schedule') await loadScheduleForWeekForManage();
-        else await loadData();
-        if (activeTab === 'template') loadTemplates();
-      } else if (res.status === 409) {
-        showNotification(result.error, 'error');
-        alert('Конфликт: ' + result.error);
+    if (res.ok) {
+      scheduleCache.clear();
+      
+      if (editingLesson.apply_all) {
+        showNotification('Шаблон обновлён', 'success');
       } else {
-        showNotification(result.error || 'Ошибка сервера', 'error');
+        showNotification('Занятие сохранено на неделю', 'success');
       }
-    } catch (e) {
-      showNotification('Ошибка соединения', 'error');
+      
+      setShowEditModal(false);
+      setEditingLesson(null);
+      
+      // Перезагружаем данные в зависимости от активной вкладки
+      if (activeTab === 'manage-schedule') {
+        console.log('🔄 Перезагрузка управления расписанием');
+        await loadScheduleForWeekForManage();
+      } else if (activeTab === 'template') {
+        console.log('🔄 Перезагрузка шаблона');
+        loadTemplates();
+      } else {
+        console.log('🔄 Перезагрузка основных данных');
+        await loadData();
+      }
+    } else if (res.status === 409 && result.conflict) {
+      showNotification(result.error, 'error');
+      alert('Конфликт: ' + result.error);
+    } else {
+      showNotification(result.error || 'Ошибка сервера', 'error');
     }
-  };
+  } catch (e) {
+    console.error('❌ Ошибка:', e);
+    showNotification('Ошибка соединения', 'error');
+  }
+};
 
   // Заметки преподавателя
   const handleNotesChange = (lessonId, value) => {
