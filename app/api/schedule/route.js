@@ -26,7 +26,9 @@ export async function GET(request) {
       return NextResponse.json([]);
     }
 
-    // Параметры для фильтрации
+    console.log('📅 Запрос расписания на неделю:', startMonday);
+    console.log('🔍 Фильтры - groupId:', groupId, 'teacherId:', teacherId);
+
     const params = [startMonday];
     let paramIndex = 2;
     const whereClauses = [];
@@ -40,23 +42,27 @@ export async function GET(request) {
       params.push(parseInt(teacherId));
     }
 
-    // Основной запрос: шаблон + переопределения (кроме cancelled)
+    // Основной запрос: шаблон + переопределения (НЕ показываем cancelled)
     let mainQuery = `
       SELECT
+        t.id as template_id,
+        o.id as override_id,
         t.group_id,
         g.name AS group_name,
         t.day_of_week,
         t.pair_number,
         COALESCE(o.teacher_id, t.teacher_id) AS teacher_id,
-        COALESCE(tch.name, otch.name) AS teacher_name,
+        COALESCE(otch.name, tch.name) AS teacher_name,
         COALESCE(o.subject_id, t.subject_id) AS subject_id,
-        COALESCE(s.name, os.name) AS subject_name,
+        COALESCE(os.name, s.name) AS subject_name,
         COALESCE(o.classroom_id, t.classroom_id) AS classroom_id,
-        COALESCE(c.name, oc.name) AS classroom_name,
+        COALESCE(oc.name, c.name) AS classroom_name,
         COALESCE(o.notes, t.notes) AS notes,
         CASE
           WHEN o.status = 'cancelled' THEN 'cancelled'
-          WHEN o.status IS NOT NULL THEN o.status
+          WHEN o.status = 'modified' THEN 'modified'
+          WHEN o.status = 'added' THEN 'added'
+          WHEN o.id IS NOT NULL THEN 'modified'
           ELSE 'template'
         END AS source,
         o.status AS override_status,
@@ -74,7 +80,7 @@ export async function GET(request) {
       LEFT JOIN teachers otch ON o.teacher_id = otch.id
       LEFT JOIN subjects os ON o.subject_id = os.id
       LEFT JOIN classrooms oc ON o.classroom_id = oc.id
-      WHERE (o.status IS NULL OR o.status != 'cancelled')
+      WHERE (o.id IS NULL OR o.status IS DISTINCT FROM 'cancelled')
     `;
 
     if (whereClauses.length > 0) {
@@ -83,10 +89,13 @@ export async function GET(request) {
 
     console.log('🔍 Main query params:', params);
     const mainResult = await db.query(mainQuery, params);
+    console.log('📊 Main result rows:', mainResult.rows.length);
 
     // Запрос для полностью новых занятий (status = 'added')
     let addedQuery = `
       SELECT
+        NULL as template_id,
+        o.id as override_id,
         o.group_id,
         g.name AS group_name,
         o.day_of_week,
@@ -123,6 +132,7 @@ export async function GET(request) {
 
     console.log('🔍 Added query params:', addedParams);
     const addedResult = await db.query(addedQuery, addedParams);
+    console.log('📊 Added result rows:', addedResult.rows.length);
 
     const allRows = [...mainResult.rows, ...addedResult.rows];
     
@@ -133,8 +143,19 @@ export async function GET(request) {
       return a.pair_number - b.pair_number;
     });
 
-    const formatted = allRows.map(row => ({
-      id: row.teacher_id + '_' + row.group_id + '_' + row.day_of_week + '_' + row.pair_number + '_' + (row.lesson_date ? new Date(row.lesson_date).toISOString().split('T')[0] : ''),
+    // Убираем дубликаты (если одно и то же занятие попало в оба запроса)
+    const seen = new Set();
+    const uniqueRows = allRows.filter(row => {
+      const key = `${row.group_id}_${row.day_of_week}_${row.pair_number}_${row.lesson_date}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const formatted = uniqueRows.map(row => ({
+      id: row.override_id || row.template_id || `${row.group_id}_${row.day_of_week}_${row.pair_number}`,
+      template_id: row.template_id,
+      override_id: row.override_id,
       group_id: row.group_id,
       group_name: row.group_name,
       teacher_id: row.teacher_id,
@@ -150,7 +171,7 @@ export async function GET(request) {
       date: row.lesson_date ? new Date(row.lesson_date).toISOString().split('T')[0] : null
     }));
 
-    console.log(`📊 Отправлено ${formatted.length} занятий`);
+    console.log(`✅ Отправлено ${formatted.length} занятий`);
     return NextResponse.json(formatted);
     
   } catch (error) {
