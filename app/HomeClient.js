@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
+const [teacherCurrentDate, setTeacherCurrentDate] = useState(new Date());
 
 const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState('light');
@@ -48,6 +49,30 @@ const ROLES = { admin: 'Администратор', teacher: 'Преподав�
 
 const scheduleCache = new Map();
 
+// функцию загрузки расписания преподавателя
+const loadTeacherSchedule = useCallback(async (date) => {
+  if (!token || !user || user.role !== 'teacher') return;
+  
+  const teacher = teachers.find(t => t.user_id === user.id);
+  if (!teacher) return;
+  
+  const weekDates = getWeekDates(date);
+  const startDate = formatForInput(weekDates[0]);
+  const endDate = formatForInput(weekDates[6]);
+  
+  console.log('👨‍🏫 Загрузка расписания преподавателя на неделю:', startDate);
+  
+  try {
+    const url = `/api/schedule?weekStart=${startDate}&teacherId=${teacher.id}`;
+    const res = await fetch(url, { 
+      headers: { 'Authorization': `Bearer ${token}` } 
+    });
+    const data = await res.json();
+    setSchedule(data);
+  } catch (e) {
+    console.error('Ошибка загрузки расписания преподавателя:', e);
+  }
+}, [token, user, teachers]);
 // ---------- Функции для дат ----------
 const parseLocalDate = (dateString) => {
   if (!dateString) return null;
@@ -717,8 +742,10 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 };
 
 // ---------- TeacherPanel ----------
-const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
-  const weekDates = getWeekDates(new Date());
+// ---------- TeacherPanel ----------
+const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, currentDate, onPrevWeek, onNextWeek, onCurrentWeek }) => {
+  const weekDates = getWeekDates(currentDate || new Date());
+  
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
     if (Array.isArray(data)) {
@@ -735,6 +762,60 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
 
   return (
     <div className="schedule-grid-wrapper">
+      {/* Навигация по неделям */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        gap: '1rem', 
+        padding: '1rem',
+        background: 'var(--surface)',
+        borderBottom: '1px solid var(--border)',
+        flexWrap: 'wrap'
+      }}>
+        <button 
+          onClick={onPrevWeek} 
+          className="week-nav-btn" 
+          title="Предыдущая неделя"
+          style={{ padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}
+        >
+          <i className="fas fa-chevron-left"></i> Пред.
+        </button>
+        
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '0.5rem', 
+          padding: '0.5rem 1.5rem',
+          background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
+          borderRadius: '2rem',
+          color: 'white',
+          fontWeight: 500
+        }}>
+          <i className="fas fa-calendar-week"></i>
+          <span>{formatDate(weekDates[0])} - {formatDate(weekDates[6])}</span>
+          <span style={{ opacity: 0.8, fontSize: '0.8rem' }}>({getWeekNumber(weekDates[0])} нед.)</span>
+        </div>
+        
+        <button 
+          onClick={onNextWeek} 
+          className="week-nav-btn" 
+          title="Следующая неделя"
+          style={{ padding: '0.5rem 1rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}
+        >
+          След. <i className="fas fa-chevron-right"></i>
+        </button>
+        
+        <button 
+          onClick={onCurrentWeek} 
+          className="week-today-btn" 
+          title="Текущая неделя"
+          style={{ padding: '0.5rem 1rem', borderRadius: '2rem', background: 'var(--success)', color: 'white', border: 'none', cursor: 'pointer' }}
+        >
+          <i className="fas fa-calendar-day"></i> Сегодня
+        </button>
+      </div>
+
       <table className="schedule-grid">
         <thead>
           <tr>
@@ -1380,17 +1461,23 @@ const handleDeleteSlot = async (lesson, applyAll) => {
   useEffect(() => { if (!authChecking) loadData(); }, [authChecking, loadData]);
   useEffect(() => { if (token && canManageUsers) loadUsers(); }, [token, canManageUsers, loadUsers]);
 
-  useEffect(() => {
-    if (isTeacher && schedule.length > 0 && user) {
-      const teacher = teachers.find(t => t.user_id === user.id);
-      if (teacher) {
-        const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
-        const initialData = {};
-        teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
-        setLocalData(initialData);
-      }
+ useEffect(() => {
+  if (isTeacher && user && teachers.length > 0) {
+    loadTeacherSchedule(teacherCurrentDate);
+  }
+}, [isTeacher, user, teachers, teacherCurrentDate, loadTeacherSchedule]);
+
+useEffect(() => {
+  if (isTeacher && schedule.length > 0 && user) {
+    const teacher = teachers.find(t => t.user_id === user.id);
+    if (teacher) {
+      const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
+      const initialData = {};
+      teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
+      setLocalData(initialData);
     }
-  }, [schedule, isTeacher, teachers, user]);
+  }
+}, [schedule, isTeacher, teachers, user]);
 
   useEffect(() => {
     if (activeTab === 'manage-schedule' && token) loadScheduleForWeekForManage();
@@ -1403,59 +1490,80 @@ const handleDeleteSlot = async (lesson, applyAll) => {
   // ---------- Рендер контента ----------
   const renderMainContent = () => {
     if (isTeacher) {
-      const teacher = teachers.find(t => t.user_id === user?.id);
-      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
-      return (
-        <div className="content-card">
-          <div className="content-header">
-            <div className="header-left"><h2><i className="fas fa-chalkboard-teacher"></i> Мои занятия</h2></div>
-            <div className="header-actions">
-              {Object.keys(hasChanges).length > 0 && (
-                <button className="action-button save-all" onClick={() => {
-                  Object.keys(hasChanges).forEach(id => {
-                    const l = teacherLessons.find(les => les.id === parseInt(id));
-                    if (l) handleSaveNotesForLesson(l);
-                  });
-                }}><i className="fas fa-save"></i> Сохранить всё</button>
-              )}
-              <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
-              <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
-              <button className="action-button report-hours" onClick={exportTeacherHoursReport}><i className="fas fa-chart-line"></i> Отчёт по часам</button>
-            </div>
-          </div>
-          {loading ? <div className="loading-state"><div className="spinner"></div></div> :
-            teacherLessons.length === 0 ? <div className="empty-state"><i className="fas fa-info-circle"></i><p>Нет назначенных занятий</p></div> :
-            <TeacherPanel data={teacherLessons} localData={localData} hasChanges={hasChanges} saving={saving} onNotesChange={handleNotesChange}
-              onSave={handleSaveNotesForLesson} onCancel={(id) => {
-                const l = teacherLessons.find(les => les.id === id);
-                if (l) {
-                  setLocalData(prev => ({ ...prev, [id]: { notes: l.notes || '' } }));
-                  setHasChanges(prev => { const n = { ...prev }; delete n[id]; return n; });
-                }
-              }} />
-          }
+  const teacher = teachers.find(t => t.user_id === user?.id);
+  const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+  
+  return (
+    <div className="content-card">
+      <div className="content-header">
+        <div className="header-left">
+          <h2><i className="fas fa-chalkboard-teacher"></i> Мои занятия</h2>
         </div>
-      );
-    }
-
-    if (activeTab === 'schedule') {
-      let displaySchedule = schedule;
-      if (user && user.role === 'student' && user.groupId) displaySchedule = schedule.filter(s => s.group_id === user.groupId);
-      return (
-        <div className="content-card">
-          <div className="content-header">
-            <div className="header-left"><h2><i className="fas fa-calendar-alt"></i> Расписание занятий</h2></div>
-            <div className="header-actions">
-              <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
-              <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
-              {user?.role === 'admin' && <button className="action-button report-hours" onClick={() => setShowTeacherReportModal(true)}><i className="fas fa-chart-line"></i> Отчёт по часам</button>}
-            </div>
-          </div>
-          <ScheduleView schedule={displaySchedule} groups={groups} teachers={teachers} subjects={subjects} classrooms={classrooms}
-            loading={loading} userRole={user?.role} userGroupId={user?.groupId} loadScheduleForWeek={loadScheduleForWeek} />
+        <div className="header-actions">
+          {Object.keys(hasChanges).length > 0 && (
+            <button className="action-button save-all" onClick={() => {
+              Object.keys(hasChanges).forEach(id => {
+                const l = teacherLessons.find(les => les.id === parseInt(id));
+                if (l) handleSaveNotesForLesson(l);
+              });
+            }}>
+              <i className="fas fa-save"></i> Сохранить всё
+            </button>
+          )}
+          <button className="action-button export-excel" onClick={exportToExcel}>
+            <i className="fas fa-file-excel"></i> Excel
+          </button>
+          <button className="action-button export-pdf" onClick={exportToPDF}>
+            <i className="fas fa-file-pdf"></i> PDF
+          </button>
+          <button className="action-button report-hours" onClick={exportTeacherHoursReport}>
+            <i className="fas fa-chart-line"></i> Отчёт по часам
+          </button>
         </div>
-      );
-    }
+      </div>
+      
+      {loading ? (
+        <div className="loading-state"><div className="spinner"></div><p>Загрузка...</p></div>
+      ) : teacherLessons.length === 0 ? (
+        <div className="empty-state"><i className="fas fa-info-circle"></i><p>Нет назначенных занятий</p></div>
+      ) : (
+        <TeacherPanel 
+          data={teacherLessons}
+          localData={localData}
+          hasChanges={hasChanges}
+          saving={saving}
+          onNotesChange={handleNotesChange}
+          onSave={handleSaveNotesForLesson}
+          onCancel={(id) => {
+            const l = teacherLessons.find(les => les.id === id);
+            if (l) {
+              setLocalData(prev => ({ ...prev, [id]: { notes: l.notes || '' } }));
+              setHasChanges(prev => { const n = { ...prev }; delete n[id]; return n; });
+            }
+          }}
+          currentDate={teacherCurrentDate}
+          onPrevWeek={() => {
+            const d = new Date(teacherCurrentDate);
+            d.setDate(d.getDate() - 7);
+            setTeacherCurrentDate(d);
+            loadTeacherSchedule(d);
+          }}
+          onNextWeek={() => {
+            const d = new Date(teacherCurrentDate);
+            d.setDate(d.getDate() + 7);
+            setTeacherCurrentDate(d);
+            loadTeacherSchedule(d);
+          }}
+          onCurrentWeek={() => {
+            const today = new Date();
+            setTeacherCurrentDate(today);
+            loadTeacherSchedule(today);
+          }}
+        />
+      )}
+    </div>
+  );
+}
 
     if (activeTab === 'manage-schedule' && canEditSchedule) {
       const weekDatesForManage = getWeekDates(manageCurrentDate);
