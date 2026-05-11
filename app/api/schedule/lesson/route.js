@@ -1,3 +1,4 @@
+// app/api/schedule/lesson/route.js
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -38,9 +39,8 @@ export async function POST(request) {
     // ПРОВЕРКА КОНФЛИКТОВ
     // ============================================
 
-    // 1. Проверка шаблона (только если не apply_all и не редактируем сам шаблон)
-    if (!apply_all) {
-      // Проверяем, нет ли уже занятия в шаблоне для этой группы/дня/пары
+    if (apply_all) {
+      // Проверяем конфликт в шаблоне
       const templateConflict = await db.query(`
         SELECT t.*, g.name as group_name, s.name as subject_name, tch.name as teacher_name
         FROM schedule_templates t
@@ -61,10 +61,19 @@ export async function POST(request) {
           type: 'template'
         }, { status: 409 });
       }
+    }
 
-      // 2. Проверяем переопределения для этой же недели
+    if (!apply_all) {
+      // Для конкретной недели
+      if (!week_start_date) {
+        return NextResponse.json({ error: 'Укажите дату начала недели' }, { status: 400 });
+      }
+
+      // Проверяем конфликт переопределений для этой недели
       const overrideConflict = await db.query(`
-        SELECT o.*, g.name as group_name, s.name as subject_name, tch.name as teacher_name
+        SELECT o.*, g.name as group_name, 
+               COALESCE(s.name, 'Отменено') as subject_name, 
+               COALESCE(tch.name, '—') as teacher_name
         FROM schedule_overrides o
         JOIN groups g ON o.group_id = g.id
         LEFT JOIN subjects s ON o.subject_id = s.id
@@ -80,59 +89,16 @@ export async function POST(request) {
       if (overrideConflict.rows.length > 0) {
         const conflict = overrideConflict.rows[0];
         return NextResponse.json({
-          error: `⚠️ Конфликт на этой неделе! Группа "${conflict.group_name}" уже имеет занятие "${conflict.subject_name || 'Отменено'}" с преподавателем ${conflict.teacher_name || '—'} на ${pair} паре.`,
+          error: `⚠️ Конфликт на этой неделе! Группа "${conflict.group_name}" уже имеет занятие "${conflict.subject_name}" с преподавателем ${conflict.teacher_name} на ${pair} паре.`,
           conflict: true,
           type: 'override'
         }, { status: 409 });
       }
-
-      // 3. Проверяем, нет ли переопределения для этой группы в этот же день/пару, но с другим статусом
-      const cancelledCheck = await db.query(`
-        SELECT id FROM schedule_overrides
-        WHERE week_start_date = $1
-          AND group_id = $2
-          AND day_of_week = $3
-          AND pair_number = $4
-          AND status = 'cancelled'
-          AND (id != $5 OR $5 IS NULL)
-      `, [week_start_date, gid, day, pair, override_id || null]);
-
-      if (cancelledCheck.rows.length > 0) {
-        // Если было отменено — удаляем отмену и создаём нормальное занятие
-        await db.query(`DELETE FROM schedule_overrides WHERE id = $1`, [cancelledCheck.rows[0].id]);
-        console.log('🔄 Удалена предыдущая отмена, создаём новое занятие');
-      }
-    }
-
-    // 4. Проверка конфликтов для apply_all (шаблон)
-    if (apply_all) {
-      const templateConflict = await db.query(`
-        SELECT t.*, g.name as group_name, s.name as subject_name, tch.name as teacher_name
-        FROM schedule_templates t
-        JOIN groups g ON t.group_id = g.id
-        JOIN subjects s ON t.subject_id = s.id
-        JOIN teachers tch ON t.teacher_id = tch.id
-        WHERE t.group_id = $1 
-          AND t.day_of_week = $2 
-          AND t.pair_number = $3
-          AND (t.id != $4 OR $4 IS NULL)
-      `, [gid, day, pair, template_id || null]);
-
-      if (templateConflict.rows.length > 0) {
-        const conflict = templateConflict.rows[0];
-        return NextResponse.json({
-          error: `⚠️ Конфликт в шаблоне! Группа "${conflict.group_name}" уже имеет занятие "${conflict.subject_name}" с преподавателем ${conflict.teacher_name} на ${pair} паре в этот день.`,
-          conflict: true,
-          type: 'template'
-        }, { status: 409 });
-      }
     }
 
     // ============================================
-    // СОХРАНЕНИЕ
+    // СОХРАНЕНИЕ В ШАБЛОН (apply_all = true)
     // ============================================
-
-    // ЕСЛИ apply_all = true — сохраняем в шаблон
     if (apply_all) {
       console.log('📝 Сохраняем в шаблон (apply_all=true)');
       
@@ -143,43 +109,80 @@ export async function POST(request) {
           SET teacher_id = $1, subject_id = $2, classroom_id = $3, updated_at = NOW()
           WHERE id = $4
         `, [tid, sid, cid, template_id]);
+        console.log('🔄 Шаблон обновлён, id:', template_id);
       } else {
         // Создаём новый шаблон
-        await db.query(`
-          INSERT INTO schedule_templates (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week)
+        const result = await db.query(`
+          INSERT INTO schedule_templates 
+            (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week)
           VALUES ($1,$2,$3,$4,$5,$6)
           ON CONFLICT (group_id, day_of_week, pair_number)
           DO UPDATE SET teacher_id = EXCLUDED.teacher_id,
                         subject_id = EXCLUDED.subject_id,
                         classroom_id = EXCLUDED.classroom_id,
                         updated_at = NOW()
+          RETURNING id
         `, [gid, tid, sid, cid, pair, day]);
+        console.log('➕ Шаблон создан, id:', result.rows[0]?.id);
       }
 
-      // Удаляем переопределение для этой недели, если оно было
-      if (week_start_date) {
-        await db.query(`
-          DELETE FROM schedule_overrides
-          WHERE week_start_date = $1 AND group_id = $2 AND day_of_week = $3 AND pair_number = $4
-        `, [week_start_date, gid, day, pair]);
-        console.log('🗑 Удалено переопределение для недели:', week_start_date);
+      // 🔥 Удаляем ВСЕ переопределения для этой комбинации (любая неделя, любой статус)
+      const deletedOverrides = await db.query(`
+        DELETE FROM schedule_overrides
+        WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3
+        RETURNING id, week_start_date, status
+      `, [gid, day, pair]);
+      
+      if (deletedOverrides.rows.length > 0) {
+        console.log(`🗑 Удалено ${deletedOverrides.rows.length} переопределений:`);
+        deletedOverrides.rows.forEach(r => {
+          console.log(`   - id=${r.id}, неделя=${r.week_start_date}, статус=${r.status}`);
+        });
+      } else {
+        console.log('📭 Переопределений для удаления не найдено');
       }
 
-      return NextResponse.json({ success: true, source: 'template_updated' });
+      return NextResponse.json({ 
+        success: true, 
+        source: 'template_updated',
+        deleted_overrides: deletedOverrides.rows.length
+      });
     }
 
-    // apply_all = false — работаем с переопределением для конкретной недели
+    // ============================================
+    // СОХРАНЕНИЕ ДЛЯ КОНКРЕТНОЙ НЕДЕЛИ (apply_all = false)
+    // ============================================
     console.log('✏️ Сохраняем переопределение для недели:', week_start_date);
+
+    // Сначала удаляем cancelled для этой ячейки, если есть
+    const deletedCancelled = await db.query(`
+      DELETE FROM schedule_overrides
+      WHERE week_start_date = $1 
+        AND group_id = $2 
+        AND day_of_week = $3 
+        AND pair_number = $4 
+        AND status = 'cancelled'
+      RETURNING id
+    `, [week_start_date, gid, day, pair]);
+    
+    if (deletedCancelled.rows.length > 0) {
+      console.log('🔄 Удалена предыдущая отмена, id:', deletedCancelled.rows[0].id);
+    }
 
     if (override_id) {
       // Обновляем существующее переопределение
-      console.log('🔄 Обновляем существующее переопределение, id:', override_id);
+      console.log('🔄 Обновляем переопределение, id:', override_id);
       await db.query(`
         UPDATE schedule_overrides
-        SET teacher_id = $1, subject_id = $2, classroom_id = $3, status = 'modified', updated_at = NOW()
+        SET teacher_id = $1, subject_id = $2, classroom_id = $3, 
+            status = 'modified', updated_at = NOW()
         WHERE id = $4
       `, [tid, sid, cid, override_id]);
-    } else if (template_id) {
+      
+      return NextResponse.json({ success: true, source: 'override_updated' });
+    }
+
+    if (template_id) {
       // Создаём переопределение на основе шаблона
       console.log('➕ Создаём переопределение для шаблона, template_id:', template_id);
       await db.query(`
@@ -194,24 +197,26 @@ export async function POST(request) {
                       status = 'modified',
                       updated_at = NOW()
       `, [week_start_date, gid, day, pair, tid, sid, cid]);
-    } else {
-      // Нет ни шаблона, ни переопределения — создаём новое
-      console.log('➕ Создаём новое переопределение (без шаблона)');
-      await db.query(`
-        INSERT INTO schedule_overrides
-          (week_start_date, group_id, day_of_week, pair_number,
-           teacher_id, subject_id, classroom_id, status)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,'added')
-        ON CONFLICT (week_start_date, group_id, day_of_week, pair_number)
-        DO UPDATE SET teacher_id = EXCLUDED.teacher_id,
-                      subject_id = EXCLUDED.subject_id,
-                      classroom_id = EXCLUDED.classroom_id,
-                      status = 'added',
-                      updated_at = NOW()
-      `, [week_start_date, gid, day, pair, tid, sid, cid]);
+      
+      return NextResponse.json({ success: true, source: 'override_created' });
     }
 
-    return NextResponse.json({ success: true, source: 'override_updated' });
+    // Нет ни шаблона, ни переопределения — создаём новое занятие
+    console.log('➕ Создаём новое занятие (added)');
+    await db.query(`
+      INSERT INTO schedule_overrides
+        (week_start_date, group_id, day_of_week, pair_number,
+         teacher_id, subject_id, classroom_id, status)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,'added')
+      ON CONFLICT (week_start_date, group_id, day_of_week, pair_number)
+      DO UPDATE SET teacher_id = EXCLUDED.teacher_id,
+                    subject_id = EXCLUDED.subject_id,
+                    classroom_id = EXCLUDED.classroom_id,
+                    status = 'added',
+                    updated_at = NOW()
+    `, [week_start_date, gid, day, pair, tid, sid, cid]);
+    
+    return NextResponse.json({ success: true, source: 'override_added' });
 
   } catch (error) {
     console.error('❌ Lesson POST error:', error);
@@ -219,8 +224,7 @@ export async function POST(request) {
   }
 }
 
-// DELETE – отмена занятия (только admin/methodist)
-// DELETE – отмена занятия (только admin/methodist)
+// DELETE – удаление / отмена занятия (только admin/methodist)
 export async function DELETE(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -245,47 +249,71 @@ export async function DELETE(request) {
     console.log('  override_id:', override_id);
 
     if (!group_id || !pair_number || !day_of_week) {
-      return NextResponse.json({ error: 'Недостаточно данных (group_id, pair_number, day_of_week)' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Недостаточно данных (group_id, pair_number, day_of_week)' 
+      }, { status: 400 });
     }
 
     const gid = parseInt(group_id);
     const pair = parseInt(pair_number);
     const day = parseInt(day_of_week);
 
-    // Удаление из шаблона (apply_all = true)
+    // ============================================
+    // УДАЛЕНИЕ ИЗ ШАБЛОНА (apply_all = true)
+    // ============================================
     if (apply_all) {
-      if (!template_id) {
-        return NextResponse.json({ error: 'Не указан template_id для удаления из шаблона' }, { status: 400 });
-      }
+      console.log('🗑 Удаляем из шаблона');
       
-      console.log('🗑 Удаляем из шаблона, id:', template_id);
-      await db.query(`DELETE FROM schedule_templates WHERE id = $1`, [template_id]);
-      
-      // Также удаляем связанные переопределения
-      if (week_start_date) {
+      if (template_id) {
+        await db.query(`DELETE FROM schedule_templates WHERE id = $1`, [template_id]);
+        console.log('✅ Шаблон удалён, id:', template_id);
+      } else {
+        // Если нет template_id, удаляем по координатам
         await db.query(`
-          DELETE FROM schedule_overrides 
-          WHERE week_start_date = $1 AND group_id = $2 AND day_of_week = $3 AND pair_number = $4
-        `, [week_start_date, gid, day, pair]);
+          DELETE FROM schedule_templates 
+          WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3
+        `, [gid, day, pair]);
+        console.log('✅ Шаблон удалён по координатам');
       }
+
+      // Удаляем ВСЕ связанные переопределения
+      const deletedOverrides = await db.query(`
+        DELETE FROM schedule_overrides
+        WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3
+        RETURNING id, week_start_date, status
+      `, [gid, day, pair]);
       
-      return NextResponse.json({ success: true, source: 'template_deleted' });
+      if (deletedOverrides.rows.length > 0) {
+        console.log(`🗑 Удалено ${deletedOverrides.rows.length} переопределений:`);
+        deletedOverrides.rows.forEach(r => {
+          console.log(`   - id=${r.id}, неделя=${r.week_start_date}, статус=${r.status}`);
+        });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        source: 'template_deleted',
+        deleted_overrides: deletedOverrides.rows.length
+      });
     }
 
-    // Удаление переопределения для конкретной недели
+    // ============================================
+    // УДАЛЕНИЕ ДЛЯ КОНКРЕТНОЙ НЕДЕЛИ (apply_all = false)
+    // ============================================
     if (!week_start_date) {
       return NextResponse.json({ error: 'Укажите дату начала недели' }, { status: 400 });
     }
 
+    // Если есть override_id — удаляем переопределение
     if (override_id) {
-      // Удаляем существующее переопределение
       console.log('🗑 Удаляем переопределение, id:', override_id);
       await db.query(`DELETE FROM schedule_overrides WHERE id = $1`, [override_id]);
+      console.log('✅ Переопределение удалено');
       return NextResponse.json({ success: true, source: 'override_deleted' });
     }
 
+    // Если есть template_id — создаём cancelled для этой недели
     if (template_id) {
-      // Создаём переопределение с cancelled (отмена занятия шаблона на эту неделю)
       console.log('🚫 Отменяем занятие шаблона на неделю:', week_start_date);
       await db.query(`
         INSERT INTO schedule_overrides
@@ -299,10 +327,19 @@ export async function DELETE(request) {
                       notes = NULL,
                       updated_at = NOW()
       `, [week_start_date, gid, day, pair]);
+      console.log('✅ Занятие отменено (cancelled)');
       return NextResponse.json({ success: true, source: 'override_cancelled' });
     }
 
-    return NextResponse.json({ error: 'Не указан ни template_id, ни override_id' }, { status: 400 });
+    // Если нет ни template_id, ни override_id — удаляем по координатам
+    console.log('🗑 Удаляем переопределение по координатам');
+    await db.query(`
+      DELETE FROM schedule_overrides
+      WHERE week_start_date = $1 AND group_id = $2 AND day_of_week = $3 AND pair_number = $4
+    `, [week_start_date, gid, day, pair]);
+    console.log('✅ Переопределение удалено по координатам');
+    
+    return NextResponse.json({ success: true, source: 'override_deleted' });
 
   } catch (error) {
     console.error('❌ Lesson DELETE error:', error);
