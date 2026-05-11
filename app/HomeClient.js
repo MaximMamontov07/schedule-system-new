@@ -847,28 +847,37 @@ function HomeContent() {
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null) => {
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-    let start = weekStart, end = weekEnd;
-    if (weekStart instanceof Date) start = formatForInput(weekStart);
-    if (weekEnd instanceof Date) end = formatForInput(weekEnd);
-    const cacheKey = `${start}|${end}|${groupId || selectedGroupFilter || ''}`;
-    const cached = scheduleCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 5000) {
-      setSchedule(cached.data);
-      return cached.data;
-    }
-    let url = `/api/schedule?weekStart=${start}`;
-    if (groupId) url += `&groupId=${groupId}`;
-    else if (selectedGroupFilter) url += `&groupId=${selectedGroupFilter}`;
-    try {
-      const scheduleRes = await fetch(url, { headers });
-      const scheduleData = await scheduleRes.json();
-      scheduleCache.set(cacheKey, { data: scheduleData, timestamp: Date.now() });
-      setSchedule(scheduleData);
-      return scheduleData;
-    } catch (e) { showNotification('Ошибка загрузки расписания', 'error'); return []; }
-  }, [token, selectedGroupFilter]);
+ const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null) => {
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  let start = weekStart, end = weekEnd;
+  if (weekStart instanceof Date) start = formatForInput(weekStart);
+  if (weekEnd instanceof Date) end = formatForInput(weekEnd);
+
+  // Используем переданный groupId или selectedGroupFilter из замыкания (но теперь selectedGroupFilter не в зависимостях)
+  const effectiveGroupId = groupId ?? selectedGroupFilter;
+
+  const cacheKey = `${start}|${end}|${effectiveGroupId || ''}`;
+  const cached = scheduleCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 5000) {
+    setSchedule(cached.data);
+    return cached.data;
+  }
+
+  let url = `/api/schedule?weekStart=${start}`;
+  if (effectiveGroupId) url += `&groupId=${effectiveGroupId}`;
+  // teacherId не используем — убираем обращение к неопределённой переменной
+
+  try {
+    const scheduleRes = await fetch(url, { headers });
+    const scheduleData = await scheduleRes.json();
+    scheduleCache.set(cacheKey, { data: scheduleData, timestamp: Date.now() });
+    setSchedule(scheduleData);
+    return scheduleData;
+  } catch (e) {
+    showNotification('Ошибка загрузки расписания', 'error');
+    return [];
+  }
+}, [token]); // убрали selectedGroupFilter из зависимостей
 
   const loadScheduleForWeekForManage = useCallback(async () => {
     const weekDates = getWeekDates(manageCurrentDate);
