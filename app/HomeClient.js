@@ -46,10 +46,9 @@ const PAIRS = [
 ];
 const ROLES = { admin: 'Администратор', teacher: 'Преподаватель', student: 'Студент' };
 
-// Кэш для запросов расписания
 const scheduleCache = new Map();
 
-// Функции для работы с датами
+// ---------- Функции для дат ----------
 const parseLocalDate = (dateString) => {
   if (!dateString) return null;
   try {
@@ -67,9 +66,7 @@ const parseLocalDate = (dateString) => {
       return new Date(year, month - 1, day);
     }
     return null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 };
 
 const formatForInput = (date) => {
@@ -150,7 +147,7 @@ const debounce = (fn, delay) => {
   };
 };
 
-// SearchableSelect Component
+// ---------- SearchableSelect ----------
 const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -303,7 +300,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, label, icon, 
   );
 };
 
-// DatePicker Component
+// ---------- DatePicker ----------
 const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date());
   const [viewMode, setViewMode] = useState('month');
@@ -390,7 +387,7 @@ const DatePicker = ({ onDateSelect, onClose, selectedDate }) => {
   );
 };
 
-// ScheduleGrid Component
+// ---------- ScheduleGrid ----------
 const ScheduleGrid = React.memo(({ data, canEdit = false, onEditClick, onDeleteClick, onAddClick, weekDates, selectedDate, isLoading = false }) => {
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
@@ -492,7 +489,7 @@ const ScheduleGrid = React.memo(({ data, canEdit = false, onEditClick, onDeleteC
   );
 });
 
-// FilterSection Component
+// ---------- FilterSection ----------
 const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, classrooms, onReset, onOpenCalendar, currentDate, onPrevWeek, onNextWeek, onCurrentWeek, showGroupFilter = true, isStudent = false, selectedGroupId, onGroupChange, isLoading = false }) => {
   const weekDates = getWeekDates(currentDate);
   const weekStart = weekDates[0];
@@ -544,7 +541,7 @@ const FilterSection = ({ filters, onFilterChange, groups, teachers, subjects, cl
   );
 };
 
-// ScheduleView Component
+// ---------- ScheduleView ----------
 const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, userRole, userGroupId, loadScheduleForWeek }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -623,9 +620,9 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   return (
     <div className="schedule-container">
       <FilterSection filters={filters} onFilterChange={handleFilterChange} groups={groups} teachers={teachers} subjects={subjects} classrooms={classrooms}
-        onReset={resetFilters} onOpenCalendar={() => setShowCalendar(true)} currentDate={currentDate} 
+        onReset={resetFilters} onOpenCalendar={() => setShowCalendar(true)} currentDate={currentDate}
         onPrevWeek={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }}
-        onNextWeek={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }} 
+        onNextWeek={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }}
         onCurrentWeek={() => setCurrentDate(new Date())}
         showGroupFilter={!isStudent} isStudent={isStudent} selectedGroupId={selectedGroupId} onGroupChange={setSelectedGroupId} isLoading={isLoadingLocal} />
       {showCalendar && createPortal(<div className="datepicker-overlay" onClick={() => setShowCalendar(false)}><DatePicker onDateSelect={handleDateSelect} onClose={() => setShowCalendar(false)} selectedDate={currentDate} /></div>, document.body)}
@@ -640,7 +637,7 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   );
 };
 
-// PublicScheduleView Component
+// ---------- PublicScheduleView ----------
 const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loading, loadScheduleForWeek }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -702,14 +699,14 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   return (
     <div className="public-schedule-container">
       <FilterSection filters={filters} onFilterChange={handleFilterChange} groups={groups} teachers={teachers} subjects={subjects} classrooms={classrooms}
-        onReset={resetFilters} onOpenCalendar={() => setShowCalendar(true)} currentDate={currentDate} 
+        onReset={resetFilters} onOpenCalendar={() => setShowCalendar(true)} currentDate={currentDate}
         onPrevWeek={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }}
-        onNextWeek={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }} 
+        onNextWeek={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }}
         onCurrentWeek={() => setCurrentDate(new Date())}
         showGroupFilter={true} isStudent={false} selectedGroupId={selectedGroupId} onGroupChange={setSelectedGroupId} isLoading={isLoadingLocal} />
       {showCalendar && createPortal(<div className="datepicker-overlay" onClick={() => setShowCalendar(false)}><DatePicker onDateSelect={handleDateSelect} onClose={() => setShowCalendar(false)} selectedDate={currentDate} /></div>, document.body)}
       {!hasAppliedFilter ? (
-        <div className="filter-placeholder"><i className="fas fa-filter"></i><h3>Выберите параметры для просмотра расписания</h3></div>
+        <div className="filter-placeholder"><i className="fas fa-filter"></i><h3>Выберите параметры</h3></div>
       ) : filteredSchedule.length === 0 && !isLoadingLocal ? (
         <div className="empty-state"><i className="fas fa-search"></i><p>Нет занятий</p></div>
       ) : (
@@ -719,7 +716,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   );
 };
 
-// TeacherPanel Component
+// ---------- TeacherPanel ----------
 const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel }) => {
   const weekDates = getWeekDates(new Date());
   const scheduleMatrix = useMemo(() => {
@@ -808,7 +805,7 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
-// TeacherReportModal Component
+// ---------- TeacherReportModal ----------
 const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
   const [selectedTeacherId, setSelectedTeacherId] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -837,7 +834,7 @@ const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
   );
 };
 
-// HomeContent Component
+// ---------- HomeContent ----------
 function HomeContent() {
   const { theme, toggleTheme } = useTheme();
   const [schedule, setSchedule] = useState([]);
@@ -881,69 +878,59 @@ function HomeContent() {
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
 
-  // Исправленная загрузка расписания без циклических зависимостей
- const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null, forceReload = false) => {
-  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-  let start = weekStart, end = weekEnd;
-  if (weekStart instanceof Date) start = formatForInput(weekStart);
-  if (weekEnd instanceof Date) end = formatForInput(weekEnd);
+  // ---------- Загрузка данных ----------
+  const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null, forceReload = false) => {
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    let start = weekStart, end = weekEnd;
+    if (weekStart instanceof Date) start = formatForInput(weekStart);
+    if (weekEnd instanceof Date) end = formatForInput(weekEnd);
 
-  const effectiveGroupId = groupId ?? selectedGroupFilter;
-  const cacheKey = `${start}|${end}|${effectiveGroupId || ''}`;
+    const effectiveGroupId = groupId ?? selectedGroupFilter;
+    const cacheKey = `${start}|${end}|${effectiveGroupId || ''}`;
 
-  // Если forceReload - удаляем кэш
-  if (forceReload) {
-    scheduleCache.delete(cacheKey);
-  }
+    if (forceReload) scheduleCache.delete(cacheKey);
 
-  const cached = scheduleCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < 5000 && !forceReload) {
-    console.log('📦 Использую кэш:', cacheKey);
-    setSchedule(cached.data);
-    return cached.data;
-  }
+    const cached = scheduleCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 5000 && !forceReload) {
+      setSchedule(cached.data);
+      return cached.data;
+    }
 
-  let url = `/api/schedule?weekStart=${start}`;
-  if (effectiveGroupId) url += `&groupId=${effectiveGroupId}`;
+    let url = `/api/schedule?weekStart=${start}`;
+    if (effectiveGroupId) url += `&groupId=${effectiveGroupId}`;
 
-  console.log('🌐 Загрузка расписания:', url);
-  
-  try {
-    const scheduleRes = await fetch(url, { headers });
-    const scheduleData = await scheduleRes.json();
-    console.log('📥 Получено занятий:', scheduleData.length);
-    
-    scheduleCache.set(cacheKey, { data: scheduleData, timestamp: Date.now() });
-    setSchedule(scheduleData);
-    return scheduleData;
-  } catch (e) {
-    console.error('❌ Ошибка загрузки расписания:', e);
-    showNotification('Ошибка загрузки расписания', 'error');
-    return [];
-  }
-}, [token, selectedGroupFilter]);
+    try {
+      const scheduleRes = await fetch(url, { headers });
+      const scheduleData = await scheduleRes.json();
+      scheduleCache.set(cacheKey, { data: scheduleData, timestamp: Date.now() });
+      setSchedule(scheduleData);
+      return scheduleData;
+    } catch (e) {
+      showNotification('Ошибка загрузки расписания', 'error');
+      return [];
+    }
+  }, [token, selectedGroupFilter]);
 
- const loadScheduleForWeekForManage = useCallback(async () => {
-  const weekDates = getWeekDates(manageCurrentDate);
-  console.log('🔄 Загрузка для управления, неделя:', formatForInput(weekDates[0]));
-  await loadScheduleForWeek(
-    formatForInput(weekDates[0]), 
-    formatForInput(weekDates[6]), 
-    selectedGroupFilter, 
-    true  // всегда принудительно для управления
-  );
-}, [manageCurrentDate, selectedGroupFilter, loadScheduleForWeek]);
+  const loadScheduleForWeekForManage = useCallback(async () => {
+    const weekDates = getWeekDates(manageCurrentDate);
+    await loadScheduleForWeek(formatForInput(weekDates[0]), formatForInput(weekDates[6]), selectedGroupFilter, true);
+  }, [manageCurrentDate, selectedGroupFilter, loadScheduleForWeek]);
 
   const loadData = useCallback(async () => {
     try {
-      const [groupsRes, teachersRes, subjectsRes, classroomsRes] = await Promise.all([
-        fetch('/api/groups'), fetch('/api/teachers'), fetch('/api/subjects'), fetch('/api/classrooms')
+      const [groupsRes, teachersRes, subjectsRes] = await Promise.all([
+        fetch('/api/groups'), fetch('/api/teachers'), fetch('/api/subjects')
       ]);
-      setGroups(await groupsRes.json()); setTeachers(await teachersRes.json());
-      setSubjects(await subjectsRes.json()); setClassrooms(await classroomsRes.json());
+      setGroups(await groupsRes.json()); setTeachers(await teachersRes.json()); setSubjects(await subjectsRes.json());
+
+      try {
+        const classroomsRes = await fetch('/api/classrooms');
+        if (classroomsRes.ok) setClassrooms(await classroomsRes.json());
+        else setClassrooms([]);
+      } catch (e) { setClassrooms([]); }
 
       const monday = getMonday(new Date());
-      await loadScheduleForWeek(formatForInput(monday), null, selectedGroupFilter);
+      await loadScheduleForWeek(formatForInput(monday), null, selectedGroupFilter, true);
     } catch (e) {
       showNotification('Ошибка загрузки данных', 'error');
     } finally {
@@ -971,22 +958,18 @@ function HomeContent() {
     }
   }, []);
 
-  // Генерация отчетов
+  // ---------- Отчёты ----------
   const generateTeacherReport = useCallback(async (teacherId) => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
       const teacher = teachers.find(t => t.id === parseInt(teacherId));
       if (!teacher) return showNotification('Преподаватель не найден', 'error');
-      
       const teacherLessons = schedule.filter(l => l.teacher_id === parseInt(teacherId));
       const element = document.createElement('div');
       element.innerHTML = `<h1>Отчет: ${teacher.name}</h1><p>Занятий: ${teacherLessons.length}</p>`;
-      
       await html2pdf().set({ filename: `Отчет_${teacher.name}.pdf` }).from(element).save();
       showNotification('Отчет сформирован');
-    } catch (e) {
-      showNotification('Ошибка', 'error');
-    }
+    } catch (e) { showNotification('Ошибка', 'error'); }
   }, [teachers, schedule]);
 
   const exportTeacherHoursReport = useCallback(async () => {
@@ -1047,19 +1030,15 @@ function HomeContent() {
         exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
       } else if (user && user.role === 'student' && user.groupId) {
         exportData = schedule.filter(s => s.group_id === user.groupId);
-      } else {
-        exportData = schedule;
-      }
+      } else { exportData = schedule; }
       const element = document.createElement('div');
       element.innerHTML = `<h1>Расписание</h1><p>Занятий: ${exportData.length}</p>`;
       await html2pdf().set({ filename: `Расписание_${new Date().toISOString().split('T')[0]}.pdf` }).from(element).save();
       showNotification('PDF файл сохранен', 'success');
-    } catch (error) {
-      showNotification('Ошибка экспорта PDF', 'error');
-    }
+    } catch (error) { showNotification('Ошибка экспорта PDF', 'error'); }
   }, [schedule, activeTab, isTeacher, teachers, user]);
 
-  // Аутентификация
+  // ---------- Аутентификация ----------
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -1080,23 +1059,16 @@ function HomeContent() {
         if (data.user.role === 'admin') await loadUsers();
         if (data.user.role === 'teacher') setActiveTab('my-lessons');
         else setActiveTab('schedule');
-      } else {
-        showNotification(data.error, 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка входа', 'error');
-    }
+      } else { showNotification(data.error, 'error'); }
+    } catch (e) { showNotification('Ошибка входа', 'error'); }
   };
 
   const handleLogout = () => {
-    setToken(null);
-    setUser(null);
+    setToken(null); setUser(null);
     localStorage.clear();
     scheduleCache.clear();
     showNotification('Вы вышли из системы', 'info');
-    setSchedule([]);
-    setSelectedGroupFilter('');
-    setActiveTab('schedule');
+    setSchedule([]); setSelectedGroupFilter(''); setActiveTab('schedule');
   };
 
   const handleRegister = async (e) => {
@@ -1113,15 +1085,11 @@ function HomeContent() {
         setShowRegister(false);
         setRegisterData({ username: '', password: '', fullName: '', role: 'student', groupId: '' });
         loadUsers();
-      } else {
-        showNotification(data.error, 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка регистрации', 'error');
-    }
+      } else { showNotification(data.error, 'error'); }
+    } catch (e) { showNotification('Ошибка регистрации', 'error'); }
   };
 
-  // Справочники
+  // ---------- Справочники ----------
   const addDirectory = async (type, name, setShow, setValue) => {
     if (!name.trim()) return showNotification('Введите название', 'error');
     try {
@@ -1130,29 +1098,17 @@ function HomeContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name: name.trim() })
       });
-      if (res.ok) {
-        showNotification('Добавлено', 'success');
-        setShow(false);
-        setValue('');
-        loadData();
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка', 'error');
-    }
+      if (res.ok) { showNotification('Добавлено', 'success'); setShow(false); setValue(''); loadData(); }
+      else { const error = await res.json(); showNotification(error.error, 'error'); }
+    } catch (e) { showNotification('Ошибка', 'error'); }
   };
 
   const deleteDirectory = async (type, id) => {
     if (!confirm('Удалить?')) return;
     try {
       await fetch(`/api/${type}?id=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      showNotification('Удалено', 'success');
-      loadData();
-    } catch (e) {
-      showNotification('Ошибка', 'error');
-    }
+      showNotification('Удалено', 'success'); loadData();
+    } catch (e) { showNotification('Ошибка', 'error'); }
   };
 
   const handleAddClassroom = async (e) => {
@@ -1164,32 +1120,20 @@ function HomeContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name: newClassroom.trim() })
       });
-      if (res.ok) {
-        showNotification('Аудитория добавлена', 'success');
-        setShowClassroomModal(false);
-        setNewClassroom('');
-        loadData();
-      } else {
-        const error = await res.json();
-        showNotification(error.error, 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка', 'error');
-    }
+      if (res.ok) { showNotification('Аудитория добавлена', 'success'); setShowClassroomModal(false); setNewClassroom(''); loadData(); }
+      else { const error = await res.json(); showNotification(error.error, 'error'); }
+    } catch (e) { showNotification('Ошибка', 'error'); }
   };
 
   const handleDeleteClassroom = async (id) => {
     if (!confirm('Удалить аудиторию?')) return;
     try {
       await fetch(`/api/classrooms?id=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      showNotification('Удалено', 'success');
-      loadData();
-    } catch (e) {
-      showNotification('Ошибка', 'error');
-    }
+      showNotification('Удалено', 'success'); loadData();
+    } catch (e) { showNotification('Ошибка', 'error'); }
   };
 
-  // Управление расписанием (новый API)
+  // ---------- Управление расписанием ----------
   const handleAddScheduleClick = useCallback((slotData) => {
     let dateValue = '';
     if (slotData.date) {
@@ -1215,248 +1159,67 @@ function HomeContent() {
   };
 
   const handleDeleteSlot = async (lesson, applyAll) => {
-  if (!canEditSchedule) return showNotification('Нет прав', 'error');
-  
-  console.log('🗑 Начало удаления занятия');
-  console.log('🗑 lesson:', lesson);
-  console.log('🗑 applyAll:', applyAll);
-  
-  const lessonDate = parseLocalDate(lesson.date);
-  if (!lessonDate || isNaN(lessonDate.getTime())) {
-    showNotification('Некорректная дата занятия', 'error');
-    return;
-  }
-  
-  const monday = getMonday(lessonDate);
-  const weekStart = formatForInput(monday);
-  
-  const body = {
-    group_id: lesson.group_id,
-    pair_number: lesson.pair_number,
-    day_of_week: lesson.day_of_week,
-    week_start_date: weekStart,
-    apply_all: applyAll
-  };
-  
-  console.log('📤 Отправка запроса DELETE на /api/schedule/lesson');
-  console.log('📤 Тело запроса:', JSON.stringify(body, null, 2));
-  
-  try {
-    const res = await fetch('/api/schedule/lesson', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body)
-    });
-    
-    const result = await res.json();
-    console.log('📥 Ответ сервера:', result);
-    console.log('📥 Статус ответа:', res.status);
-    
-    if (res.ok) {
-      // Очищаем ВЕСЬ кэш расписания
-      scheduleCache.clear();
-      console.log('🗑 Кэш расписания очищен');
-      
-      if (applyAll) {
-        showNotification('✅ Удалено из шаблона', 'success');
-      } else {
-        showNotification('✅ Занятие отменено на эту неделю', 'success');
-      }
-      
-      // ПРИНУДИТЕЛЬНАЯ перезагрузка данных
-      console.log('🔄 Принудительная перезагрузка данных...');
-      
-      // Перезагружаем справочники
-      const [groupsRes, teachersRes, subjectsRes] = await Promise.all([
-        fetch('/api/groups'),
-        fetch('/api/teachers'),
-        fetch('/api/subjects')
-      ]);
-      setGroups(await groupsRes.json());
-      setTeachers(await teachersRes.json());
-      setSubjects(await subjectsRes.json());
-      
-      // Загружаем аудитории
-      try {
-        const classroomsRes = await fetch('/api/classrooms');
-        if (classroomsRes.ok) setClassrooms(await classroomsRes.json());
-      } catch (e) {
-        console.warn('Не удалось загрузить аудитории');
-      }
-      
-      // Перезагружаем расписание с принудительным сбросом кэша
-      if (activeTab === 'manage-schedule') {
-        const weekDates = getWeekDates(manageCurrentDate);
-        await loadScheduleForWeek(
-          formatForInput(weekDates[0]), 
-          formatForInput(weekDates[6]), 
-          selectedGroupFilter, 
-          true  // forceReload
-        );
-        console.log('✅ Управление расписанием перезагружено');
-      } else {
-        const mondayDate = getMonday(new Date());
-        await loadScheduleForWeek(
-          formatForInput(mondayDate), 
-          null, 
-          selectedGroupFilter, 
-          true  // forceReload
-        );
-        console.log('✅ Основное расписание перезагружено');
-      }
-      
-      // Если активна вкладка шаблона - перезагружаем шаблон
-      if (activeTab === 'template') {
-        const templatesRes = await fetch('/api/schedule/template');
-        setTemplates(await templatesRes.json());
-        console.log('✅ Шаблон перезагружен');
-      }
-      
-      console.log('✅ Все данные успешно перезагружены');
-      
-    } else {
-      const err = await res.json();
-      showNotification(err.error || 'Ошибка', 'error');
-      console.error('❌ Ошибка от сервера:', err);
-    }
-  } catch (e) {
-    console.error('❌ Ошибка соединения:', e);
-    showNotification('Ошибка соединения', 'error');
-  }
-};
-
- const handleSaveLesson = async (e) => {
-  e.preventDefault();
-  if (!canEditSchedule) return showNotification('Нет прав', 'error');
-  
-  console.log('📝 Начало сохранения занятия');
-  console.log('📝 editingLesson:', editingLesson);
-  
-  if (!editingLesson.apply_all && !editingLesson.date) {
-    showNotification('Выберите дату или отметьте "Применить для всех недель"', 'error');
-    return;
-  }
-
-  if (!editingLesson.group_id || !editingLesson.teacher_id || !editingLesson.subject_id) {
-    showNotification('Заполните все обязательные поля (группа, предмет, преподаватель)', 'error');
-    return;
-  }
-
-  let weekStart = null;
-  if (!editingLesson.apply_all) {
-    const lessonDate = parseLocalDate(editingLesson.date);
-    if (!lessonDate || isNaN(lessonDate.getTime())) {
-      showNotification('Некорректная дата', 'error');
-      return;
-    }
-    weekStart = formatForInput(getMonday(lessonDate));
-    console.log('📅 Неделя для переопределения:', weekStart);
-  }
-
-  const body = {
-    group_id: parseInt(editingLesson.group_id),
-    teacher_id: parseInt(editingLesson.teacher_id),
-    subject_id: parseInt(editingLesson.subject_id),
-    classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
-    pair_number: parseInt(editingLesson.pair_number),
-    day_of_week: parseInt(editingLesson.day_of_week),
-    week_start_date: weekStart,
-    apply_all: !!editingLesson.apply_all
+    const lessonDate = parseLocalDate(lesson.date);
+    const monday = getMonday(lessonDate);
+    const weekStart = formatForInput(monday);
+    try {
+      const res = await fetch('/api/schedule/lesson', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ group_id: lesson.group_id, pair_number: lesson.pair_number, day_of_week: lesson.day_of_week, week_start_date: weekStart, apply_all: applyAll })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        scheduleCache.clear();
+        showNotification(applyAll ? 'Удалено из шаблона' : 'Занятие отменено', 'success');
+        if (activeTab === 'manage-schedule') await loadScheduleForWeekForManage();
+        else await loadData();
+        if (activeTab === 'template') loadTemplates();
+      } else { showNotification(result.error || 'Ошибка', 'error'); }
+    } catch (e) { showNotification('Ошибка соединения', 'error'); }
   };
 
-  console.log('📤 Отправка запроса на /api/schedule/lesson');
-  console.log('📤 Тело запроса:', JSON.stringify(body, null, 2));
+  const handleSaveLesson = async (e) => {
+    e.preventDefault();
+    if (!canEditSchedule) return showNotification('Нет прав', 'error');
+    if (!editingLesson.apply_all && !editingLesson.date) return showNotification('Выберите дату или отметьте "Применить для всех"', 'error');
+    if (!editingLesson.group_id || !editingLesson.teacher_id || !editingLesson.subject_id) return showNotification('Заполните обязательные поля', 'error');
 
-  try {
-    const res = await fetch('/api/schedule/lesson', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body)
-    });
-    
-    const result = await res.json();
-    console.log('📥 Ответ сервера:', result);
-    console.log('📥 Статус ответа:', res.status);
-
-    if (res.ok) {
-      // Очищаем ВЕСЬ кэш расписания
-      scheduleCache.clear();
-      console.log('🗑 Кэш расписания очищен');
-      
-      if (editingLesson.apply_all) {
-        showNotification('✅ Шаблон обновлён', 'success');
-      } else {
-        showNotification('✅ Занятие сохранено на неделю', 'success');
-      }
-      
-      setShowEditModal(false);
-      setEditingLesson(null);
-      
-      // ПРИНУДИТЕЛЬНАЯ перезагрузка данных
-      console.log('🔄 Принудительная перезагрузка данных...');
-      
-      // Всегда перезагружаем справочники
-      const [groupsRes, teachersRes, subjectsRes] = await Promise.all([
-        fetch('/api/groups'),
-        fetch('/api/teachers'),
-        fetch('/api/subjects')
-      ]);
-      setGroups(await groupsRes.json());
-      setTeachers(await teachersRes.json());
-      setSubjects(await subjectsRes.json());
-      
-      // Загружаем аудитории с обработкой ошибок
-      try {
-        const classroomsRes = await fetch('/api/classrooms');
-        if (classroomsRes.ok) setClassrooms(await classroomsRes.json());
-      } catch (e) {
-        console.warn('Не удалось загрузить аудитории');
-      }
-      
-      // Перезагружаем расписание с принудительным сбросом кэша
-      if (activeTab === 'manage-schedule') {
-        const weekDates = getWeekDates(manageCurrentDate);
-        await loadScheduleForWeek(
-          formatForInput(weekDates[0]), 
-          formatForInput(weekDates[6]), 
-          selectedGroupFilter, 
-          true  // forceReload
-        );
-        console.log('✅ Управление расписанием перезагружено');
-      } else {
-        const monday = getMonday(new Date());
-        await loadScheduleForWeek(
-          formatForInput(monday), 
-          null, 
-          selectedGroupFilter, 
-          true  // forceReload
-        );
-        console.log('✅ Основное расписание перезагружено');
-      }
-      
-      // Если активна вкладка шаблона - перезагружаем шаблон
-      if (activeTab === 'template') {
-        const templatesRes = await fetch('/api/schedule/template');
-        setTemplates(await templatesRes.json());
-        console.log('✅ Шаблон перезагружен');
-      }
-      
-      console.log('✅ Все данные успешно перезагружены');
-      
-    } else if (res.status === 409 && result.conflict) {
-      showNotification(result.error, 'error');
-      alert('⚠️ Конфликт расписания!\n\n' + result.error);
-    } else {
-      showNotification(result.error || 'Ошибка сервера', 'error');
-      console.error('❌ Ошибка от сервера:', result);
+    let weekStart = null;
+    if (!editingLesson.apply_all) {
+      const lessonDate = parseLocalDate(editingLesson.date);
+      if (!lessonDate || isNaN(lessonDate.getTime())) return showNotification('Некорректная дата', 'error');
+      weekStart = formatForInput(getMonday(lessonDate));
     }
-  } catch (e) {
-    console.error('❌ Ошибка соединения:', e);
-    showNotification('Ошибка соединения с сервером', 'error');
-  }
-};
 
-  // Заметки преподавателя
+    const body = {
+      group_id: parseInt(editingLesson.group_id), teacher_id: parseInt(editingLesson.teacher_id),
+      subject_id: parseInt(editingLesson.subject_id), classroom_id: editingLesson.classroom_id ? parseInt(editingLesson.classroom_id) : null,
+      pair_number: parseInt(editingLesson.pair_number), day_of_week: parseInt(editingLesson.day_of_week),
+      week_start_date: weekStart, apply_all: !!editingLesson.apply_all
+    };
+
+    try {
+      const res = await fetch('/api/schedule/lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      const result = await res.json();
+      if (res.ok) {
+        scheduleCache.clear();
+        showNotification(editingLesson.apply_all ? 'Шаблон обновлён' : 'Занятие сохранено', 'success');
+        setShowEditModal(false);
+        setEditingLesson(null);
+        if (activeTab === 'manage-schedule') await loadScheduleForWeekForManage();
+        else await loadData();
+        if (activeTab === 'template') loadTemplates();
+      } else if (res.status === 409) { showNotification(result.error, 'error'); alert('Конфликт: ' + result.error); }
+      else showNotification(result.error || 'Ошибка сервера', 'error');
+    } catch (e) { showNotification('Ошибка соединения', 'error'); }
+  };
+
+  // ---------- Заметки преподавателя ----------
   const handleNotesChange = (lessonId, value) => {
     setLocalData(prev => ({ ...prev, [lessonId]: { ...prev[lessonId], notes: value } }));
     setHasChanges(prev => ({ ...prev, [lessonId]: true }));
@@ -1475,16 +1238,50 @@ function HomeContent() {
         showNotification('Заметки сохранены', 'success');
         setHasChanges(prev => { const n = { ...prev }; delete n[lesson.id]; return n; });
         await loadData();
-      } else {
-        const err = await res.json();
-        showNotification(err.error, 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка соединения', 'error');
-    }
+      } else { const err = await res.json(); showNotification(err.error, 'error'); }
+    } catch (e) { showNotification('Ошибка соединения', 'error'); }
   };
 
-  // Рендер основного контента
+  // ---------- Эффекты ----------
+  useEffect(() => {
+    const init = async () => {
+      const t = localStorage.getItem('token');
+      const u = localStorage.getItem('user');
+      if (t && u) {
+        setToken(t);
+        const userData = JSON.parse(u);
+        setUser(userData);
+        if (userData.role === 'teacher') setActiveTab('my-lessons');
+      }
+      setAuthChecking(false);
+    };
+    init();
+  }, []);
+
+  useEffect(() => { if (!authChecking) loadData(); }, [authChecking, loadData]);
+  useEffect(() => { if (token && canManageUsers) loadUsers(); }, [token, canManageUsers, loadUsers]);
+
+  useEffect(() => {
+    if (isTeacher && schedule.length > 0 && user) {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      if (teacher) {
+        const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
+        const initialData = {};
+        teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
+        setLocalData(initialData);
+      }
+    }
+  }, [schedule, isTeacher, teachers, user]);
+
+  useEffect(() => {
+    if (activeTab === 'manage-schedule' && token) loadScheduleForWeekForManage();
+  }, [activeTab, token, loadScheduleForWeekForManage]);
+
+  useEffect(() => {
+    if (activeTab === 'template' && canEditSchedule) loadTemplates();
+  }, [activeTab, canEditSchedule, loadTemplates]);
+
+  // ---------- Рендер контента ----------
   const renderMainContent = () => {
     if (isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
@@ -1548,10 +1345,10 @@ function HomeContent() {
           <div className="content-header">
             <div className="header-left"><h2><i className="fas fa-edit"></i> Управление расписанием</h2></div>
             <div className="header-actions">
-              <div className="week-controls" style={{ marginRight: 'auto', display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <button onClick={() => { const d = new Date(manageCurrentDate); d.setDate(d.getDate() - 7); setManageCurrentDate(d); }} className="week-nav-btn"><i className="fas fa-chevron-left"></i> Пред.</button>
-                <div className="week-display" style={{ background: 'var(--primary)', padding: '0.5rem 1rem', borderRadius: '2rem', color: 'white' }}>
-                  <i className="fas fa-calendar-week"></i><span>{formatDate(weekDatesForManage[0])} - {formatDate(weekDatesForManage[6])}</span><span className="week-number">({getWeekNumber(weekDatesForManage[0])} нед.)</span>
+                <div style={{ background: 'var(--primary)', padding: '0.5rem 1rem', borderRadius: '2rem', color: 'white', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <i className="fas fa-calendar-week"></i><span>{formatDate(weekDatesForManage[0])} - {formatDate(weekDatesForManage[6])}</span><span style={{ opacity: 0.7, fontSize: '0.8rem' }}>({getWeekNumber(weekDatesForManage[0])} нед.)</span>
                 </div>
                 <button onClick={() => { const d = new Date(manageCurrentDate); d.setDate(d.getDate() + 7); setManageCurrentDate(d); }} className="week-nav-btn">След. <i className="fas fa-chevron-right"></i></button>
                 <button onClick={() => setManageCurrentDate(new Date())} className="week-today-btn"><i className="fas fa-calendar-day"></i> Сегодня</button>
@@ -1693,57 +1490,7 @@ function HomeContent() {
     return null;
   };
 
-  // Эффекты
-  useEffect(() => {
-    const init = async () => {
-      const t = localStorage.getItem('token');
-      const u = localStorage.getItem('user');
-      if (t && u) {
-        setToken(t);
-        const userData = JSON.parse(u);
-        setUser(userData);
-        if (userData.role === 'teacher') setActiveTab('my-lessons');
-      }
-      setAuthChecking(false);
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
-    if (!authChecking && !loading) return;
-    if (authChecking) return;
-    // Пустой эффект, loadData вызывается только один раз
-  }, []);
-
-  useEffect(() => {
-    if (!authChecking) loadData();
-  }, [authChecking]);
-
-  useEffect(() => {
-    if (token && canManageUsers) loadUsers();
-  }, [token, canManageUsers, loadUsers]);
-
-  useEffect(() => {
-    if (isTeacher && schedule.length > 0 && user) {
-      const teacher = teachers.find(t => t.user_id === user.id);
-      if (teacher) {
-        const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
-        const initialData = {};
-        teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
-        setLocalData(initialData);
-      }
-    }
-  }, [schedule, isTeacher, teachers, user]);
-
-  useEffect(() => {
-    if (activeTab === 'manage-schedule' && token) loadScheduleForWeekForManage();
-  }, [activeTab, token, loadScheduleForWeekForManage]);
-
-  useEffect(() => {
-    if (activeTab === 'template' && canEditSchedule) loadTemplates();
-  }, [activeTab, canEditSchedule, loadTemplates]);
-
-  // Рендер страницы авторизации / лендинга
+  // ---------- Страница загрузки / лендинг ----------
   if (authChecking) {
     return (
       <div className="loading-screen">
@@ -1822,46 +1569,97 @@ function HomeContent() {
         <div className="app-content">{renderMainContent()}</div>
       </main>
 
-      {/* Модальные окна */}
+      {/* Модальное окно редактирования занятия */}
       {showEditModal && editingLesson && createPortal(
         <div className="modal" onClick={() => setShowEditModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2>{editingLesson.id ? 'Редактировать' : 'Добавить'} занятие</h2><button className="modal-close" onClick={() => setShowEditModal(false)}><i className="fas fa-times"></i></button></div>
+            <div className="modal-header">
+              <h2><i className="fas fa-calendar-plus"></i> {editingLesson.id ? 'Редактировать занятие' : 'Добавить занятие'}</h2>
+              <button className="modal-close" onClick={() => setShowEditModal(false)}><i className="fas fa-times"></i></button>
+            </div>
             <form onSubmit={handleSaveLesson} className="modal-form">
-              <div className="form-group"><label>Группа</label><select value={editingLesson.group_id} onChange={e => setEditingLesson({ ...editingLesson, group_id: e.target.value })} required><option value="">Выберите</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
-              <div className="form-group"><label>Предмет</label><select value={editingLesson.subject_id} onChange={e => setEditingLesson({ ...editingLesson, subject_id: e.target.value })} required><option value="">Выберите</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div className="form-group"><label>Преподаватель</label><select value={editingLesson.teacher_id} onChange={e => setEditingLesson({ ...editingLesson, teacher_id: e.target.value })} required><option value="">Выберите</option>{teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
-              <div className="form-group"><label>Аудитория</label><select value={editingLesson.classroom_id} onChange={e => setEditingLesson({ ...editingLesson, classroom_id: e.target.value })}><option value="">Не выбрана</option>{classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-              <div className="form-row">
-                <div className="form-group half"><label>День недели</label><select value={editingLesson.day_of_week} onChange={e => setEditingLesson({ ...editingLesson, day_of_week: e.target.value })} required>{DAYS.map((d, i) => <option key={i + 1} value={i + 1}>{d}</option>)}</select></div>
-                <div className="form-group half"><label>Пара</label><select value={editingLesson.pair_number} onChange={e => setEditingLesson({ ...editingLesson, pair_number: e.target.value })} required>{PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}</select></div>
+              <div className="form-group">
+                <label>Группа *</label>
+                <select value={editingLesson.group_id || ''} onChange={e => setEditingLesson({...editingLesson, group_id: e.target.value})} required>
+                  <option value="">Выберите группу</option>
+                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
               </div>
-              {!editingLesson.apply_all && <div className="form-group"><label>Дата занятия</label><input type="date" value={editingLesson.date} onChange={e => setEditingLesson({ ...editingLesson, date: e.target.value })} required /></div>}
-              {canEditSchedule && <div className="form-group"><label className="checkbox-label"><input type="checkbox" checked={editingLesson.apply_all} onChange={e => setEditingLesson({ ...editingLesson, apply_all: e.target.checked })} /><span>Применить для всех недель (шаблон)</span></label></div>}
-              <button type="submit" className="submit-btn"><i className="fas fa-save"></i> {editingLesson.id ? 'Сохранить' : 'Добавить'}</button>
+              <div className="form-group">
+                <label>Предмет *</label>
+                <select value={editingLesson.subject_id || ''} onChange={e => setEditingLesson({...editingLesson, subject_id: e.target.value})} required>
+                  <option value="">Выберите предмет</option>
+                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Преподаватель *</label>
+                <select value={editingLesson.teacher_id || ''} onChange={e => setEditingLesson({...editingLesson, teacher_id: e.target.value})} required>
+                  <option value="">Выберите преподавателя</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Аудитория</label>
+                <select value={editingLesson.classroom_id || ''} onChange={e => setEditingLesson({...editingLesson, classroom_id: e.target.value})}>
+                  <option value="">Не выбрана</option>
+                  {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>День недели *</label>
+                  <select value={editingLesson.day_of_week || '1'} onChange={e => setEditingLesson({...editingLesson, day_of_week: e.target.value})} required>
+                    {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Пара *</label>
+                  <select value={editingLesson.pair_number || '1'} onChange={e => setEditingLesson({...editingLesson, pair_number: e.target.value})} required>
+                    {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
+                  </select>
+                </div>
+              </div>
+              {!editingLesson.apply_all && (
+                <div className="form-group">
+                  <label>Дата занятия *</label>
+                  <input type="date" value={editingLesson.date || ''} onChange={e => setEditingLesson({...editingLesson, date: e.target.value})} required={!editingLesson.apply_all} />
+                </div>
+              )}
+              {canEditSchedule && (
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={editingLesson.apply_all || false} onChange={e => setEditingLesson({...editingLesson, apply_all: e.target.checked})} />
+                    <span>Применить для всех недель (шаблон)</span>
+                  </label>
+                </div>
+              )}
+              <button type="submit" className="submit-btn">
+                <i className="fas fa-save"></i> {editingLesson.id ? 'Сохранить изменения' : 'Добавить занятие'}
+              </button>
             </form>
           </div>
         </div>,
         document.body
       )}
 
+      {/* Остальные модальные окна */}
       {showRegister && createPortal(
         <div className="modal" onClick={() => setShowRegister(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
             <div className="modal-header"><h2>Создать пользователя</h2><button className="modal-close" onClick={() => setShowRegister(false)}><i className="fas fa-times"></i></button></div>
             <form onSubmit={handleRegister} className="modal-form">
-              <div className="form-group"><label>Логин</label><input value={registerData.username} onChange={e => setRegisterData({ ...registerData, username: e.target.value })} required /></div>
-              <div className="form-group"><label>Пароль</label><input type="password" value={registerData.password} onChange={e => setRegisterData({ ...registerData, password: e.target.value })} required /></div>
-              <div className="form-group"><label>ФИО</label><input value={registerData.fullName} onChange={e => setRegisterData({ ...registerData, fullName: e.target.value })} required /></div>
-              <div className="form-group"><label>Роль</label><select value={registerData.role} onChange={e => setRegisterData({ ...registerData, role: e.target.value })}><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="admin">Администратор</option></select></div>
-              {registerData.role === 'student' && <div className="form-group"><label>Группа</label><select value={registerData.groupId} onChange={e => setRegisterData({ ...registerData, groupId: e.target.value })}><option value="">Выберите</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>}
+              <div className="form-group"><label>Логин</label><input value={registerData.username} onChange={e => setRegisterData({...registerData, username: e.target.value})} required /></div>
+              <div className="form-group"><label>Пароль</label><input type="password" value={registerData.password} onChange={e => setRegisterData({...registerData, password: e.target.value})} required /></div>
+              <div className="form-group"><label>ФИО</label><input value={registerData.fullName} onChange={e => setRegisterData({...registerData, fullName: e.target.value})} required /></div>
+              <div className="form-group"><label>Роль</label><select value={registerData.role} onChange={e => setRegisterData({...registerData, role: e.target.value})}><option value="student">Студент</option><option value="teacher">Преподаватель</option><option value="admin">Администратор</option></select></div>
+              {registerData.role === 'student' && <div className="form-group"><label>Группа</label><select value={registerData.groupId} onChange={e => setRegisterData({...registerData, groupId: e.target.value})}><option value="">Выберите</option>{groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>}
               <button type="submit" className="submit-btn">Создать</button>
             </form>
           </div>
         </div>,
         document.body
       )}
-
       {showGroupModal && createPortal(
         <div className="modal" onClick={() => setShowGroupModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
@@ -1871,7 +1669,6 @@ function HomeContent() {
         </div>,
         document.body
       )}
-
       {showTeacherModal && createPortal(
         <div className="modal" onClick={() => setShowTeacherModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
@@ -1881,7 +1678,6 @@ function HomeContent() {
         </div>,
         document.body
       )}
-
       {showSubjectModal && createPortal(
         <div className="modal" onClick={() => setShowSubjectModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
@@ -1891,7 +1687,6 @@ function HomeContent() {
         </div>,
         document.body
       )}
-
       {showClassroomModal && createPortal(
         <div className="modal" onClick={() => setShowClassroomModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
@@ -1901,7 +1696,6 @@ function HomeContent() {
         </div>,
         document.body
       )}
-
       {showTeacherReportModal && createPortal(
         <TeacherReportModal teachers={teachers} schedule={schedule} onClose={() => setShowTeacherReportModal(false)} onGenerate={generateTeacherReport} />,
         document.body
