@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
 const ThemeContext = createContext({ theme: 'light', toggleTheme: () => {} });
-const [teacherCurrentDate, setTeacherCurrentDate] = useState(new Date());
 
 const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState('light');
@@ -49,30 +48,6 @@ const ROLES = { admin: 'Администратор', teacher: 'Преподав�
 
 const scheduleCache = new Map();
 
-// функцию загрузки расписания преподавателя
-const loadTeacherSchedule = useCallback(async (date) => {
-  if (!token || !user || user.role !== 'teacher') return;
-  
-  const teacher = teachers.find(t => t.user_id === user.id);
-  if (!teacher) return;
-  
-  const weekDates = getWeekDates(date);
-  const startDate = formatForInput(weekDates[0]);
-  const endDate = formatForInput(weekDates[6]);
-  
-  console.log('👨‍🏫 Загрузка расписания преподавателя на неделю:', startDate);
-  
-  try {
-    const url = `/api/schedule?weekStart=${startDate}&teacherId=${teacher.id}`;
-    const res = await fetch(url, { 
-      headers: { 'Authorization': `Bearer ${token}` } 
-    });
-    const data = await res.json();
-    setSchedule(data);
-  } catch (e) {
-    console.error('Ошибка загрузки расписания преподавателя:', e);
-  }
-}, [token, user, teachers]);
 // ---------- Функции для дат ----------
 const parseLocalDate = (dateString) => {
   if (!dateString) return null;
@@ -1461,23 +1436,17 @@ const handleDeleteSlot = async (lesson, applyAll) => {
   useEffect(() => { if (!authChecking) loadData(); }, [authChecking, loadData]);
   useEffect(() => { if (token && canManageUsers) loadUsers(); }, [token, canManageUsers, loadUsers]);
 
- useEffect(() => {
-  if (isTeacher && user && teachers.length > 0) {
-    loadTeacherSchedule(teacherCurrentDate);
-  }
-}, [isTeacher, user, teachers, teacherCurrentDate, loadTeacherSchedule]);
-
-useEffect(() => {
-  if (isTeacher && schedule.length > 0 && user) {
-    const teacher = teachers.find(t => t.user_id === user.id);
-    if (teacher) {
-      const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
-      const initialData = {};
-      teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
-      setLocalData(initialData);
+  useEffect(() => {
+    if (isTeacher && schedule.length > 0 && user) {
+      const teacher = teachers.find(t => t.user_id === user.id);
+      if (teacher) {
+        const teacherLessons = schedule.filter(l => l.teacher_id === teacher.id);
+        const initialData = {};
+        teacherLessons.forEach(lesson => { initialData[lesson.id] = { notes: lesson.notes || '' }; });
+        setLocalData(initialData);
+      }
     }
-  }
-}, [schedule, isTeacher, teachers, user]);
+  }, [schedule, isTeacher, teachers, user]);
 
   useEffect(() => {
     if (activeTab === 'manage-schedule' && token) loadScheduleForWeekForManage();
