@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
+// POST – создание / изменение занятия (только admin/methodist)
 export async function POST(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -33,7 +34,105 @@ export async function POST(request) {
     const pair = parseInt(pair_number);
     const day = parseInt(day_of_week);
 
-    // 🔥 ЕСЛИ apply_all = true — сохраняем в шаблон
+    // ============================================
+    // ПРОВЕРКА КОНФЛИКТОВ
+    // ============================================
+
+    // 1. Проверка шаблона (только если не apply_all и не редактируем сам шаблон)
+    if (!apply_all) {
+      // Проверяем, нет ли уже занятия в шаблоне для этой группы/дня/пары
+      const templateConflict = await db.query(`
+        SELECT t.*, g.name as group_name, s.name as subject_name, tch.name as teacher_name
+        FROM schedule_templates t
+        JOIN groups g ON t.group_id = g.id
+        JOIN subjects s ON t.subject_id = s.id
+        JOIN teachers tch ON t.teacher_id = tch.id
+        WHERE t.group_id = $1 
+          AND t.day_of_week = $2 
+          AND t.pair_number = $3
+          AND (t.id != $4 OR $4 IS NULL)
+      `, [gid, day, pair, template_id || null]);
+
+      if (templateConflict.rows.length > 0) {
+        const conflict = templateConflict.rows[0];
+        return NextResponse.json({
+          error: `⚠️ Конфликт в шаблоне! Группа "${conflict.group_name}" уже имеет занятие "${conflict.subject_name}" с преподавателем ${conflict.teacher_name} на ${pair} паре в этот день.`,
+          conflict: true,
+          type: 'template'
+        }, { status: 409 });
+      }
+
+      // 2. Проверяем переопределения для этой же недели
+      const overrideConflict = await db.query(`
+        SELECT o.*, g.name as group_name, s.name as subject_name, tch.name as teacher_name
+        FROM schedule_overrides o
+        JOIN groups g ON o.group_id = g.id
+        LEFT JOIN subjects s ON o.subject_id = s.id
+        LEFT JOIN teachers tch ON o.teacher_id = tch.id
+        WHERE o.week_start_date = $1
+          AND o.group_id = $2
+          AND o.day_of_week = $3
+          AND o.pair_number = $4
+          AND o.status != 'cancelled'
+          AND (o.id != $5 OR $5 IS NULL)
+      `, [week_start_date, gid, day, pair, override_id || null]);
+
+      if (overrideConflict.rows.length > 0) {
+        const conflict = overrideConflict.rows[0];
+        return NextResponse.json({
+          error: `⚠️ Конфликт на этой неделе! Группа "${conflict.group_name}" уже имеет занятие "${conflict.subject_name || 'Отменено'}" с преподавателем ${conflict.teacher_name || '—'} на ${pair} паре.`,
+          conflict: true,
+          type: 'override'
+        }, { status: 409 });
+      }
+
+      // 3. Проверяем, нет ли переопределения для этой группы в этот же день/пару, но с другим статусом
+      const cancelledCheck = await db.query(`
+        SELECT id FROM schedule_overrides
+        WHERE week_start_date = $1
+          AND group_id = $2
+          AND day_of_week = $3
+          AND pair_number = $4
+          AND status = 'cancelled'
+          AND (id != $5 OR $5 IS NULL)
+      `, [week_start_date, gid, day, pair, override_id || null]);
+
+      if (cancelledCheck.rows.length > 0) {
+        // Если было отменено — удаляем отмену и создаём нормальное занятие
+        await db.query(`DELETE FROM schedule_overrides WHERE id = $1`, [cancelledCheck.rows[0].id]);
+        console.log('🔄 Удалена предыдущая отмена, создаём новое занятие');
+      }
+    }
+
+    // 4. Проверка конфликтов для apply_all (шаблон)
+    if (apply_all) {
+      const templateConflict = await db.query(`
+        SELECT t.*, g.name as group_name, s.name as subject_name, tch.name as teacher_name
+        FROM schedule_templates t
+        JOIN groups g ON t.group_id = g.id
+        JOIN subjects s ON t.subject_id = s.id
+        JOIN teachers tch ON t.teacher_id = tch.id
+        WHERE t.group_id = $1 
+          AND t.day_of_week = $2 
+          AND t.pair_number = $3
+          AND (t.id != $4 OR $4 IS NULL)
+      `, [gid, day, pair, template_id || null]);
+
+      if (templateConflict.rows.length > 0) {
+        const conflict = templateConflict.rows[0];
+        return NextResponse.json({
+          error: `⚠️ Конфликт в шаблоне! Группа "${conflict.group_name}" уже имеет занятие "${conflict.subject_name}" с преподавателем ${conflict.teacher_name} на ${pair} паре в этот день.`,
+          conflict: true,
+          type: 'template'
+        }, { status: 409 });
+      }
+    }
+
+    // ============================================
+    // СОХРАНЕНИЕ
+    // ============================================
+
+    // ЕСЛИ apply_all = true — сохраняем в шаблон
     if (apply_all) {
       console.log('📝 Сохраняем в шаблон (apply_all=true)');
       
@@ -69,11 +168,7 @@ export async function POST(request) {
       return NextResponse.json({ success: true, source: 'template_updated' });
     }
 
-    // 🔥 apply_all = false — работаем с переопределением для конкретной недели
-    if (!week_start_date) {
-      return NextResponse.json({ error: 'Укажите дату начала недели' }, { status: 400 });
-    }
-
+    // apply_all = false — работаем с переопределением для конкретной недели
     console.log('✏️ Сохраняем переопределение для недели:', week_start_date);
 
     if (override_id) {
@@ -124,6 +219,7 @@ export async function POST(request) {
   }
 }
 
+// DELETE – отмена занятия (только admin/methodist)
 export async function DELETE(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -147,14 +243,10 @@ export async function DELETE(request) {
 
     if (apply_all) {
       console.log('🗑 Удаляем из шаблона');
-      await db.query(`
-        DELETE FROM schedule_templates WHERE id = $1
-      `, [template_id]);
-
+      await db.query(`DELETE FROM schedule_templates WHERE id = $1`, [template_id]);
       if (override_id) {
         await db.query(`DELETE FROM schedule_overrides WHERE id = $1`, [override_id]);
       }
-
       return NextResponse.json({ success: true, source: 'template_deleted' });
     }
 
