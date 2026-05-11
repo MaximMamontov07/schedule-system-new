@@ -1,3 +1,4 @@
+// app/api/classrooms/route.js
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -8,6 +9,7 @@ import { getUserFromRequest } from '@/lib/auth';
 export async function GET() {
   try {
     const db = await getDb();
+    // Проверяем, какие поля есть в таблице classrooms
     const result = await db.query('SELECT * FROM classrooms ORDER BY name');
     return NextResponse.json(result.rows);
   } catch (error) {
@@ -30,6 +32,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Название обязательно' }, { status: 400 });
     }
 
+    // Используем только поле name, если другие поля отсутствуют
     await db.query('INSERT INTO classrooms (name) VALUES ($1)', [name.trim()]);
     return NextResponse.json({ success: true });
   } catch (error) {
