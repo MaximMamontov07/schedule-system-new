@@ -1195,7 +1195,17 @@ function HomeContent() {
       showNotification('Удалено', 'success'); loadData();
     } catch (e) { showNotification('Ошибка', 'error'); }
   };
-
+const handleEditClick = (lesson) => {
+    console.log('✏️ Редактирование занятия:', lesson);
+    setEditingLesson({
+        ...lesson,
+        date: lesson.date || '',
+        apply_all: lesson.source === 'template',
+        template_id: lesson.template_id || null,
+        override_id: lesson.override_id || null
+    });
+    setShowEditModal(true);
+};
   // ---------- Управление расписанием ----------
  const handleAddScheduleClick = useCallback((slotData) => {
     let dateValue = '';
