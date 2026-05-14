@@ -1327,8 +1327,8 @@ const handleEditClick = (lesson) => {
     e.preventDefault();
     if (!canEditSchedule) return showNotification('Нет прав', 'error');
 
-    console.log('handleSaveLesson вызвана');
-    console.log('editingLesson:', JSON.stringify(editingLesson, null, 2));
+    console.log('🚀 handleSaveLesson вызвана');
+    console.log('📝 editingLesson:', JSON.stringify(editingLesson, null, 2));
 
     if (!editingLesson.apply_all && !editingLesson.date) {
         return showNotification('Выберите дату или отметьте "Применить для всех"', 'error');
@@ -1344,7 +1344,7 @@ const handleEditClick = (lesson) => {
             return showNotification('Некорректная дата', 'error');
         }
         weekStart = formatForInput(getMonday(lessonDate));
-        console.log('Неделя переопределения:', weekStart);
+        console.log('📅 Неделя переопределения:', weekStart);
     }
 
     const body = {
@@ -1356,8 +1356,8 @@ const handleEditClick = (lesson) => {
         day_of_week: parseInt(editingLesson.day_of_week),
         week_start_date: weekStart,
         apply_all: !!editingLesson.apply_all,
-        template_id: editingLesson.template_id || null,    
-        override_id: editingLesson.override_id || null    
+        template_id: editingLesson.template_id || null,
+        override_id: editingLesson.override_id || null
     };
 
     console.log('Отправка на /api/schedule/lesson:', JSON.stringify(body, null, 2));
@@ -1373,26 +1373,50 @@ const handleEditClick = (lesson) => {
         console.log('Ответ:', result);
 
         if (res.ok) {
+            // Очищаем ВЕСЬ кэш
             scheduleCache.clear();
+            console.log('🗑 Кэш очищен');
+
             showNotification(
-                editingLesson.apply_all ? 'Шаблон обновлён' : 'Изменение сохранено для недели',
+                editingLesson.apply_all ? '✅ Шаблон обновлён' : '✅ Изменение сохранено для недели',
                 'success'
             );
 
             setShowEditModal(false);
             setEditingLesson(null);
 
+            // Принудительно перезагружаем данные БЕЗ кэша
+            console.log('Перезагрузка данных...');
+            
             if (activeTab === 'manage-schedule') {
-                await loadScheduleForWeekForManage();
+                const weekDates = getWeekDates(manageCurrentDate);
+                console.log('Перезагрузка управления, неделя:', formatForInput(weekDates[0]));
+                await loadScheduleForWeek(
+                    formatForInput(weekDates[0]),
+                    formatForInput(weekDates[6]),
+                    selectedGroupFilter,
+                    true  // forceReload
+                );
             } else if (activeTab === 'template') {
+                console.log('Перезагрузка шаблона');
                 loadTemplates();
             } else {
-                await loadData();
+                const monday = getMonday(new Date());
+                console.log('Перезагрузка расписания, неделя:', formatForInput(monday));
+                await loadScheduleForWeek(
+                    formatForInput(monday),
+                    null,
+                    selectedGroupFilter,
+                    true  // forceReload
+                );
             }
 
             console.log('Данные перезагружены');
+        } else if (res.status === 409) {
+            showNotification(result.error, 'error');
+            alert('Конфликт: ' + result.error);
         } else {
-            showNotification(result.error || 'Ошибка', 'error');
+            showNotification(result.error || 'Ошибка сервера', 'error');
         }
     } catch (e) {
         console.error('Ошибка:', e);
