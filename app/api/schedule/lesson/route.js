@@ -99,55 +99,52 @@ export async function POST(request) {
     // ============================================
     // СОХРАНЕНИЕ В ШАБЛОН (apply_all = true)
     // ============================================
-    if (apply_all) {
-      console.log('📝 Сохраняем в шаблон (apply_all=true)');
-      
-      if (template_id) {
+   if (apply_all) {
+    console.log('📝 Сохраняем в шаблон (apply_all=true)');
+    console.log('📝 template_id:', template_id, 'group_id:', gid, 'day:', day, 'pair:', pair);
+
+    if (template_id) {
         // Обновляем существующий шаблон
         await db.query(`
-          UPDATE schedule_templates 
-          SET teacher_id = $1, subject_id = $2, classroom_id = $3, updated_at = NOW()
-          WHERE id = $4
-        `, [tid, sid, cid, template_id]);
+            UPDATE schedule_templates 
+            SET group_id = $1, teacher_id = $2, subject_id = $3, classroom_id = $4, 
+                pair_number = $5, day_of_week = $6, updated_at = NOW()
+            WHERE id = $7
+        `, [gid, tid, sid, cid, pair, day, template_id]);
         console.log('🔄 Шаблон обновлён, id:', template_id);
-      } else {
+    } else {
         // Создаём новый шаблон
         const result = await db.query(`
-          INSERT INTO schedule_templates 
-            (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week)
-          VALUES ($1,$2,$3,$4,$5,$6)
-          ON CONFLICT (group_id, day_of_week, pair_number)
-          DO UPDATE SET teacher_id = EXCLUDED.teacher_id,
-                        subject_id = EXCLUDED.subject_id,
-                        classroom_id = EXCLUDED.classroom_id,
-                        updated_at = NOW()
-          RETURNING id
+            INSERT INTO schedule_templates 
+                (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week)
+            VALUES ($1,$2,$3,$4,$5,$6)
+            ON CONFLICT (group_id, day_of_week, pair_number)
+            DO UPDATE SET teacher_id = EXCLUDED.teacher_id,
+                          subject_id = EXCLUDED.subject_id,
+                          classroom_id = EXCLUDED.classroom_id,
+                          updated_at = NOW()
+            RETURNING id
         `, [gid, tid, sid, cid, pair, day]);
         console.log('➕ Шаблон создан, id:', result.rows[0]?.id);
-      }
+    }
 
-      
-      const deletedOverrides = await db.query(`
+    // Удаляем ВСЕ переопределения для старой комбинации
+    const deletedOverrides = await db.query(`
         DELETE FROM schedule_overrides
         WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3
         RETURNING id, week_start_date, status
-      `, [gid, day, pair]);
-      
-      if (deletedOverrides.rows.length > 0) {
-        console.log(`🗑 Удалено ${deletedOverrides.rows.length} переопределений:`);
-        deletedOverrides.rows.forEach(r => {
-          console.log(`   - id=${r.id}, неделя=${r.week_start_date}, статус=${r.status}`);
-        });
-      } else {
-        console.log('📭 Переопределений для удаления не найдено');
-      }
+    `, [gid, day, pair]);
 
-      return NextResponse.json({ 
-        success: true, 
+    if (deletedOverrides.rows.length > 0) {
+        console.log(`🗑 Удалено ${deletedOverrides.rows.length} переопределений`);
+    }
+
+    return NextResponse.json({
+        success: true,
         source: 'template_updated',
         deleted_overrides: deletedOverrides.rows.length
-      });
-    }
+    });
+}
 
     // ============================================
     // СОХРАНЕНИЕ ДЛЯ КОНКРЕТНОЙ НЕДЕЛИ (apply_all = false)
