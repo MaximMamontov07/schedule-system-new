@@ -4006,3 +4006,45 @@ button:disabled {
   height: 18px;
   accent-color: var(--primary);
 }
+/* Прокрутка если много занятий в одной ячейке */
+.lessons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  max-height: 400px;          /* максимальная высота контейнера */
+  overflow-y: auto;           /* вертикальная прокрутка */
+}
+
+.teacher-lessons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  max-height: 500px;          /* для преподавателя — побольше */
+  overflow-y: auto;
+}
+
+/* Стилизация скроллбара */
+.lessons-container::-webkit-scrollbar,
+.teacher-lessons-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.lessons-container::-webkit-scrollbar-track,
+.teacher-lessons-container::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.lessons-container::-webkit-scrollbar-thumb,
+.teacher-lessons-container::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: 3px;
+  opacity: 0.5;
+}
+
+.lessons-container::-webkit-scrollbar-thumb:hover,
+.teacher-lessons-container::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
