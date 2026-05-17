@@ -811,7 +811,7 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                                   </div>
                                 )}
                                 <button onClick={() => onRequestChange(lesson)} className="teacher-action-btn" style={{ background: 'var(--accent)', color: 'white', marginTop: '0.3rem', width: '100%' }}>
-                                  <i className="fas fa-paper-plane"></i> Заявка на изменение
+                                  <i className=""></i> Заявка на изменение
                                 </button>
                               </div>
                             </div>
@@ -2306,9 +2306,9 @@ if (activeTab === 'requests' && canManageUsers) {
             <div key={req.id} className={`request-card status-${req.status}`}>
               <div className="request-card-header">
                 <span className={`request-type-badge ${req.request_type}`}>
-                  {req.request_type === 'cancel' && '🚫 Отмена'}
-                  {req.request_type === 'change' && '✏️ Изменение'}
-                  {req.request_type === 'replace' && '🔄 Замена'}
+                  {req.request_type === 'cancel' && 'Отмена'}
+                  {req.request_type === 'change' && 'Изменение'}
+                  {req.request_type === 'replace' && 'Замена'}
                 </span>
                 <span className={`request-status-badge ${req.status}`}>
                   {req.status === 'pending' && '⏳ На рассмотрении'}
@@ -2653,7 +2653,7 @@ if (activeTab === 'requests' && canManageUsers) {
         <div className="modal" onClick={() => setShowChangeRequestModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: '550px' }}>
             <div className="modal-header">
-              <h2><i className="fas fa-paper-plane"></i> Заявка на изменение</h2>
+              <h2><i className=""></i> Заявка на изменение</h2>
               <button className="modal-close" onClick={() => setShowChangeRequestModal(false)}><i className="fas fa-times"></i></button>
             </div>
             <form onSubmit={handleSubmitChangeRequest} className="modal-form">
