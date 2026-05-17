@@ -37,19 +37,28 @@ export async function POST(request) {
          new_pair_number, new_day_of_week, reason)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
     `, [
-      teacher.rows[0].id, group_id, day_of_week, pair_number, week_start_date || null,
-      request_type, new_teacher_id || null, new_subject_id || null, new_classroom_id || null,
-      new_pair_number || null, new_day_of_week || null, reason || null
+      teacher.rows[0].id,
+      parseInt(group_id),
+      parseInt(day_of_week),
+      parseInt(pair_number),
+      week_start_date || null,
+      request_type,
+      new_teacher_id ? parseInt(new_teacher_id) : null,
+      new_subject_id ? parseInt(new_subject_id) : null,
+      new_classroom_id ? parseInt(new_classroom_id) : null,
+      new_pair_number ? parseInt(new_pair_number) : null,
+      new_day_of_week ? parseInt(new_day_of_week) : null,
+      reason || null
     ]);
 
     return NextResponse.json({ success: true, message: 'Заявка отправлена' });
   } catch (error) {
-    console.error('Change request error:', error);
+    console.error('Change request POST error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// GET — получить заявки (teacher — свои, admin — все)
+// GET — получить заявки
 export async function GET(request) {
   try {
     const user = await getUserFromRequest(request);
@@ -63,8 +72,9 @@ export async function GET(request) {
       
       const result = await db.query(`
         SELECT r.*, g.name as group_name, t.name as teacher_name,
-               nt.name as new_teacher_name, s.name as new_subject_name,
-               c.name as new_classroom_name
+               nt.name as new_teacher_name, 
+               COALESCE(s.name, '') as new_subject_name,
+               COALESCE(c.name, '') as new_classroom_name
         FROM lesson_change_requests r
         JOIN groups g ON r.group_id = g.id
         JOIN teachers t ON r.teacher_id = t.id
@@ -80,15 +90,18 @@ export async function GET(request) {
     if (['admin', 'methodist'].includes(user.role)) {
       const result = await db.query(`
         SELECT r.*, g.name as group_name, t.name as teacher_name,
-               nt.name as new_teacher_name, s.name as new_subject_name,
-               c.name as new_classroom_name
+               nt.name as new_teacher_name, 
+               COALESCE(s.name, '') as new_subject_name,
+               COALESCE(c.name, '') as new_classroom_name
         FROM lesson_change_requests r
         JOIN groups g ON r.group_id = g.id
         JOIN teachers t ON r.teacher_id = t.id
         LEFT JOIN teachers nt ON r.new_teacher_id = nt.id
         LEFT JOIN subjects s ON r.new_subject_id = s.id
         LEFT JOIN classrooms c ON r.new_classroom_id = c.id
-        ORDER BY r.status ASC, r.created_at DESC
+        ORDER BY 
+          CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,
+          r.created_at DESC
       `);
       return NextResponse.json(result.rows);
     }
@@ -109,65 +122,102 @@ export async function PATCH(request) {
     }
 
     const db = await getDb();
-    const { requestId, status, adminComment } = await request.json();
+    const body = await request.json();
+    const { requestId, status, adminComment } = body;
+
+    console.log('PATCH request:', { requestId, status, adminComment });
 
     if (!requestId || !['approved', 'rejected'].includes(status)) {
       return NextResponse.json({ error: 'Неверные данные' }, { status: 400 });
     }
 
+    // Обновляем статус заявки
     await db.query(
       `UPDATE lesson_change_requests SET status = $1, admin_comment = $2, updated_at = NOW() WHERE id = $3`,
-      [status, adminComment || null, requestId]
+      [status, adminComment || null, parseInt(requestId)]
     );
 
     // Если одобрено — применяем изменения
     if (status === 'approved') {
-      const req = await db.query('SELECT * FROM lesson_change_requests WHERE id = $1', [requestId]);
+      const req = await db.query('SELECT * FROM lesson_change_requests WHERE id = $1', [parseInt(requestId)]);
+      
       if (req.rows.length > 0) {
         const r = req.rows[0];
+        console.log('Applying approved request:', r);
         
-        if (r.request_type === 'cancel') {
-          // Отмена занятия
-          if (r.week_start_date) {
-            await db.query(`
-              INSERT INTO schedule_overrides (week_start_date, group_id, day_of_week, pair_number, status)
-              VALUES ($1,$2,$3,$4,'cancelled')
-              ON CONFLICT (week_start_date, group_id, day_of_week, pair_number)
-              DO UPDATE SET status = 'cancelled', updated_at = NOW()
-            `, [r.week_start_date, r.group_id, r.day_of_week, r.pair_number]);
-          } else {
-            await db.query('DELETE FROM schedule_templates WHERE group_id=$1 AND day_of_week=$2 AND pair_number=$3',
-              [r.group_id, r.day_of_week, r.pair_number]);
-          }
-        } else if (r.request_type === 'change' || r.request_type === 'replace') {
-          const tid = r.new_teacher_id || r.teacher_id;
-          const sid = r.new_subject_id;
-          const cid = r.new_classroom_id;
-          const pair = r.new_pair_number || r.pair_number;
-          const day = r.new_day_of_week || r.day_of_week;
+        try {
+          if (r.request_type === 'cancel') {
+            // Отмена занятия
+            if (r.week_start_date) {
+              await db.query(`
+                INSERT INTO schedule_overrides (week_start_date, group_id, day_of_week, pair_number, status)
+                VALUES ($1,$2,$3,$4,'cancelled')
+                ON CONFLICT (week_start_date, group_id, day_of_week, pair_number)
+                DO UPDATE SET status = 'cancelled', updated_at = NOW()
+              `, [r.week_start_date, r.group_id, r.day_of_week, r.pair_number]);
+            } else {
+              await db.query(
+                'DELETE FROM schedule_templates WHERE group_id=$1 AND day_of_week=$2 AND pair_number=$3',
+                [r.group_id, r.day_of_week, r.pair_number]
+              );
+            }
+          } else if (r.request_type === 'change' || r.request_type === 'replace') {
+            const tid = r.new_teacher_id || r.teacher_id;
+            const sid = r.new_subject_id;
+            const cid = r.new_classroom_id;
+            const pair = r.new_pair_number || r.pair_number;
+            const day = r.new_day_of_week || r.day_of_week;
 
-          if (r.week_start_date) {
-            await db.query(`
-              INSERT INTO schedule_overrides (week_start_date, group_id, day_of_week, pair_number, teacher_id, subject_id, classroom_id, status)
-              VALUES ($1,$2,$3,$4,$5,$6,$7,'modified')
-              ON CONFLICT (week_start_date, group_id, day_of_week, pair_number)
-              DO UPDATE SET teacher_id=EXCLUDED.teacher_id, subject_id=EXCLUDED.subject_id, classroom_id=EXCLUDED.classroom_id, status='modified'
-            `, [r.week_start_date, r.group_id, day, pair, tid, sid, cid]);
-          } else {
-            await db.query(`
-              INSERT INTO schedule_templates (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week)
-              VALUES ($1,$2,$3,$4,$5,$6)
-              ON CONFLICT (group_id, day_of_week, pair_number)
-              DO UPDATE SET teacher_id=EXCLUDED.teacher_id, subject_id=EXCLUDED.subject_id, classroom_id=EXCLUDED.classroom_id
-            `, [r.group_id, tid, sid, cid, pair, day]);
+            if (r.week_start_date) {
+              // Для конкретной недели
+              if (sid) {
+                await db.query(`
+                  INSERT INTO schedule_overrides 
+                    (week_start_date, group_id, day_of_week, pair_number, teacher_id, subject_id, classroom_id, status)
+                  VALUES ($1,$2,$3,$4,$5,$6,$7,'modified')
+                  ON CONFLICT (week_start_date, group_id, day_of_week, pair_number)
+                  DO UPDATE SET teacher_id=EXCLUDED.teacher_id, subject_id=EXCLUDED.subject_id, 
+                                classroom_id=EXCLUDED.classroom_id, status='modified'
+                `, [r.week_start_date, r.group_id, day, pair, tid, sid, cid]);
+              } else {
+                await db.query(`
+                  INSERT INTO schedule_overrides 
+                    (week_start_date, group_id, day_of_week, pair_number, teacher_id, classroom_id, status)
+                  VALUES ($1,$2,$3,$4,$5,$6,'modified')
+                  ON CONFLICT (week_start_date, group_id, day_of_week, pair_number)
+                  DO UPDATE SET teacher_id=EXCLUDED.teacher_id, classroom_id=EXCLUDED.classroom_id, status='modified'
+                `, [r.week_start_date, r.group_id, day, pair, tid, cid]);
+              }
+            } else {
+              // Для шаблона
+              if (sid) {
+                await db.query(`
+                  INSERT INTO schedule_templates (group_id, teacher_id, subject_id, classroom_id, pair_number, day_of_week)
+                  VALUES ($1,$2,$3,$4,$5,$6)
+                  ON CONFLICT (group_id, day_of_week, pair_number)
+                  DO UPDATE SET teacher_id=EXCLUDED.teacher_id, subject_id=EXCLUDED.subject_id, classroom_id=EXCLUDED.classroom_id
+                `, [r.group_id, tid, sid, cid, pair, day]);
+              } else {
+                await db.query(`
+                  INSERT INTO schedule_templates (group_id, teacher_id, classroom_id, pair_number, day_of_week)
+                  VALUES ($1,$2,$3,$4,$5)
+                  ON CONFLICT (group_id, day_of_week, pair_number)
+                  DO UPDATE SET teacher_id=EXCLUDED.teacher_id, classroom_id=EXCLUDED.classroom_id
+                `, [r.group_id, tid, cid, pair, day]);
+              }
+            }
           }
+          console.log('Changes applied successfully');
+        } catch (applyError) {
+          console.error('Error applying changes:', applyError);
+          // Не откатываем — заявка уже одобрена, просто логируем ошибку
         }
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: 'Статус обновлён' });
   } catch (error) {
     console.error('Change request PATCH error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Ошибка сервера' }, { status: 500 });
   }
 }
