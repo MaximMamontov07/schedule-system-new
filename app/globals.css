@@ -81,7 +81,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent; /* Убирает подсветку при касании на мобильных */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -111,26 +111,24 @@ body {
   position: fixed;
   left: 0;
   top: 0;
-  width: min(85vw, var(--sidebar-width)); /* Адаптивная ширина */
+  width: min(85vw, var(--sidebar-width));
   height: 100vh;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   z-index: 100;
-  transform: translateX(-100%); /* Скрыта по умолчанию */
+  transform: translateX(-100%);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--shadow-xl);
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   overflow: hidden;
 }
 
-/* Открытое состояние */
 .app-sidebar.open {
   transform: translateX(0);
 }
 
-/* Бренд-блок в сайдбаре */
 .sidebar-brand {
   padding: 1.5rem 1.25rem;
   display: flex;
@@ -152,7 +150,6 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* Кнопка закрытия сайдбара (только на мобильных) */
 .sidebar-close-btn {
   margin-left: auto;
   background: rgba(255, 255, 255, 0.2);
@@ -161,7 +158,7 @@ body {
   font-size: 1.25rem;
   cursor: pointer;
   transition: var(--transition);
-  display: none; /* Скрыта по умолчанию */
+  display: none;
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -174,7 +171,6 @@ body {
   transform: rotate(90deg);
 }
 
-/* Профиль в сайдбаре */
 .sidebar-profile {
   padding: 1.5rem 1.25rem;
   display: flex;
@@ -199,7 +195,7 @@ body {
 
 .profile-info {
   flex: 1;
-  min-width: 0; /* Для корректного сокращения текста */
+  min-width: 0;
 }
 
 .profile-name {
@@ -220,21 +216,18 @@ body {
   gap: 0.25rem;
 }
 
-/* Индикатор "онлайн" */
 .profile-role::before {
   content: '●';
   font-size: 0.5rem;
   color: var(--success);
 }
 
-/* Навигация в сайдбаре */
 .sidebar-nav {
   flex: 1;
   padding: 1rem 0.75rem;
   overflow-y: auto;
 }
 
-/* Элемент навигации */
 .nav-item {
   display: flex;
   align-items: center;
@@ -265,7 +258,6 @@ body {
   transform: translateX(4px);
 }
 
-/* Активный элемент навигации */
 .nav-item.active {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   color: white;
@@ -276,7 +268,6 @@ body {
   color: white;
 }
 
-/* Нижняя часть сайдбара */
 .sidebar-footer {
   padding: 1rem 0.75rem;
   border-top: 1px solid var(--border);
@@ -286,7 +277,6 @@ body {
   background: var(--surface-muted);
 }
 
-/* Кнопка переключения темы */
 .theme-toggle-btn {
   display: flex;
   align-items: center;
@@ -311,7 +301,6 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Кнопка выхода */
 .logout-btn {
   display: flex;
   align-items: center;
@@ -333,7 +322,6 @@ body {
   transform: translateX(4px);
 }
 
-/* Оверлей сайдбара (затемнение фона) */
 .sidebar-overlay {
   position: fixed;
   top: 0;
@@ -358,7 +346,6 @@ body {
   padding-bottom: var(--bottom-nav-height);
 }
 
-/* Шапка приложения */
 .app-header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -374,12 +361,10 @@ body {
   background: rgba(255, 255, 255, 0.95);
 }
 
-/* Полупрозрачный фон в тёмной теме */
 [data-theme="dark"] .app-header {
   background: rgba(30, 41, 59, 0.95);
 }
 
-/* Кнопка мобильного меню */
 .menu-toggle-btn {
   background: none;
   border: none;
@@ -389,7 +374,7 @@ body {
   padding: 0.5rem;
   border-radius: var(--radius);
   transition: var(--transition);
-  display: none; /* Скрыта на десктопе */
+  display: none;
   width: 48px;
   height: 48px;
   align-items: center;
@@ -401,7 +386,6 @@ body {
   transform: scale(1.05);
 }
 
-/* Заголовок страницы */
 .header-title h1 {
   font-size: 1.35rem;
   font-weight: 700;
@@ -409,14 +393,12 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* Действия в шапке (справа) */
 .header-actions-right {
   display: flex;
   align-items: center;
   gap: 1rem;
 }
 
-/* Кнопка переключения темы в шапке */
 .theme-toggle-header {
   background: var(--surface-muted);
   border: none;
@@ -439,7 +421,6 @@ body {
   transform: rotate(15deg);
 }
 
-/* Бейдж роли */
 .role-badge {
   padding: 0.5rem 1.25rem;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
@@ -451,7 +432,6 @@ body {
   white-space: nowrap;
 }
 
-/* Контентная область */
 .app-content {
   padding: 1.5rem;
   flex: 1;
@@ -476,7 +456,6 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
-/* Заголовок карточки */
 .content-header {
   padding: 1.5rem;
   border-bottom: 1px solid var(--border);
@@ -509,14 +488,12 @@ body {
   font-size: 1.5rem;
 }
 
-/* Группа кнопок действий */
 .header-actions {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-/* Кнопка действия */
 .action-button {
   display: inline-flex;
   align-items: center;
@@ -541,7 +518,6 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Основная кнопка (primary) */
 .action-button.primary {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
@@ -552,7 +528,6 @@ body {
   background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
 }
 
-/* Кнопка экспорта в Excel */
 .action-button.export-excel {
   background: var(--success);
   color: white;
@@ -564,7 +539,6 @@ body {
   filter: brightness(1.1);
 }
 
-/* Кнопка экспорта в PDF */
 .action-button.export-pdf {
   background: var(--danger);
   color: white;
@@ -575,14 +549,12 @@ body {
   background: #a85555;
 }
 
-/* Кнопка сохранения всего */
 .action-button.save-all {
   background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
   color: white;
   border: none;
 }
 
-/* Кнопка отчёта по часам */
 .action-button.report-hours {
   background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
   color: white;
@@ -593,7 +565,6 @@ body {
   background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
 }
 
-/* Фильтр по группам */
 .group-filter {
   padding: 0.625rem 1.25rem;
   border: 1px solid var(--border);
@@ -623,7 +594,6 @@ body {
   flex-wrap: wrap;
 }
 
-/* Кнопка календаря */
 .calendar-icon-btn {
   position: relative;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
@@ -646,7 +616,6 @@ body {
   filter: brightness(1.1);
 }
 
-/* Бейдж выбранной даты */
 .selected-date-badge {
   position: absolute;
   top: -8px;
@@ -660,7 +629,6 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Элементы управления неделей */
 .week-controls {
   display: flex;
   align-items: center;
@@ -671,7 +639,6 @@ body {
   border: 1px solid var(--border);
 }
 
-/* Кнопка навигации по неделям */
 .week-nav-btn {
   background: var(--surface);
   border: none;
@@ -692,7 +659,6 @@ body {
   transform: translateY(-2px);
 }
 
-/* Отображение текущей недели */
 .week-display {
   display: flex;
   align-items: center;
@@ -709,7 +675,6 @@ body {
   font-size: 1rem;
 }
 
-/* Номер недели */
 .week-number {
   font-size: 0.7rem;
   opacity: 0.9;
@@ -718,7 +683,6 @@ body {
   border-radius: 1rem;
 }
 
-/* Кнопка "Сегодня" */
 .week-today-btn {
   background: var(--success);
   border: none;
@@ -738,7 +702,6 @@ body {
   filter: brightness(1.1);
 }
 
-/* Кнопка сброса фильтров */
 .reset-filters-btn {
   display: inline-flex;
   align-items: center;
@@ -773,7 +736,6 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Заголовок секции фильтров */
 .filter-section-header {
   display: flex;
   justify-content: space-between;
@@ -785,14 +747,12 @@ body {
   gap: 1rem;
 }
 
-/* Сетка фильтров */
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
 }
 
-/* Группа фильтра */
 .filter-group {
   display: flex;
   flex-direction: column;
@@ -812,7 +772,6 @@ body {
   font-size: 0.7rem;
 }
 
-/* Выпадающий список фильтра */
 .filter-select {
   padding: 0.625rem 1rem;
   border: 1px solid var(--border);
@@ -834,7 +793,6 @@ body {
   box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.1);
 }
 
-/* Кнопка быстрого выбора периода */
 .quick-period-btn {
   padding: 0.5rem 1rem;
   border-radius: 2rem;
@@ -865,7 +823,6 @@ body {
   padding: 0;
 }
 
-/* Таблица расписания */
 .schedule-grid {
   width: 100%;
   border-collapse: separate;
@@ -879,7 +836,6 @@ body {
   padding: 0;
 }
 
-/* Заголовок столбца времени */
 .time-header {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
@@ -895,7 +851,6 @@ body {
   gap: 0.5rem;
 }
 
-/* Заголовок дня недели */
 .day-header {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
@@ -904,14 +859,12 @@ body {
   text-align: center;
 }
 
-/* Сегодняшний день */
 .day-header.today {
   background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
   position: relative;
   overflow: hidden;
 }
 
-/* Анимация блика для сегодняшнего и выбранного дня */
 .day-header.today::before,
 .day-header.selected::before {
   content: '';
@@ -924,20 +877,17 @@ body {
   animation: shimmer 2s infinite;
 }
 
-/* Выбранный день */
 .day-header.selected {
   background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
   position: relative;
   overflow: hidden;
 }
 
-/* Выходной день */
 .day-header.weekend {
   background: linear-gradient(135deg, var(--secondary) 0%, #4a5568 100%);
   opacity: 0.8;
 }
 
-/* Содержимое заголовка дня */
 .day-header-content {
   display: flex;
   flex-direction: column;
@@ -956,7 +906,6 @@ body {
   opacity: 0.9;
 }
 
-/* Ячейка времени (пара) */
 .time-slot {
   background: var(--surface-muted);
   width: 110px;
@@ -982,7 +931,6 @@ body {
   font-weight: 500;
 }
 
-/* Ячейка занятия */
 .lesson-cell {
   min-width: 200px;
   height: auto;
@@ -992,19 +940,16 @@ body {
   transition: var(--transition);
 }
 
-/* Пустая ячейка */
 .lesson-cell.empty {
   background: var(--surface-muted);
 }
 
-/* Ячейка сегодняшнего дня */
 .lesson-cell.today-column {
   background: linear-gradient(135deg, rgba(44, 95, 45, 0.08), rgba(44, 95, 45, 0.03));
   border-left: 3px solid var(--success);
   border-right: 3px solid var(--success);
 }
 
-/* Ячейка выходного дня */
 .lesson-cell.weekend-column {
   background: rgba(100, 116, 139, 0.05);
 }
@@ -1029,7 +974,6 @@ body {
   border-color: var(--primary-light);
 }
 
-/* Заголовок карточки занятия */
 .lesson-header {
   display: flex;
   justify-content: space-between;
@@ -1038,7 +982,6 @@ body {
   flex-wrap: wrap;
 }
 
-/* Название предмета */
 .lesson-title {
   font-weight: 700;
   font-size: 0.9rem;
@@ -1048,7 +991,6 @@ body {
   flex: 1;
 }
 
-/* Тег группы */
 .lesson-group-tag {
   font-size: 0.7rem;
   font-weight: 700;
@@ -1059,14 +1001,12 @@ body {
   white-space: nowrap;
 }
 
-/* Тело карточки занятия */
 .lesson-body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-/* Информация о занятии */
 .lesson-info {
   display: flex;
   align-items: center;
@@ -1081,7 +1021,6 @@ body {
   color: var(--primary);
 }
 
-/* Бейдж с заметками */
 .lesson-notes-badge {
   display: flex;
   align-items: flex-start;
@@ -1110,7 +1049,6 @@ body {
   flex: 1;
 }
 
-/* Кастомизация скроллбара для заметок */
 .lesson-notes-badge::-webkit-scrollbar {
   width: 4px;
 }
@@ -1129,7 +1067,6 @@ body {
   background: rgba(196, 163, 90, 0.5);
 }
 
-/* Бейдж статуса занятия */
 .lesson-status-badge {
   display: inline-flex;
   align-items: center;
@@ -1141,32 +1078,27 @@ body {
   margin-top: 0.5rem;
 }
 
-/* Статус: изменено */
 .status-modified {
   background: rgba(255, 193, 7, 0.12);
   color: #b38f00;
 }
 
-/* Статус: добавлено */
 .status-added {
   background: rgba(40, 167, 69, 0.12);
   color: #1e7e34;
 }
 
-/* Статус: отменено */
 .status-cancelled {
   background: rgba(220, 53, 69, 0.12);
   color: #bd2130;
 }
 
-/* Отменённое занятие */
 .lesson-card-modern.cancelled {
   opacity: 0.55;
   text-decoration: line-through;
   background: var(--surface-muted);
 }
 
-/* Кнопки действий в карточке занятия */
 .lesson-actions-modern {
   display: flex;
   gap: 0.5rem;
@@ -1176,7 +1108,6 @@ body {
   padding-top: 0.5rem;
 }
 
-/* Кнопка действия */
 .lesson-action-btn {
   background: none;
   border: none;
@@ -1191,7 +1122,6 @@ body {
   height: 32px;
 }
 
-/* Кнопка редактирования */
 .lesson-action-btn.edit {
   color: var(--warning);
 }
@@ -1201,7 +1131,6 @@ body {
   transform: scale(1.1);
 }
 
-/* Кнопка удаления */
 .lesson-action-btn.delete {
   color: var(--danger);
 }
@@ -1211,7 +1140,6 @@ body {
   transform: scale(1.1);
 }
 
-/* Кнопка добавления занятия (большая) */
 .add-lesson-btn {
   width: 100%;
   height: 100%;
@@ -1236,7 +1164,6 @@ body {
   transform: scale(0.98);
 }
 
-/* Кнопка добавления занятия (мини) */
 .add-lesson-btn-mini {
   width: 100%;
   padding: 0.5rem;
@@ -1271,7 +1198,6 @@ body {
   overflow-y: auto;
 }
 
-/* Цветные левые границы для различия занятий */
 .lessons-container .lesson-card-modern:nth-child(1) { border-left: 4px solid var(--primary); }
 .lessons-container .lesson-card-modern:nth-child(2) { border-left: 4px solid var(--success); }
 .lessons-container .lesson-card-modern:nth-child(3) { border-left: 4px solid var(--warning); }
@@ -1279,7 +1205,6 @@ body {
 .lessons-container .lesson-card-modern:nth-child(5) { border-left: 4px solid var(--accent); }
 .lessons-container .lesson-card-modern:nth-child(6) { border-left: 4px solid var(--secondary); }
 
-/* Кастомизация скроллбара */
 .lessons-container::-webkit-scrollbar {
   width: 5px;
 }
@@ -1301,7 +1226,6 @@ body {
 /* ============================================================
    ПАНЕЛЬ ПРЕПОДАВАТЕЛЯ
    ============================================================ */
-/* Контейнер занятий преподавателя */
 .teacher-lessons-container {
   display: flex;
   flex-direction: column;
@@ -1311,7 +1235,6 @@ body {
   overflow-y: auto;
 }
 
-/* Цветные левые границы */
 .teacher-lessons-container .teacher-lesson-card:nth-child(1) { border-left: 4px solid var(--primary); }
 .teacher-lessons-container .teacher-lesson-card:nth-child(2) { border-left: 4px solid var(--success); }
 .teacher-lessons-container .teacher-lesson-card:nth-child(3) { border-left: 4px solid var(--warning); }
@@ -1319,7 +1242,6 @@ body {
 .teacher-lessons-container .teacher-lesson-card:nth-child(5) { border-left: 4px solid var(--accent); }
 .teacher-lessons-container .teacher-lesson-card:nth-child(6) { border-left: 4px solid var(--secondary); }
 
-/* Кастомизация скроллбара */
 .teacher-lessons-container::-webkit-scrollbar {
   width: 5px;
 }
@@ -1338,7 +1260,6 @@ body {
   background: var(--primary);
 }
 
-/* Карточка занятия преподавателя */
 .teacher-lesson-card {
   padding: 0.75rem;
   background: var(--surface);
@@ -1356,7 +1277,6 @@ body {
   border-color: var(--primary-light);
 }
 
-/* Текстовое поле для заметок преподавателя */
 .teacher-lesson-card .teacher-notes-textarea {
   width: 100%;
   padding: 0.5rem;
@@ -1379,7 +1299,6 @@ body {
   box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.1);
 }
 
-/* Кнопки действий преподавателя */
 .teacher-lesson-card .teacher-actions-modern {
   display: flex;
   gap: 0.5rem;
@@ -1387,7 +1306,6 @@ body {
   margin-top: 0.5rem;
 }
 
-/* Кнопка действия преподавателя */
 .teacher-lesson-card .teacher-action-btn {
   padding: 0.4rem 0.8rem;
   border-radius: 2rem;
@@ -1401,7 +1319,6 @@ body {
   gap: 0.5rem;
 }
 
-/* Кнопка отмены */
 .teacher-lesson-card .teacher-action-btn.cancel {
   background: transparent;
   border: 1px solid var(--border);
@@ -1414,7 +1331,6 @@ body {
   color: var(--danger);
 }
 
-/* Кнопка сохранения */
 .teacher-lesson-card .teacher-action-btn.save {
   background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
   color: white;
@@ -1427,7 +1343,6 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Бейджи занятия */
 .lesson-badges {
   display: flex;
   align-items: center;
@@ -1435,7 +1350,6 @@ body {
   flex-wrap: wrap;
 }
 
-/* Бейдж несохранённых изменений */
 .unsaved-badge {
   font-size: 0.65rem;
   font-weight: 600;
@@ -1453,7 +1367,6 @@ body {
   animation: pulse 1.5s infinite;
 }
 
-/* Анимация пульсации */
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -1465,14 +1378,12 @@ body {
   }
 }
 
-/* Пустая ячейка */
 .empty-cell {
   height: 100%;
   min-height: 140px;
   background: var(--surface-muted);
 }
 
-/* Бейдж группы студента */
 .student-group-badge {
   display: inline-flex;
   align-items: center;
@@ -1486,7 +1397,6 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Чекбокс с меткой */
 .checkbox-label {
   display: flex;
   align-items: center;
@@ -1505,7 +1415,6 @@ body {
 /* ============================================================
    СПРАВОЧНИКИ
    ============================================================ */
-/* Сетка справочников */
 .directories-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -1513,7 +1422,6 @@ body {
   padding: 1.5rem;
 }
 
-/* Карточка справочника */
 .directory-card {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -1528,7 +1436,6 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
-/* Заголовок справочника */
 .directory-header {
   display: flex;
   align-items: center;
@@ -1553,7 +1460,6 @@ body {
   color: var(--text-primary);
 }
 
-/* Кнопка добавления в справочник */
 .add-dir-btn {
   width: 40px;
   height: 40px;
@@ -1574,13 +1480,11 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Список элементов справочника */
 .directory-list {
   max-height: 300px;
   overflow-y: auto;
 }
 
-/* Элемент справочника */
 .directory-item {
   display: flex;
   justify-content: space-between;
@@ -1599,7 +1503,6 @@ body {
   font-weight: 500;
 }
 
-/* Кнопка удаления элемента */
 .delete-item-btn {
   background: none;
   border: none;
@@ -1645,14 +1548,12 @@ body {
   gap: 0.5rem;
 }
 
-/* Список пользователей */
 .users-list {
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
 }
 
-/* Карточка пользователя */
 .user-card {
   display: flex;
   align-items: center;
@@ -1670,7 +1571,6 @@ body {
   transform: translateX(4px);
 }
 
-/* Аватар пользователя */
 .user-avatar {
   width: 48px;
   height: 48px;
@@ -1684,7 +1584,6 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Детали пользователя */
 .user-details {
   flex: 1;
   min-width: 0;
@@ -1702,7 +1601,6 @@ body {
   color: var(--text-muted);
 }
 
-/* Кнопка удаления пользователя */
 .delete-user-btn {
   background: none;
   border: none;
@@ -1723,14 +1621,12 @@ body {
   transform: scale(1.1);
 }
 
-/* Список связей преподавателей */
 .teachers-link-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-/* Карточка связи преподавателя */
 .teacher-link-card {
   display: flex;
   justify-content: space-between;
@@ -1749,7 +1645,6 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Информация о преподавателе */
 .teacher-info {
   display: flex;
   align-items: center;
@@ -1766,7 +1661,6 @@ body {
   gap: 0.5rem;
 }
 
-/* Бейдж "привязан" */
 .linked-badge {
   padding: 0.375rem 0.875rem;
   background: rgba(44, 95, 45, 0.15);
@@ -1779,7 +1673,6 @@ body {
   gap: 0.375rem;
 }
 
-/* Бейдж "не привязан" */
 .unlinked-badge {
   padding: 0.375rem 0.875rem;
   background: rgba(193, 102, 107, 0.15);
@@ -1792,14 +1685,12 @@ body {
   gap: 0.375rem;
 }
 
-/* Элементы управления связью */
 .link-controls {
   display: flex;
   gap: 0.75rem;
   align-items: center;
 }
 
-/* Выпадающий список выбора пользователя */
 .user-select {
   padding: 0.625rem 1rem;
   border: 1px solid var(--border);
@@ -1811,7 +1702,6 @@ body {
   min-height: 44px;
 }
 
-/* Кнопка привязки */
 .link-button {
   padding: 0.625rem 1.25rem;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
@@ -1836,7 +1726,6 @@ body {
   filter: brightness(1.1);
 }
 
-/* Кнопка отвязки */
 .unlink-button {
   padding: 0.625rem 1.25rem;
   background: var(--danger);
@@ -1864,7 +1753,6 @@ body {
 /* ============================================================
    КАЛЕНДАРЬ (DATEPICKER)
    ============================================================ */
-/* Оверлей календаря */
 .datepicker-overlay {
   position: fixed;
   top: 0;
@@ -1880,7 +1768,6 @@ body {
   animation: fadeIn 0.2s ease;
 }
 
-/* Модальное окно календаря */
 .datepicker-modal {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -1891,7 +1778,6 @@ body {
   overflow: hidden;
 }
 
-/* Заголовок календаря */
 .datepicker-header {
   display: flex;
   justify-content: space-between;
@@ -1901,14 +1787,12 @@ body {
   color: white;
 }
 
-/* Навигация календаря */
 .datepicker-nav {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-/* Кнопка навигации */
 .datepicker-nav-btn {
   background: rgba(255, 255, 255, 0.2);
   border: none;
@@ -1929,7 +1813,6 @@ body {
   transform: scale(1.1);
 }
 
-/* Месяц и год */
 .datepicker-month-year {
   background: rgba(255, 255, 255, 0.2);
   border: none;
@@ -1948,7 +1831,6 @@ body {
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Кнопка закрытия */
 .datepicker-close {
   background: rgba(255, 255, 255, 0.2);
   border: none;
@@ -1969,7 +1851,6 @@ body {
   transform: rotate(90deg);
 }
 
-/* Дни недели */
 .datepicker-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1985,7 +1866,6 @@ body {
   color: var(--text-muted);
 }
 
-/* Сетка дней */
 .datepicker-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1993,7 +1873,6 @@ body {
   gap: 0.25rem;
 }
 
-/* Кнопка дня */
 .datepicker-day {
   aspect-ratio: 1;
   display: flex;
@@ -2014,27 +1893,57 @@ body {
   transform: scale(1.05);
 }
 
-/* День другого месяца */
 .datepicker-day.other-month {
   color: var(--text-muted);
   opacity: 0.5;
 }
 
-/* Сегодняшний день */
 .datepicker-day.today {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   font-weight: bold;
 }
 
-/* Выбранный день */
 .datepicker-day.selected {
   background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
   color: white;
   box-shadow: var(--shadow-md);
 }
 
-/* Сетка годов */
+/* День с занятиями (индикатор) */
+.datepicker-day.has-lessons {
+  position: relative;
+}
+
+.datepicker-day.has-lessons::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  background: var(--primary);
+  border-radius: 50%;
+}
+
+.datepicker-day.today.has-lessons::after {
+  background: white;
+}
+
+.datepicker-day.selected.has-lessons::after {
+  background: white;
+}
+
+/* День с отменёнными занятиями */
+.datepicker-day.has-cancelled {
+  position: relative;
+}
+
+.datepicker-day.has-cancelled::after {
+  background: var(--danger);
+}
+
 .datepicker-years {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2044,7 +1953,6 @@ body {
   overflow-y: auto;
 }
 
-/* Кнопка года */
 .datepicker-year {
   padding: 0.75rem;
   background: var(--surface-muted);
@@ -2063,14 +1971,12 @@ body {
   transform: translateY(-2px);
 }
 
-/* Активный год */
 .datepicker-year.active {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
   border-color: transparent;
 }
 
-/* Нижняя часть календаря */
 .datepicker-footer {
   padding: 1rem;
   border-top: 1px solid var(--border);
@@ -2078,7 +1984,6 @@ body {
   justify-content: center;
 }
 
-/* Кнопка "Сегодня" */
 .datepicker-today-btn {
   background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
   border: none;
@@ -2095,6 +2000,515 @@ body {
 
 .datepicker-today-btn:hover {
   transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+/* ============================================================
+   МОДАЛЬНОЕ ОКНО ОТЧЁТА
+   ============================================================ */
+.report-modal .modal-container {
+  max-width: 650px;
+}
+
+/* Секция фильтров отчёта */
+.report-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Группа фильтра в отчёте */
+.report-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.report-filter-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.report-filter-group label i {
+  color: var(--primary);
+  font-size: 0.9rem;
+}
+
+/* Поля ввода периода */
+.report-period-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.report-period-inputs input[type="date"] {
+  flex: 1;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--text-primary);
+  transition: var(--transition);
+  min-height: 44px;
+}
+
+.report-period-inputs input[type="date"]:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.1);
+}
+
+.report-period-inputs span {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Чекбоксы опций отчёта */
+.report-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--surface-muted);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.report-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.report-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+
+.report-option label {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.report-option label i {
+  color: var(--primary);
+  font-size: 0.9rem;
+  width: 1.2rem;
+  text-align: center;
+}
+
+/* Сводка отчёта */
+.report-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Карточка показателя */
+.report-stat-card {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  transition: var(--transition);
+}
+
+.report-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.report-stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.25rem;
+}
+
+.report-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.report-stat-card.warning .report-stat-value {
+  color: var(--warning);
+}
+
+.report-stat-card.danger .report-stat-value {
+  color: var(--danger);
+}
+
+.report-stat-card.success .report-stat-value {
+  color: var(--success);
+}
+
+/* Таблица отчёта */
+.report-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.report-table th {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.report-table th i {
+  margin-right: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.report-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.report-table tr:nth-child(even) {
+  background: var(--surface-muted);
+}
+
+.report-table tr:hover {
+  background: var(--surface-muted);
+}
+
+/* Статусы в таблице отчёта */
+.report-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 1.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.report-status.completed {
+  background: rgba(40, 167, 69, 0.12);
+  color: #1e7e34;
+}
+
+.report-status.cancelled {
+  background: rgba(220, 53, 69, 0.12);
+  color: #bd2130;
+}
+
+.report-status.pending {
+  background: rgba(255, 193, 7, 0.12);
+  color: #b38f00;
+}
+
+/* Кнопки действий отчёта */
+.report-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.report-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+  min-height: 44px;
+}
+
+.report-action-btn.generate {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.report-action-btn.generate:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  filter: brightness(1.1);
+}
+
+.report-action-btn.export {
+  background: var(--success);
+  color: white;
+}
+
+.report-action-btn.export:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+}
+
+.report-action-btn.print {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.report-action-btn.print:hover {
+  background: var(--surface-muted);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   МОДАЛЬНОЕ ОКНО ПРОСМОТРА ЗАНЯТИЙ ЗА ДЕНЬ (ИЗ КАЛЕНДАРЯ)
+   ============================================================ */
+.day-lessons-modal .modal-container {
+  max-width: 600px;
+}
+
+/* Заголовок дня */
+.day-lessons-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+}
+
+.day-lessons-header .day-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.day-lessons-header .day-info i {
+  font-size: 1.5rem;
+}
+
+.day-lessons-header .day-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.day-lessons-header .day-subtitle {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+/* Кнопка закрытия в модальном окне дня */
+.day-lessons-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  color: white;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-lessons-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+/* Список занятий за день */
+.day-lessons-list {
+  padding: 1rem;
+  max-height: 55vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.day-lessons-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.day-lessons-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.day-lessons-list::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: 3px;
+}
+
+/* Карточка занятия в модальном окне */
+.day-lesson-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.day-lesson-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-light);
+  transform: translateX(4px);
+}
+
+/* Временная метка */
+.day-lesson-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 65px;
+  padding: 0.5rem;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.day-lesson-time .pair-num {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.day-lesson-time .pair-hours {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* Информация о занятии */
+.day-lesson-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.day-lesson-info .lesson-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.day-lesson-info .lesson-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.day-lesson-info .lesson-meta span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.day-lesson-info .lesson-meta i {
+  font-size: 0.75rem;
+  color: var(--primary);
+}
+
+/* Бейджи в модальном окне дня */
+.day-lesson-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.day-lesson-badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.day-lesson-badge.group {
+  background: rgba(44, 95, 45, 0.12);
+  color: var(--success);
+}
+
+.day-lesson-badge.teacher {
+  background: rgba(44, 62, 102, 0.12);
+  color: var(--primary);
+}
+
+.day-lesson-badge.room {
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--secondary);
+}
+
+/* Пустое состояние */
+.day-lessons-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+}
+
+.day-lessons-empty i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.day-lessons-empty p {
+  font-size: 0.95rem;
+}
+
+/* Нижняя часть модального окна дня */
+.day-lessons-footer {
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+}
+
+.day-lessons-goto-btn {
+  padding: 0.625rem 1.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  border: none;
+  border-radius: 2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.day-lessons-goto-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
   filter: brightness(1.1);
 }
 
@@ -2117,7 +2531,6 @@ body {
   opacity: 0.5;
 }
 
-/* Спиннер */
 .spinner {
   width: 48px;
   height: 48px;
@@ -2128,7 +2541,6 @@ body {
   margin: 0 auto 1.5rem;
 }
 
-/* Большой спиннер */
 .spinner-large {
   width: 72px;
   height: 72px;
@@ -2139,14 +2551,12 @@ body {
   margin: 0 auto 1.5rem;
 }
 
-/* Анимация вращения */
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* Экран загрузки */
 .loading-screen {
   display: flex;
   flex-direction: column;
@@ -2157,7 +2567,6 @@ body {
   gap: 1.5rem;
 }
 
-/* Кнопка переключения темы на экране загрузки */
 .theme-toggle-loading {
   margin-top: 1rem;
   padding: 0.75rem 1.5rem;
@@ -2179,7 +2588,6 @@ body {
   transform: translateY(-2px);
 }
 
-/* Заглушка фильтра */
 .filter-placeholder {
   text-align: center;
   padding: 4rem 2rem;
@@ -2226,7 +2634,6 @@ body {
   backdrop-filter: blur(8px);
 }
 
-/* Анимация появления */
 @keyframes slideInUp {
   from {
     opacity: 0;
@@ -2238,23 +2645,20 @@ body {
   }
 }
 
-/* Успешное уведомление */
 .toast-success {
   background: linear-gradient(135deg, var(--success) 0%, #1e4a1f 100%);
 }
 
-/* Уведомление об ошибке */
 .toast-error {
   background: linear-gradient(135deg, var(--danger) 0%, #a85555 100%);
 }
 
-/* Информационное уведомление */
 .toast-info {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
 }
 
 /* ============================================================
-   МОДАЛЬНЫЕ ОКНА
+   МОДАЛЬНЫЕ ОКНА (ОБЩИЕ)
    ============================================================ */
 .modal {
   position: fixed;
@@ -2272,13 +2676,11 @@ body {
   padding: 1rem;
 }
 
-/* Анимация появления */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-/* Анимация скольжения вверх */
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -2290,7 +2692,6 @@ body {
   }
 }
 
-/* Контейнер модального окна */
 .modal-container {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -2302,7 +2703,6 @@ body {
   animation: slideUp 0.3s ease;
 }
 
-/* Заголовок модального окна */
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -2322,7 +2722,6 @@ body {
   gap: 0.5rem;
 }
 
-/* Кнопка закрытия */
 .modal-close {
   background: none;
   border: none;
@@ -2344,12 +2743,10 @@ body {
   transform: rotate(90deg);
 }
 
-/* Форма в модальном окне */
 .modal-form {
   padding: 1.5rem;
 }
 
-/* Группа полей формы */
 .modal-form .form-group {
   margin-bottom: 1.5rem;
 }
@@ -2362,7 +2759,6 @@ body {
   color: var(--text-secondary);
 }
 
-/* Поля ввода */
 .modal-form .form-group input,
 .modal-form .form-group select,
 .modal-form .form-group textarea {
@@ -2385,7 +2781,6 @@ body {
   box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.15);
 }
 
-/* Кнопка отправки */
 .submit-btn {
   width: 100%;
   padding: 0.875rem 1.5rem;
@@ -2429,13 +2824,11 @@ body {
   width: 100%;
 }
 
-/* Главный блок */
 .landing-hero {
   text-align: center;
   margin-bottom: 4rem;
 }
 
-/* Бейдж */
 .hero-badge {
   display: inline-block;
   margin-bottom: 1.5rem;
@@ -2451,7 +2844,6 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Заголовок */
 .hero-title {
   font-size: clamp(2.5rem, 8vw, 4rem);
   font-weight: 800;
@@ -2461,7 +2853,6 @@ body {
   letter-spacing: -0.02em;
 }
 
-/* Градиентный текст */
 .gradient-highlight {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   -webkit-background-clip: text;
@@ -2469,7 +2860,6 @@ body {
   background-clip: text;
 }
 
-/* Описание */
 .hero-description {
   font-size: 1.2rem;
   color: var(--text-secondary);
@@ -2479,14 +2869,12 @@ body {
   margin-right: auto;
 }
 
-/* Кнопки */
 .hero-buttons {
   display: flex;
   gap: 1rem;
   justify-content: center;
 }
 
-/* Основная кнопка */
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -2509,7 +2897,6 @@ body {
   filter: brightness(1.1);
 }
 
-/* Вторичная кнопка */
 .btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -2559,7 +2946,6 @@ body {
   width: 1rem;
 }
 
-/* Поле ввода с поиском */
 .searchable-select-input {
   position: relative;
   display: flex;
@@ -2576,18 +2962,15 @@ body {
   border-color: var(--primary-light);
 }
 
-/* Фокус на поле */
 .searchable-select-input.focused {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(44, 62, 102, 0.1);
 }
 
-/* Поле с выбранным значением */
 .searchable-select-input.has-value {
   border-color: var(--success);
 }
 
-/* Текстовое поле */
 .searchable-select-input-field {
   flex: 1;
   padding: 0.75rem 1rem;
@@ -2606,14 +2989,12 @@ body {
   opacity: 0.7;
 }
 
-/* Заблокированное состояние */
 .searchable-select-input.disabled {
   opacity: 0.6;
   cursor: not-allowed;
   background: var(--surface-muted);
 }
 
-/* Иконки */
 .searchable-select-icons {
   display: flex;
   align-items: center;
@@ -2622,7 +3003,6 @@ body {
   flex-shrink: 0;
 }
 
-/* Кнопка очистки */
 .searchable-select-clear-btn {
   background: none;
   border: none;
@@ -2644,20 +3024,17 @@ body {
   transform: scale(1.1);
 }
 
-/* Иконка стрелки */
 .searchable-select-icons i.fa-chevron-down {
   color: var(--text-muted);
   transition: transform 0.2s ease;
   font-size: 0.85rem;
 }
 
-/* Повёрнутая стрелка */
 .searchable-select-icons i.fa-chevron-down.rotated {
   transform: rotate(180deg);
   color: var(--primary);
 }
 
-/* Выпадающий список */
 .searchable-select-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -2672,7 +3049,6 @@ body {
   animation: dropdownFade 0.2s ease;
 }
 
-/* Анимация выпадающего списка */
 @keyframes dropdownFade {
   from {
     opacity: 0;
@@ -2684,13 +3060,11 @@ body {
   }
 }
 
-/* Список опций */
 .searchable-select-options {
   max-height: 280px;
   overflow-y: auto;
 }
 
-/* Кастомизация скроллбара */
 .searchable-select-options::-webkit-scrollbar {
   width: 6px;
 }
@@ -2705,7 +3079,6 @@ body {
   border-radius: 3px;
 }
 
-/* Опция */
 .searchable-select-option {
   padding: 0.75rem 1rem;
   cursor: pointer;
@@ -2721,13 +3094,11 @@ body {
   background: var(--surface-muted);
 }
 
-/* Выбранная опция */
 .searchable-select-option.selected {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
 }
 
-/* Содержимое опции */
 .searchable-select-option-content {
   display: flex;
   align-items: center;
@@ -2741,7 +3112,6 @@ body {
   flex: 1;
 }
 
-/* Пустой список */
 .searchable-select-empty {
   display: flex;
   align-items: center;
@@ -2842,16 +3212,16 @@ body {
    ============================================================ */
 @media (min-width: 769px) {
   .app-sidebar {
-    transform: translateX(0); /* Сайдбар всегда виден */
+    transform: translateX(0);
   }
 
   .app-main {
-    margin-left: var(--sidebar-width); /* Отступ под сайдбар */
+    margin-left: var(--sidebar-width);
     padding-bottom: 0;
   }
 
   .menu-toggle-btn {
-    display: none; /* Скрываем кнопку меню */
+    display: none;
   }
 
   .toast {
@@ -2878,23 +3248,22 @@ body {
   }
 
   .role-badge {
-    display: none; /* Скрываем бейдж роли на мобильных */
+    display: none;
   }
 
   .theme-toggle-header {
-    display: none; /* Скрываем переключатель темы в шапке */
+    display: none;
   }
 
   .menu-toggle-btn {
-    display: flex; /* Показываем кнопку меню */
+    display: flex;
   }
 
   .sidebar-close-btn {
-    display: flex; /* Показываем кнопку закрытия сайдбара */
+    display: flex;
   }
 
   /* ---------- Контент (отступы) ---------- */
-  /* ИЗМЕНЕНО: увеличены отступы для единообразия с гостевым видом */
   .app-content {
     padding: 1rem;
   }
@@ -2934,7 +3303,6 @@ body {
     width: auto;
   }
 
-  /* ИЗМЕНЕНО: увеличены размеры кнопок для единообразия с гостевым видом */
   .action-button {
     padding: 0.5rem 0.8rem;
     font-size: 0.8rem;
@@ -2988,7 +3356,7 @@ body {
   }
 
   .week-display .week-number {
-    display: none; /* Скрываем номер недели на мобильных */
+    display: none;
   }
 
   .week-today-btn {
@@ -3038,13 +3406,11 @@ body {
     border-radius: 0;
   }
 
-  /* ИЗМЕНЕНО: увеличен минимальный размер сетки для единообразия с гостевым видом */
   .schedule-grid {
     min-width: 700px;
     font-size: 0.75rem;
   }
 
-  /* Фиксируем первый столбец (время) */
   .schedule-grid th:first-child,
   .schedule-grid td:first-child {
     position: sticky;
@@ -3059,7 +3425,6 @@ body {
   }
 
   /* ---------- Время и дни ---------- */
-  /* ИЗМЕНЕНО: увеличены размеры для единообразия с гостевым видом */
   .time-slot {
     width: 80px;
     min-width: 80px;
@@ -3090,7 +3455,6 @@ body {
   }
 
   /* ---------- Ячейка занятия ---------- */
-  /* ИЗМЕНЕНО: увеличены размеры ячеек для единообразия с гостевым видом */
   .lesson-cell {
     min-width: 160px;
     min-height: 100px;
@@ -3121,7 +3485,6 @@ body {
   }
 
   /* ---------- Заметки ---------- */
-  /* ИЗМЕНЕНО: увеличены размеры заметок для единообразия с гостевым видом */
   .lesson-notes-badge {
     font-size: 0.65rem;
     padding: 0.3rem 0.5rem;
@@ -3231,6 +3594,58 @@ body {
     padding: 0.6rem;
     font-size: 0.85rem;
     min-height: 40px;
+  }
+
+  /* ---------- Модальное окно отчёта (мобильные) ---------- */
+  .report-filters {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .report-summary {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+
+  .report-stat-value {
+    font-size: 1.25rem;
+  }
+
+  .report-table {
+    font-size: 0.75rem;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 0.5rem;
+  }
+
+  .report-actions {
+    flex-direction: column;
+  }
+
+  .report-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ---------- Модальное окно просмотра дня (мобильные) ---------- */
+  .day-lesson-card {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .day-lesson-time {
+    flex-direction: row;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    min-width: auto;
+    justify-content: center;
+  }
+
+  .day-lesson-info .lesson-name {
+    font-size: 0.9rem;
   }
 
   /* ---------- Публичное расписание ---------- */
@@ -3374,11 +3789,16 @@ body {
   }
 
   .action-button span {
-    display: none; /* Скрываем текст на очень маленьких экранах */
+    display: none;
   }
 
   .action-button i {
     font-size: 0.75rem;
+  }
+
+  /* Отчёт на очень маленьких экранах */
+  .report-summary {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -3414,13 +3834,17 @@ body {
   .modal-container {
     max-height: 95vh;
   }
+
+  /* Отчёт в ландшафтной ориентации */
+  .report-summary {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 /* ============================================================
    УЛУЧШЕНИЯ ДЛЯ СЕНСОРНЫХ УСТРОЙСТВ
    ============================================================ */
 @media (hover: none) and (pointer: coarse) {
-  /* Увеличиваем интерактивные элементы для удобства касания */
   .nav-item {
     min-height: 44px;
   }
@@ -3439,7 +3863,6 @@ body {
     height: 36px;
   }
 
-  /* Предотвращаем масштабирование на iOS */
   select,
   input,
   textarea,
@@ -3447,7 +3870,6 @@ body {
     font-size: 16px !important;
   }
 
-  /* Плавный скролл на сенсорных устройствах */
   .schedule-grid-wrapper {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
@@ -3457,25 +3879,21 @@ body {
 /* ============================================================
    УТИЛИТАРНЫЕ КЛАССЫ
    ============================================================ */
-/* Плавное появление/исчезновение обёртки расписания */
 .schedule-grid-wrapper {
   transition: opacity 0.2s ease;
 }
 
-/* Состояние загрузки расписания */
 .schedule-grid-wrapper.loading {
   opacity: 0.6;
   pointer-events: none;
 }
 
-/* Заблокированные кнопки */
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   pointer-events: none;
 }
 
-/* Плавный переход для ячеек занятий */
 .lesson-cell {
   transition: background 0.15s ease, transform 0.15s ease;
 }
