@@ -1731,15 +1731,15 @@ const handleEditClick = (lesson) => {
         {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
         <div className="landing-page">
           <div className="landing-content">
-            <div className="landing-hero">
-              <div className="hero-badge"><span><i className="fas fa-graduation-cap"></i> Расписание</span></div>
-              <h1 className="hero-title">Учебное расписание<br/><span className="gradient-highlight">Колледжа</span></h1>
-              <p className="hero-description">Платформа для просмотра расписания</p>
-              <div className="hero-buttons">
-                <button className="btn-primary" onClick={() => setShowLogin(true)}><i className="fas fa-sign-in-alt"></i> Войти</button>
-                <button className="btn-secondary" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i> {theme === 'light' ? 'Тёмная' : 'Светлая'} тема</button>
-              </div>
-            </div>
+           <div className="landing-hero">
+  <div className="hero-badge"><span><i className="fas fa-calendar-alt"></i> Расписание</span></div>
+  <h1 className="hero-title">Управление<br/><span className="gradient-highlight">Расписанием</span></h1>
+  <p className="hero-description">Система для создания, просмотра и управления расписанием занятий</p>
+  <div className="hero-buttons">
+    <button className="btn-primary" onClick={() => setShowLogin(true)}><i className="fas fa-sign-in-alt"></i> Войти</button>
+    <button className="btn-secondary" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i> {theme === 'light' ? 'Тёмная' : 'Светлая'} тема</button>
+  </div>
+        </div>
             <PublicScheduleView schedule={schedule} groups={groups} teachers={teachers} subjects={subjects} classrooms={classrooms} loading={loading} loadScheduleForWeek={loadScheduleForWeek} />
           </div>
         </div>
