@@ -125,7 +125,7 @@ export async function POST(request) {
                           updated_at = NOW()
             RETURNING id
         `, [gid, tid, sid, cid, pair, day]);
-        console.log('➕ Шаблон создан, id:', result.rows[0]?.id);
+        console.log('Шаблон создан, id:', result.rows[0]?.id);
     }
 
     // Удаляем ВСЕ переопределения для старой комбинации
@@ -181,7 +181,7 @@ export async function POST(request) {
 
     if (template_id) {
       // Создаём переопределение на основе шаблона
-      console.log('➕ Создаём переопределение для шаблона, template_id:', template_id);
+      console.log('Создаём переопределение для шаблона, template_id:', template_id);
       await db.query(`
         INSERT INTO schedule_overrides
           (week_start_date, group_id, day_of_week, pair_number,
@@ -199,7 +199,7 @@ export async function POST(request) {
     }
 
     // Нет ни шаблона, ни переопределения — создаём новое занятие
-    console.log('➕ Создаём новое занятие (added)');
+    console.log('Создаём новое занятие (added)');
     await db.query(`
       INSERT INTO schedule_overrides
         (week_start_date, group_id, day_of_week, pair_number,
