@@ -3574,7 +3574,7 @@ body {
   /* ========== МОДАЛЬНЫЕ ОКНА ========== */
   .modal {
     padding: 0.5rem;
-    align-items: flex-end;
+    align-items: center;
   }
 
   .modal-container {
