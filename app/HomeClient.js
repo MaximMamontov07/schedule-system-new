@@ -827,9 +827,9 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
-// ---------- TeacherReportModal (с выбором периода) ----------
-const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
-  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+// ---------- TeacherReportModal (с выбором периода, без выбора преподавателя для учителя) ----------
+const TeacherReportModal = ({ teachers, onClose, onGenerate, isTeacher, currentTeacherId }) => {
+  const [selectedTeacherId, setSelectedTeacherId] = useState(isTeacher ? String(currentTeacherId) : '');
   const [generating, setGenerating] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -863,17 +863,34 @@ const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
           <button className="modal-close" onClick={onClose}><i className="fas fa-times"></i></button>
         </div>
         <div className="modal-form">
-          <div className="form-group">
-            <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
-            <SearchableSelect 
-              options={teacherOptions} 
-              value={selectedTeacherId} 
-              onChange={setSelectedTeacherId} 
-              placeholder="Выберите преподавателя" 
-              label="" 
-              icon="fas fa-chalkboard-teacher" 
-            />
-          </div>
+          {!isTeacher && (
+            <div className="form-group">
+              <label><i className="fas fa-chalkboard-teacher"></i> Преподаватель</label>
+              <SearchableSelect 
+                options={teacherOptions} 
+                value={selectedTeacherId} 
+                onChange={setSelectedTeacherId} 
+                placeholder="Выберите преподавателя" 
+                label="" 
+                icon="fas fa-chalkboard-teacher" 
+              />
+            </div>
+          )}
+          
+          {isTeacher && (
+            <div style={{ 
+              background: 'var(--surface-muted)', 
+              padding: '12px 15px', 
+              borderRadius: '8px', 
+              marginBottom: '15px',
+              fontSize: '14px',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border)'
+            }}>
+              <i className="fas fa-chalkboard-teacher" style={{ marginRight: '8px', color: 'var(--primary)' }}></i>
+              <strong>{teachers?.find(t => t.id === currentTeacherId)?.name || 'Преподаватель'}</strong>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '1rem' }}>
             <div className="form-group" style={{ flex: 1 }}>
@@ -897,41 +914,13 @@ const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate }) => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <button 
-              type="button"
-              onClick={() => setQuickPeriod(7)}
-              style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              Неделя
-            </button>
-            <button 
-              type="button"
-              onClick={() => setQuickPeriod(14)}
-              style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              2 недели
-            </button>
-            <button 
-              type="button"
-              onClick={() => setQuickPeriod(30)}
-              style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              Месяц
-            </button>
-            <button 
-              type="button"
-              onClick={() => setQuickPeriod(90)}
-              style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
-            >
-              3 месяца
-            </button>
+            <button type="button" onClick={() => setQuickPeriod(7)} style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}>Неделя</button>
+            <button type="button" onClick={() => setQuickPeriod(14)} style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}>2 недели</button>
+            <button type="button" onClick={() => setQuickPeriod(30)} style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}>Месяц</button>
+            <button type="button" onClick={() => setQuickPeriod(90)} style={{ padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border)', background: 'var(--surface-muted)', cursor: 'pointer', fontSize: '0.8rem' }}>3 месяца</button>
           </div>
 
-          <button 
-            className="submit-btn" 
-            onClick={handleGenerate} 
-            disabled={generating}
-          >
+          <button className="submit-btn" onClick={handleGenerate} disabled={generating}>
             {generating ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-download"></i>}
             {generating ? ' Формирование...' : ' Сформировать отчет'}
           </button>
@@ -1083,28 +1072,44 @@ function HomeContent() {
     }
   }, []);
 
-  // ---------- Отчёты (обновлённая функция с выбором периода) ----------
+  // ---------- Отчёты (обновлённая функция с загрузкой всех недель) ----------
   const generateTeacherReport = useCallback(async (teacherId, dateFrom, dateTo) => {
     try {
       const html2pdf = (await import('html2pdf.js')).default;
       const teacher = teachers.find(t => t.id === parseInt(teacherId));
       if (!teacher) return showNotification('Преподаватель не найден', 'error');
 
-      const url = `/api/schedule?weekStart=${dateFrom}&teacherId=${teacherId}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const allSchedule = await res.json();
+      // Загружаем данные за КАЖДУЮ неделю периода
+      const allLessons = [];
+      const fromDate = parseLocalDate(dateFrom);
+      const toDate = parseLocalDate(dateTo);
+      const currentMonday = getMonday(fromDate);
+      
+      while (currentMonday <= toDate) {
+        const weekStart = formatForInput(currentMonday);
+        const url = `/api/schedule?weekStart=${weekStart}&teacherId=${teacherId}`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const weekData = await res.json();
+        
+        // Фильтруем занятия этой недели, попадающие в период
+        const filteredWeek = weekData.filter(l => {
+          if (!l.date) return false;
+          return l.date >= dateFrom && l.date <= dateTo;
+        });
+        
+        allLessons.push(...filteredWeek);
+        
+        // Переходим к следующему понедельнику
+        currentMonday.setDate(currentMonday.getDate() + 7);
+      }
 
-      const lessons = allSchedule.filter(l => {
-        if (!l.date) return false;
-        return l.date >= dateFrom && l.date <= dateTo;
-      });
-
-      if (lessons.length === 0) {
+      if (allLessons.length === 0) {
         return showNotification('Нет занятий за выбранный период', 'error');
       }
 
+      // Группируем по предметам
       const subjectsHours = {};
-      lessons.forEach(lesson => {
+      allLessons.forEach(lesson => {
         const sn = lesson.subject_name;
         if (!subjectsHours[sn]) {
           subjectsHours[sn] = { name: sn, hours: 0, lessons: [], groups: new Set() };
@@ -1114,8 +1119,9 @@ function HomeContent() {
         subjectsHours[sn].groups.add(lesson.group_name);
       });
 
+      // Группируем по неделям
       const weeksMap = {};
-      lessons.forEach(lesson => {
+      allLessons.forEach(lesson => {
         if (lesson.date) {
           const ws = formatForInput(getMonday(parseLocalDate(lesson.date)));
           if (!weeksMap[ws]) weeksMap[ws] = [];
@@ -1124,76 +1130,74 @@ function HomeContent() {
       });
 
       const sortedWeeks = Object.keys(weeksMap).sort();
-      const totalHours = (lessons.length * 1.5).toFixed(1);
-      const uniqueSubjects = Object.keys(subjectsHours).length;
-      const uniqueGroups = new Set(lessons.map(l => l.group_name)).size;
+      const totalHours = (allLessons.length * 1.5).toFixed(1);
       const now = new Date();
 
       const element = document.createElement('div');
       element.innerHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Segoe UI',Arial,sans-serif;padding:30px;color:#1e293b;background:#fff}
-        .h{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:25px 30px;border-radius:14px;margin-bottom:25px;box-shadow:0 6px 20px rgba(44,62,102,0.2)}
-        .h h1{font-size:26px;margin-bottom:6px;font-weight:700}
+        .h{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:25px 30px;border-radius:14px;margin-bottom:25px}
+        .h h1{font-size:26px;margin-bottom:6px}
         .h .tn{font-size:18px;opacity:.95;margin-bottom:12px}
         .h .meta{font-size:12px;opacity:.8}
         .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:25px}
         .sc{background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:18px;text-align:center}
-        .sc .v{font-size:30px;font-weight:700;color:#2c3e66;margin-bottom:4px}
+        .sc .v{font-size:30px;font-weight:700;color:#2c3e66}
         .sc .l{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
         .st{font-size:17px;font-weight:700;color:#2c3e66;border-bottom:3px solid #2c3e66;padding-bottom:8px;margin:25px 0 15px}
-        table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px;box-shadow:0 2px 8px rgba(0,0,0,0.04);border-radius:8px;overflow:hidden}
-        th{background:#2c3e66;color:#fff;padding:10px 8px;text-align:left;text-transform:uppercase;font-size:9px;letter-spacing:.5px}
-        td{padding:8px;border-bottom:1px solid #e2e8f0}
-        tr:nth-child(even) td{background:#f8fafc}
+        table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px}
+        th{background:#2c3e66;color:#fff;padding:10px 8px;text-align:left;text-transform:uppercase;font-size:9px}
+        td{padding:8px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}
         .tr td{font-weight:700;background:#e2e8f0!important;border-top:2px solid #2c3e66}
-        .ws{margin-bottom:18px;page-break-inside:avoid}
-        .wt{font-weight:700;color:#2c3e66;padding:8px 12px;background:#f1f5f9;border-radius:6px;margin-bottom:8px;font-size:12px}
+        .ws{margin-bottom:18px}.wt{font-weight:700;color:#2c3e66;padding:8px 12px;background:#f1f5f9;border-radius:6px;margin-bottom:8px;font-size:12px}
         .f{margin-top:25px;padding-top:15px;border-top:2px solid #e2e8f0;text-align:center;font-size:9px;color:#94a3b8}
       </style></head><body>
-        <div class="h">
-          <h1>📊 Отчет о нагрузке преподавателя</h1>
-          <div class="tn">👨‍🏫 ${teacher.name}</div>
-          <div class="meta">📅 Период: ${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;•&nbsp; Сформирован: ${now.toLocaleString('ru-RU')}</div>
-        </div>
+        <div class="h"><h1>📊 Отчет о нагрузке преподавателя</h1><div class="tn">👨‍🏫 ${teacher.name}</div><div class="meta">📅 Период: ${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} • ${now.toLocaleString('ru-RU')}</div></div>
         <div class="summary">
           <div class="sc"><div class="v">${totalHours}</div><div class="l">Всего часов</div></div>
-          <div class="sc"><div class="v">${lessons.length}</div><div class="l">Занятий</div></div>
-          <div class="sc"><div class="v">${uniqueSubjects}</div><div class="l">Предметов</div></div>
-          <div class="sc"><div class="v">${uniqueGroups}</div><div class="l">Групп</div></div>
+          <div class="sc"><div class="v">${allLessons.length}</div><div class="l">Занятий</div></div>
+          <div class="sc"><div class="v">${Object.keys(subjectsHours).length}</div><div class="l">Предметов</div></div>
+          <div class="sc"><div class="v">${new Set(allLessons.map(l=>l.group_name)).size}</div><div class="l">Групп</div></div>
           <div class="sc"><div class="v">${sortedWeeks.length}</div><div class="l">Недель</div></div>
         </div>
         <h2 class="st">📚 Сводка по предметам</h2>
         <table><thead><tr><th>№</th><th>Предмет</th><th>Занятий</th><th>Часов</th><th>Группы</th></tr></thead><tbody>
           ${Object.values(subjectsHours).sort((a,b)=>b.hours-a.hours).map((item,idx)=>`<tr><td>${idx+1}</td><td><strong>${item.name}</strong></td><td>${item.lessons.length} пар(ы)</td><td><strong>${item.hours.toFixed(1)} ч.</strong></td><td>${[...item.groups].join(', ')}</td></tr>`).join('')}
-          <tr class="tr"><td colspan="2"><strong>ИТОГО</strong></td><td><strong>${lessons.length} пар</strong></td><td colspan="2"><strong>${totalHours} часов</strong></td></tr>
+          <tr class="tr"><td colspan="2"><strong>ИТОГО</strong></td><td><strong>${allLessons.length} пар</strong></td><td colspan="2"><strong>${totalHours} часов</strong></td></tr>
         </tbody></table>
         <h2 class="st">📅 Детализация по неделям</h2>
-        ${sortedWeeks.map(ws=>{const wd=weeksMap[ws];const we=new Date(parseLocalDate(ws));we.setDate(we.getDate()+6);const wn=getWeekNumber(parseLocalDate(ws));return`<div class="ws"><div class="wt">📌 Неделя ${wn} • ${formatDateRu(ws)} — ${formatDateRu(formatForInput(we))} <span style="float:right;font-weight:400">${wd.length} пар • ${(wd.length*1.5).toFixed(1)} ч.</span></div><table><thead><tr><th>Дата</th><th>День</th><th>Пара</th><th>Предмет</th><th>Группа</th><th>Ауд.</th></tr></thead><tbody>${wd.sort((a,b)=>{if(a.date<b.date)return-1;if(a.date>b.date)return 1;return a.pair_number-b.pair_number}).map(l=>`<tr><td>${l.date?formatDateRu(l.date):'—'}</td><td>${DAYS[l.day_of_week-1]}</td><td><strong>${l.pair_number}</strong> (${PAIRS[l.pair_number-1]?.time||''})</td><td>${l.subject_name}</td><td>${l.group_name}</td><td>${l.classroom_name||'—'}</td></tr>`).join('')}</tbody></table></div>`}).join('')}
-        <div class="f"><p>📊 Отчет сгенерирован автоматически • Система управления расписанием</p><p>Период: ${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;•&nbsp; ${now.toLocaleString('ru-RU')}</p></div>
+        ${sortedWeeks.map(ws=>{const wd=weeksMap[ws];const we=new Date(parseLocalDate(ws));we.setDate(we.getDate()+6);const wn=getWeekNumber(parseLocalDate(ws));return`<div class="ws"><div class="wt">📌 Неделя ${wn} • ${formatDateRu(ws)} — ${formatDateRu(formatForInput(we))} <span style="float:right;font-weight:400">${wd.length} пар • ${(wd.length*1.5).toFixed(1)} ч.</span></div><td><thead><tr><th>Дата</th><th>День</th><th>Пара</th><th>Предмет</th><th>Группа</th><th>Ауд.</th></tr></thead><tbody>${wd.sort((a,b)=>{if(a.date<b.date)return-1;if(a.date>b.date)return 1;return a.pair_number-b.pair_number}).map(l=>`<tr><td>${l.date?formatDateRu(l.date):'—'}</td><td>${DAYS[l.day_of_week-1]}</td><td><strong>${l.pair_number}</strong> (${PAIRS[l.pair_number-1]?.time||''})</td><td>${l.subject_name}</td><td>${l.group_name}</td><td>${l.classroom_name||'—'}</td></tr>`).join('')}</tbody></table></div>`}).join('')}
+        <div class="f"><p>📊 Отчет сгенерирован автоматически • Система управления расписанием</p><p>${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} • ${now.toLocaleString('ru-RU')}</p></div>
       </body></html>`;
 
       await html2pdf().set({
         margin: [0.4, 0.4, 0.4, 0.4],
         filename: `Отчет_${teacher.name.replace(/\s+/g, '_')}_${dateFrom}_${dateTo}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
+        html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       }).from(element).save();
 
       showNotification('✅ Отчет сформирован', 'success');
     } catch (e) {
-      console.error('Ошибка формирования отчета:', e);
+      console.error('Ошибка:', e);
       showNotification('❌ Ошибка формирования отчета', 'error');
     }
   }, [teachers, token]);
 
   const exportTeacherHoursReport = useCallback(async () => {
-  if (!user || user.role !== 'teacher') return;
-  // Открываем модальное окно выбора периода
-  setShowTeacherReportModal(true);
-}, [user]);
+    if (!user || user.role !== 'teacher') return;
+    const teacher = teachers.find(t => t.user_id === user.id);
+    if (!teacher) return showNotification('Преподаватель не найден', 'error');
+    
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - 30);
+    
+    await generateTeacherReport(teacher.id, formatForInput(from), formatForInput(to));
+  }, [user, teachers, generateTeacherReport]);
 
   const exportToExcel = useCallback(() => {
     let exportData = [];
@@ -1271,7 +1275,7 @@ function HomeContent() {
       const sorted = Object.keys(grouped).sort();
       const total = exportData.length; const hrs = (total * 1.5).toFixed(1);
       const el = document.createElement('div');
-      el.innerHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Segoe UI,Arial,sans-serif;padding:20px;color:#1e293b}.h{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:20px;border-radius:10px;margin-bottom:15px}.h h1{font-size:24px;margin:0}.h p{font-size:13px;opacity:.9}.s{display:flex;gap:10px;margin-bottom:15px}.c{flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}.c .v{font-size:26px;font-weight:700;color:#2c3e66}.c .l{font-size:10px;color:#64748b;text-transform:uppercase}.d{margin-bottom:15px}.dt{font-weight:700;color:#2c3e66;padding:8px 12px;background:#f1f5f9;border-radius:6px;margin-bottom:8px;border-left:4px solid #2c3e66}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px}th{background:#2c3e66;color:#fff;padding:8px 6px;text-align:left;text-transform:uppercase;font-size:9px}td{padding:6px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600}.bg-c{background:#fee2e2;color:#991b1b}.bg-m{background:#fef3c7;color:#92400e}.bg-a{background:#dcfce7;color:#166534}.bg-t{background:#e0e7ff;color:#3730a3}.f{margin-top:15px;padding-top:10px;border-top:2px solid #e2e8f0;text-align:center;font-size:9px;color:#94a3b8}</style></head><body><div class="h"><h1>📅 ${title}</h1><p>${subtitle}</p></div><div class="s"><div class="c"><div class="v">${total}</div><div class="l">Занятий</div></div><div class="c"><div class="v">${hrs}</div><div class="l">Часов</div></div></div>${sorted.map(dk => { const ls = grouped[dk]; const dt = parseLocalDate(dk); const dn = dt ? DAYS[dt.getDay()===0?6:dt.getDay()-1] : ''; return `<div class="d"><div class="dt">📌 ${dk!=='—'?formatDateRu(dk):dk} ${dn} <span style="float:right;font-weight:400">${ls.length} пар(ы)</span></div><table><thead><tr><th>Пара</th><th>Время</th>${activeTab!=='my-lessons'&&user?.role!=='student'?'<th>Группа</th>':''}<th>Предмет</th><th>Преподаватель</th><th>Ауд.</th><th>Статус</th></tr></thead><tbody>${ls.sort((a,b)=>a.pair_number-b.pair_number).map(l=>`<tr><td><strong>${l.pair_number}</strong></td><td>${PAIRS[l.pair_number-1]?.time||''}</td>${activeTab!=='my-lessons'&&user?.role!=='student'?`<td>${l.group_name}</td>`:''}<td><strong>${l.subject_name}</strong></td><td>${l.teacher_name}</td><td>${l.classroom_name||'—'}</td><td><span class="badge bg-${(l.source||'template')[0]}">${l.source==='cancelled'?'❌ Отменено':l.source==='modified'?'✏️ Изменено':l.source==='added'?'➕ Добавлено':'📋 Шаблон'}</span></td></tr>`).join('')}</tbody><table></div>`; }).join('')}<div class="f"><p>Отчет сгенерирован автоматически • ${new Date().toLocaleString('ru-RU')}</p></div></body></html>`;
+      el.innerHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Segoe UI,Arial,sans-serif;padding:20px;color:#1e293b}.h{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:20px;border-radius:10px;margin-bottom:15px}.h h1{font-size:24px;margin:0}.h p{font-size:13px;opacity:.9}.s{display:flex;gap:10px;margin-bottom:15px}.c{flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}.c .v{font-size:26px;font-weight:700;color:#2c3e66}.c .l{font-size:10px;color:#64748b;text-transform:uppercase}.d{margin-bottom:15px}.dt{font-weight:700;color:#2c3e66;padding:8px 12px;background:#f1f5f9;border-radius:6px;margin-bottom:8px;border-left:4px solid #2c3e66}table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:10px}th{background:#2c3e66;color:#fff;padding:8px 6px;text-align:left;text-transform:uppercase;font-size:9px}td{padding:6px;border-bottom:1px solid #e2e8f0}tr:nth-child(even) td{background:#f8fafc}.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:8px;font-weight:600}.bg-c{background:#fee2e2;color:#991b1b}.bg-m{background:#fef3c7;color:#92400e}.bg-a{background:#dcfce7;color:#166534}.bg-t{background:#e0e7ff;color:#3730a3}.f{margin-top:15px;padding-top:10px;border-top:2px solid #e2e8f0;text-align:center;font-size:9px;color:#94a3b8}</style></head><body><div class="h"><h1>📅 ${title}</h1><p>${subtitle}</p></div><div class="s"><div class="c"><div class="v">${total}</div><div class="l">Занятий</div></div><div class="c"><div class="v">${hrs}</div><div class="l">Часов</div></div></div>${sorted.map(dk => { const ls = grouped[dk]; const dt = parseLocalDate(dk); const dn = dt ? DAYS[dt.getDay()===0?6:dt.getDay()-1] : ''; return `<div class="d"><div class="dt">📌 ${dk!=='—'?formatDateRu(dk):dk} ${dn} <span style="float:right;font-weight:400">${ls.length} пар(ы)</span></div><tr><thead><tr><th>Пара</th><th>Время</th>${activeTab!=='my-lessons'&&user?.role!=='student'?'<th>Группа</th>':''}<th>Предмет</th><th>Преподаватель</th><th>Ауд.</th><th>Статус</th></tr></thead><tbody>${ls.sort((a,b)=>a.pair_number-b.pair_number).map(l=>`<tr><td><strong>${l.pair_number}</strong></td><td>${PAIRS[l.pair_number-1]?.time||''}</td>${activeTab!=='my-lessons'&&user?.role!=='student'?`<td>${l.group_name}</td>`:''}<td><strong>${l.subject_name}</strong></td><td>${l.teacher_name}</td><td>${l.classroom_name||'—'}</td><td><span class="badge bg-${(l.source||'template')[0]}">${l.source==='cancelled'?'❌ Отменено':l.source==='modified'?'✏️ Изменено':l.source==='added'?'➕ Добавлено':'📋 Шаблон'}</span></td></tr>`).join('')}</tbody></table></div>`; }).join('')}<div class="f"><p>Отчет сгенерирован автоматически • ${new Date().toLocaleString('ru-RU')}</p></div></body></html>`;
       await html2pdf().set({ margin:[.3,.3,.3,.3], filename:`Расписание_${new Date().toISOString().split('T')[0]}.pdf`, image:{type:'jpeg',quality:.98}, html2canvas:{scale:2,useCORS:true}, jsPDF:{unit:'in',format:'a4',orientation:'landscape'}, pagebreak:{mode:['avoid-all','css','legacy']} }).from(el).save();
       showNotification('PDF файл сохранен', 'success');
     } catch (e) { showNotification('Ошибка PDF', 'error'); }
@@ -1373,7 +1377,6 @@ function HomeContent() {
   };
 
   const handleEditClick = (lesson) => {
-    console.log('✏️ Редактирование занятия:', lesson);
     setEditingLesson({
         ...lesson,
         date: lesson.date || '',
@@ -1413,8 +1416,6 @@ function HomeContent() {
       return;
     }
     
-    console.log('🗑 Нажато удаление, lesson:', lesson);
-    
     const hasOverride = lesson.override_id && lesson.source !== 'template';
     
     let message = '';
@@ -1443,10 +1444,6 @@ function HomeContent() {
       return;
     }
     
-    console.log('🗑 handleDeleteSlot вызван');
-    console.log('  lesson:', lesson);
-    console.log('  applyAll:', applyAll);
-    
     const lessonDate = parseLocalDate(lesson.date);
     if (!lessonDate || isNaN(lessonDate.getTime())) {
       showNotification('Некорректная дата занятия', 'error');
@@ -1466,8 +1463,6 @@ function HomeContent() {
       override_id: lesson.override_id || null
     };
     
-    console.log('📤 DELETE body:', JSON.stringify(body, null, 2));
-    
     try {
       const res = await fetch('/api/schedule/lesson', {
         method: 'DELETE',
@@ -1476,7 +1471,6 @@ function HomeContent() {
       });
       
       const result = await res.json();
-      console.log('📥 DELETE ответ:', result);
       
       if (res.ok) {
         scheduleCache.clear();
@@ -1505,9 +1499,6 @@ function HomeContent() {
     e.preventDefault();
     if (!canEditSchedule) return showNotification('Нет прав', 'error');
 
-    console.log('🚀 handleSaveLesson вызвана');
-    console.log('📝 editingLesson:', JSON.stringify(editingLesson, null, 2));
-
     if (!editingLesson.apply_all && !editingLesson.date) {
         return showNotification('Выберите дату или отметьте "Применить для всех"', 'error');
     }
@@ -1522,7 +1513,6 @@ function HomeContent() {
             return showNotification('Некорректная дата', 'error');
         }
         weekStart = formatForInput(getMonday(lessonDate));
-        console.log('📅 Неделя переопределения:', weekStart);
     }
 
     const body = {
@@ -1538,8 +1528,6 @@ function HomeContent() {
         override_id: editingLesson.override_id || null
     };
 
-    console.log('Отправка на /api/schedule/lesson:', JSON.stringify(body, null, 2));
-
     try {
         const res = await fetch('/api/schedule/lesson', {
             method: 'POST',
@@ -1548,11 +1536,9 @@ function HomeContent() {
         });
 
         const result = await res.json();
-        console.log('Ответ:', result);
 
         if (res.ok) {
             scheduleCache.clear();
-            console.log('🗑 Кэш очищен');
 
             showNotification(
                 editingLesson.apply_all ? '✅ Шаблон обновлён' : '✅ Изменение сохранено для недели',
@@ -1561,12 +1547,9 @@ function HomeContent() {
 
             setShowEditModal(false);
             setEditingLesson(null);
-
-            console.log('Перезагрузка данных...');
             
             if (activeTab === 'manage-schedule') {
                 const weekDates = getWeekDates(manageCurrentDate);
-                console.log('Перезагрузка управления, неделя:', formatForInput(weekDates[0]));
                 await loadScheduleForWeek(
                     formatForInput(weekDates[0]),
                     formatForInput(weekDates[6]),
@@ -1574,11 +1557,9 @@ function HomeContent() {
                     true
                 );
             } else if (activeTab === 'template') {
-                console.log('Перезагрузка шаблона');
                 loadTemplates();
             } else {
                 const monday = getMonday(new Date());
-                console.log('Перезагрузка расписания, неделя:', formatForInput(monday));
                 await loadScheduleForWeek(
                     formatForInput(monday),
                     null,
@@ -1586,8 +1567,6 @@ function HomeContent() {
                     true
                 );
             }
-
-            console.log('Данные перезагружены');
         } else if (res.status === 409) {
             showNotification(result.error, 'error');
             alert('Конфликт: ' + result.error);
@@ -1688,7 +1667,11 @@ function HomeContent() {
               )}
               <button className="action-button export-excel" onClick={exportToExcel}><i className="fas fa-file-excel"></i> Excel</button>
               <button className="action-button export-pdf" onClick={exportToPDF}><i className="fas fa-file-pdf"></i> PDF</button>
-              <button className="action-button report-hours" onClick={exportTeacherHoursReport}><i className="fas fa-chart-line"></i> Отчёт по часам</button>
+              <button className="action-button report-hours" onClick={() => {
+                if (teacher) {
+                  setShowTeacherReportModal(true);
+                }
+              }}><i className="fas fa-chart-line"></i> Отчёт по часам</button>
             </div>
           </div>
           {loading ? <div className="loading-state"><div className="spinner"></div></div> :
@@ -1930,6 +1913,8 @@ function HomeContent() {
     );
   }
 
+  const teacher = isTeacher ? teachers.find(t => t.user_id === user.id) : null;
+
   return (
     <div className="app-container">
       {notification && <div className={`toast toast-${notification.type}`}>{notification.msg}</div>}
@@ -2101,9 +2086,10 @@ function HomeContent() {
       {showTeacherReportModal && createPortal(
         <TeacherReportModal 
           teachers={teachers} 
-          schedule={schedule} 
           onClose={() => setShowTeacherReportModal(false)} 
-          onGenerate={(teacherId, dateFrom, dateTo) => generateTeacherReport(teacherId, dateFrom, dateTo)} 
+          onGenerate={(teacherId, dateFrom, dateTo) => generateTeacherReport(teacherId, dateFrom, dateTo)}
+          isTeacher={isTeacher}
+          currentTeacherId={teacher?.id}
         />,
         document.body
       )}
