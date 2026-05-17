@@ -1,4 +1,3 @@
-// app/api/schedule/teacher-notes/route.js
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -28,35 +27,42 @@ export async function PATCH(request) {
     }
     const teacherId = teacher.rows[0].id;
 
-    // Проверяем наличие занятия в шаблоне с этим преподавателем
+    // Проверяем шаблон
     const template = await db.query(`
       SELECT id FROM schedule_templates
       WHERE group_id = $1 AND day_of_week = $2 AND pair_number = $3 AND teacher_id = $4
     `, [group_id, day_of_week, pair_number, teacherId]);
 
-    // Проверяем override
+    // Проверяем override (новый преподаватель после заявки)
+    const overrideTeacher = await db.query(`
+      SELECT id FROM schedule_overrides
+      WHERE week_start_date = $1 AND group_id = $2 AND day_of_week = $3 AND pair_number = $4 
+        AND teacher_id = $5 AND status != 'cancelled'
+    `, [week_start_date, group_id, day_of_week, pair_number, teacherId]);
+
+    // Проверяем override (статус)
     const override = await db.query(`
       SELECT id, status FROM schedule_overrides
       WHERE week_start_date = $1 AND group_id = $2 AND day_of_week = $3 AND pair_number = $4
     `, [week_start_date, group_id, day_of_week, pair_number]);
 
-    if (template.rows.length === 0 && (override.rows.length === 0 || override.rows[0].status !== 'added')) {
+    const isTeacherInTemplate = template.rows.length > 0;
+    const isTeacherInOverride = overrideTeacher.rows.length > 0;
+    const isAddedByTeacher = override.rows.length > 0 && override.rows[0].status === 'added';
+
+    if (!isTeacherInTemplate && !isTeacherInOverride && !isAddedByTeacher) {
       return NextResponse.json({ error: 'Занятие не найдено или вы не его преподаватель' }, { status: 404 });
     }
 
-    // Обновляем или создаём override для заметок только на эту неделю
+    // Обновляем или создаём override для заметок
     if (override.rows.length > 0) {
-      // Обновляем существующий override
-      await db.query(`
-        UPDATE schedule_overrides SET notes = $1, updated_at = NOW()
-        WHERE id = $2
-      `, [notes, override.rows[0].id]);
+      await db.query('UPDATE schedule_overrides SET notes = $1, updated_at = NOW() WHERE id = $2', [notes, override.rows[0].id]);
     } else {
       // Создаём override на основе шаблона
-      const tpl = template.rows[0];
-      const tplData = await db.query('SELECT * FROM schedule_templates WHERE id = $1', [tpl.id]);
-      if (tplData.rows.length > 0) {
-        const t = tplData.rows[0];
+      const tpl = await db.query('SELECT * FROM schedule_templates WHERE group_id=$1 AND day_of_week=$2 AND pair_number=$3', 
+        [group_id, day_of_week, pair_number]);
+      if (tpl.rows.length > 0) {
+        const t = tpl.rows[0];
         await db.query(`
           INSERT INTO schedule_overrides
             (week_start_date, group_id, day_of_week, pair_number,
