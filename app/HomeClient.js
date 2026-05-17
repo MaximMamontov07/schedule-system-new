@@ -1306,7 +1306,6 @@ function HomeContent() {
       subtitle = `Дата формирования: ${new Date().toLocaleString('ru-RU')}`;
     }
 
-    // Группируем по дням
     const grouped = {};
     exportData.forEach(lesson => {
       const key = lesson.date || 'Без даты';
@@ -1333,7 +1332,6 @@ function HomeContent() {
       background: #ffffff;
       font-size: 11px;
     }
-    
     .header {
       background: linear-gradient(135deg, #2c3e66 0%, #1e2a4a 100%);
       color: #ffffff;
@@ -1341,157 +1339,57 @@ function HomeContent() {
       border-radius: 12px;
       margin-bottom: 20px;
     }
-    .header h1 {
-      font-size: 22px;
-      margin-bottom: 5px;
-      font-weight: 700;
-    }
-    .header .subtitle {
-      font-size: 11px;
-      opacity: 0.9;
-    }
-    
-    .stats {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
+    .header h1 { font-size: 22px; margin-bottom: 5px; font-weight: 700; }
+    .header .subtitle { font-size: 11px; opacity: 0.9; }
+    .stats { display: flex; gap: 10px; margin-bottom: 20px; }
     .stat-card {
-      flex: 1;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 12px;
-      text-align: center;
+      flex: 1; background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 8px; padding: 12px; text-align: center;
     }
-    .stat-card .value {
-      font-size: 24px;
-      font-weight: 700;
-      color: #2c3e66;
-    }
-    .stat-card .label {
-      font-size: 9px;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    .day-section {
-      margin-bottom: 20px;
-      page-break-inside: avoid;
-    }
+    .stat-card .value { font-size: 24px; font-weight: 700; color: #2c3e66; }
+    .stat-card .label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .day-section { margin-bottom: 20px; page-break-inside: avoid; }
     .day-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: #2c3e66;
-      padding: 8px 12px;
-      background: #f1f5f9;
-      border-radius: 6px;
-      margin-bottom: 8px;
-      border-left: 4px solid #2c3e66;
+      font-size: 14px; font-weight: 700; color: #2c3e66;
+      padding: 8px 12px; background: #f1f5f9; border-radius: 6px;
+      margin-bottom: 8px; border-left: 4px solid #2c3e66;
     }
-    .day-title span {
-      float: right;
-      font-weight: 400;
-      font-size: 11px;
-      color: #64748b;
-    }
-    
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 10px;
-      font-size: 10px;
-    }
-    thead {
-      background: #2c3e66;
-      color: #ffffff;
-    }
+    .day-title span { float: right; font-weight: 400; font-size: 11px; color: #64748b; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10px; }
+    thead { background: #2c3e66; color: #ffffff; }
     th {
-      padding: 8px 6px;
-      text-align: left;
-      font-weight: 600;
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      padding: 8px 6px; text-align: left; font-weight: 600;
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
     }
-    td {
-      padding: 6px;
-      border-bottom: 1px solid #e2e8f0;
-      vertical-align: middle;
-    }
-    tr:nth-child(even) td {
-      background: #f8fafc;
-    }
-    
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 8px;
-      font-weight: 600;
-    }
-    .badge-cancelled { background: #fee2e2; color: #991b1b; }
-    .badge-modified { background: #fef3c7; color: #92400e; }
-    .badge-added { background: #dcfce7; color: #166534; }
-    .badge-template { background: #e0e7ff; color: #3730a3; }
-    
-    .notes-cell {
-      max-width: 120px;
-      font-size: 8px;
-      color: #64748b;
-      font-style: italic;
-      word-break: break-word;
-    }
-    
-    .footer {
-      margin-top: 25px;
-      padding-top: 12px;
-      border-top: 2px solid #e2e8f0;
-      text-align: center;
-      font-size: 9px;
-      color: #94a3b8;
-    }
+    td { padding: 6px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .notes-cell { max-width: 120px; font-size: 8px; color: #64748b; font-style: italic; word-break: break-word; }
+    .footer { margin-top: 25px; padding-top: 12px; border-top: 2px solid #e2e8f0; text-align: center; font-size: 9px; color: #94a3b8; }
     .footer p { margin: 3px 0; }
-    
-    .total-row td {
-      font-weight: 700;
-      background: #f1f5f9 !important;
-      border-top: 2px solid #2c3e66;
-    }
+    .total-row td { font-weight: 700; background: #f1f5f9 !important; border-top: 2px solid #2c3e66; }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>📅 ${title}</h1>
+    <h1>${title}</h1>
     <div class="subtitle">${subtitle}</div>
   </div>
   
   <div class="stats">
-    <div class="stat-card">
-      <div class="value">${totalLessons}</div>
-      <div class="label">Всего занятий</div>
-    </div>
-    <div class="stat-card">
-      <div class="value">${totalHours}</div>
-      <div class="label">Академ. часов</div>
-    </div>
-    <div class="stat-card">
-      <div class="value">${sortedDates.length}</div>
-      <div class="label">Дней</div>
-    </div>
+    <div class="stat-card"><div class="value">${totalLessons}</div><div class="label">Всего занятий</div></div>
+    <div class="stat-card"><div class="value">${totalHours}</div><div class="label">Академ. часов</div></div>
+    <div class="stat-card"><div class="value">${sortedDates.length}</div><div class="label">Дней</div></div>
   </div>
   
   ${sortedDates.map(dateKey => {
     const lessons = grouped[dateKey];
     const date = parseLocalDate(dateKey);
     const dayName = date ? DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1] : '';
-
     return `
     <div class="day-section">
       <div class="day-title">
-        📌 ${dateKey !== 'Без даты' ? formatDateRu(dateKey) : dateKey} — ${dayName}
-        <span>${lessons.length} пар(ы) • ${(lessons.length * 1.5).toFixed(1)} ч.</span>
+        ${dateKey !== 'Без даты' ? formatDateRu(dateKey) : dateKey} — ${dayName}
+        <span>${lessons.length} пар(ы) &bull; ${(lessons.length * 1.5).toFixed(1)} ч.</span>
       </div>
       <table>
         <thead>
@@ -1502,7 +1400,6 @@ function HomeContent() {
             <th>Предмет</th>
             <th>Преподаватель</th>
             <th>Ауд.</th>
-            <th>Статус</th>
             <th>Заметки</th>
           </tr>
         </thead>
@@ -1515,19 +1412,12 @@ function HomeContent() {
             <td><strong>${lesson.subject_name}</strong></td>
             <td>${lesson.teacher_name}</td>
             <td>${lesson.classroom_name || '—'}</td>
-            <td>
-              <span class="badge badge-${lesson.source || 'template'}">
-                ${lesson.source === 'cancelled' ? '❌ Отменено' : 
-                  lesson.source === 'modified' ? '✏️ Изменено' : 
-                  lesson.source === 'added' ? '➕ Добавлено' : '📋 Шаблон'}
-              </span>
-            </td>
             <td class="notes-cell">${lesson.notes || '—'}</td>
           </tr>
           `).join('')}
           <tr class="total-row">
-            <td colspan="${activeTab !== 'my-lessons' && user?.role !== 'student' ? '8' : '7'}">
-              <strong>Итого за день:</strong> ${lessons.length} пар • ${(lessons.length * 1.5).toFixed(1)} ак. часов
+            <td colspan="${activeTab !== 'my-lessons' && user?.role !== 'student' ? '7' : '6'}">
+              <strong>Итого за день:</strong> ${lessons.length} пар &bull; ${(lessons.length * 1.5).toFixed(1)} ак. часов
             </td>
           </tr>
         </tbody>
@@ -1537,8 +1427,8 @@ function HomeContent() {
   }).join('')}
   
   <div class="footer">
-    <p>📊 Документ сгенерирован автоматически • Система управления расписанием</p>
-    <p>Дата формирования: ${new Date().toLocaleString('ru-RU')} • Всего: ${totalLessons} занятий • ${totalHours} часов</p>
+    <p>Документ сгенерирован автоматически &bull; Система управления расписанием</p>
+    <p>Дата формирования: ${new Date().toLocaleString('ru-RU')} &bull; Всего: ${totalLessons} занятий &bull; ${totalHours} часов</p>
   </div>
 </body>
 </html>`;
@@ -1552,10 +1442,10 @@ function HomeContent() {
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     }).from(element).save();
 
-    showNotification('✅ PDF файл сохранен', 'success');
+    showNotification('PDF файл сохранен', 'success');
   } catch (error) {
     console.error('Ошибка экспорта PDF:', error);
-    showNotification('❌ Ошибка экспорта PDF', 'error');
+    showNotification('Ошибка экспорта PDF', 'error');
   }
 }, [schedule, activeTab, isTeacher, teachers, user, groups]);
 
