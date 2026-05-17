@@ -1190,16 +1190,10 @@ function HomeContent() {
   }, [teachers, token]);
 
   const exportTeacherHoursReport = useCallback(async () => {
-    if (!user || user.role !== 'teacher') return;
-    const teacher = teachers.find(t => t.user_id === user.id);
-    if (!teacher) return showNotification('Преподаватель не найден', 'error');
-    
-    const to = new Date();
-    const from = new Date();
-    from.setDate(to.getDate() - 30);
-    
-    await generateTeacherReport(teacher.id, formatForInput(from), formatForInput(to));
-  }, [user, teachers, generateTeacherReport]);
+  if (!user || user.role !== 'teacher') return;
+  // Открываем модальное окно выбора периода
+  setShowTeacherReportModal(true);
+}, [user]);
 
   const exportToExcel = useCallback(() => {
     let exportData = [];
