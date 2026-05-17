@@ -1294,18 +1294,19 @@ function HomeContent() {
     if (activeTab === 'my-lessons' && isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
       title = 'Мои занятия';
-      subtitle = `Преподаватель: ${teacher?.name || ''} | ${new Date().toLocaleString('ru-RU')}`;
+      subtitle = `Преподаватель: ${teacher?.name || ''}`;
       exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
     } else if (user && user.role === 'student' && user.groupId) {
       const group = groups.find(g => g.id === user.groupId);
       title = 'Расписание занятий';
-      subtitle = `Группа: ${group?.name || ''} | ${new Date().toLocaleString('ru-RU')}`;
+      subtitle = `Группа: ${group?.name || ''}`;
       exportData = schedule.filter(s => s.group_id === user.groupId);
     } else {
       exportData = schedule;
-      subtitle = `Дата формирования: ${new Date().toLocaleString('ru-RU')}`;
+      subtitle = `Дата: ${new Date().toLocaleString('ru-RU')}`;
     }
 
+    // Группируем по дням
     const grouped = {};
     exportData.forEach(lesson => {
       const key = lesson.date || 'Без даты';
@@ -1317,6 +1318,10 @@ function HomeContent() {
     const totalLessons = exportData.length;
     const totalHours = (totalLessons * 1.5).toFixed(1);
 
+    // Определяем количество колонок
+    const showGroup = activeTab !== 'my-lessons' && user?.role !== 'student';
+    const colSpan = showGroup ? 7 : 6;
+
     const element = document.createElement('div');
     element.innerHTML = `
 <!DOCTYPE html>
@@ -1327,58 +1332,77 @@ function HomeContent() {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
-      padding: 20px;
+      padding: 15px;
       color: #1e293b;
-      background: #ffffff;
+      background: #fff;
       font-size: 11px;
     }
     .header {
-      background: linear-gradient(135deg, #2c3e66 0%, #1e2a4a 100%);
-      color: #ffffff;
-      padding: 20px 25px;
-      border-radius: 12px;
-      margin-bottom: 20px;
+      background: #2c3e66;
+      color: #fff;
+      padding: 18px 22px;
+      border-radius: 8px;
+      margin-bottom: 18px;
     }
-    .header h1 { font-size: 22px; margin-bottom: 5px; font-weight: 700; }
-    .header .subtitle { font-size: 11px; opacity: 0.9; }
-    .stats { display: flex; gap: 10px; margin-bottom: 20px; }
-    .stat-card {
-      flex: 1; background: #f8fafc; border: 1px solid #e2e8f0;
-      border-radius: 8px; padding: 12px; text-align: center;
+    .header h1 { font-size: 20px; margin-bottom: 4px; }
+    .header p { font-size: 10px; opacity: 0.9; }
+    
+    .stats { margin-bottom: 18px; }
+    .stats table { width: auto; border-collapse: collapse; }
+    .stats td {
+      padding: 6px 16px;
+      border: 1px solid #e2e8f0;
+      text-align: center;
+      font-size: 10px;
     }
-    .stat-card .value { font-size: 24px; font-weight: 700; color: #2c3e66; }
-    .stat-card .label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    .day-section { margin-bottom: 20px; page-break-inside: avoid; }
+    .stats .val { font-size: 18px; font-weight: 700; color: #2c3e66; }
+    .stats .lbl { font-size: 8px; color: #64748b; text-transform: uppercase; }
+    
+    .day-section { margin-bottom: 18px; page-break-inside: avoid; }
     .day-title {
-      font-size: 14px; font-weight: 700; color: #2c3e66;
-      padding: 8px 12px; background: #f1f5f9; border-radius: 6px;
-      margin-bottom: 8px; border-left: 4px solid #2c3e66;
+      font-size: 13px; font-weight: 700; color: #2c3e66;
+      padding: 7px 10px; background: #f1f5f9; border-left: 4px solid #2c3e66;
+      margin-bottom: 6px;
     }
-    .day-title span { float: right; font-weight: 400; font-size: 11px; color: #64748b; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10px; }
-    thead { background: #2c3e66; color: #ffffff; }
-    th {
-      padding: 8px 6px; text-align: left; font-weight: 600;
-      font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+    .day-title .count { float: right; font-weight: 400; font-size: 10px; color: #64748b; }
+    
+    table.data { width: 100%; border-collapse: collapse; font-size: 9px; }
+    table.data thead { background: #2c3e66; color: #fff; }
+    table.data th {
+      padding: 7px 5px; text-align: left; font-weight: 600;
+      font-size: 8px; text-transform: uppercase;
     }
-    td { padding: 6px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
-    tr:nth-child(even) td { background: #f8fafc; }
-    .notes-cell { max-width: 120px; font-size: 8px; color: #64748b; font-style: italic; word-break: break-word; }
-    .footer { margin-top: 25px; padding-top: 12px; border-top: 2px solid #e2e8f0; text-align: center; font-size: 9px; color: #94a3b8; }
-    .footer p { margin: 3px 0; }
-    .total-row td { font-weight: 700; background: #f1f5f9 !important; border-top: 2px solid #2c3e66; }
+    table.data td {
+      padding: 5px; border-bottom: 1px solid #e2e8f0;
+      vertical-align: top; word-break: break-word;
+    }
+    table.data tr:nth-child(even) td { background: #f8fafc; }
+    table.data .total td {
+      font-weight: 700; background: #e2e8f0 !important;
+      border-top: 2px solid #2c3e66;
+    }
+    
+    .footer {
+      margin-top: 20px; padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center; font-size: 8px; color: #94a3b8;
+    }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>${title}</h1>
-    <div class="subtitle">${subtitle}</div>
+    <p>${subtitle}</p>
   </div>
   
   <div class="stats">
-    <div class="stat-card"><div class="value">${totalLessons}</div><div class="label">Всего занятий</div></div>
-    <div class="stat-card"><div class="value">${totalHours}</div><div class="label">Академ. часов</div></div>
-    <div class="stat-card"><div class="value">${sortedDates.length}</div><div class="label">Дней</div></div>
+    <table>
+      <tr>
+        <td><div class="val">${totalLessons}</div><div class="lbl">Занятий</div></td>
+        <td><div class="val">${totalHours}</div><div class="lbl">Часов</div></td>
+        <td><div class="val">${sortedDates.length}</div><div class="lbl">Дней</div></td>
+      </tr>
+    </table>
   </div>
   
   ${sortedDates.map(dateKey => {
@@ -1389,14 +1413,14 @@ function HomeContent() {
     <div class="day-section">
       <div class="day-title">
         ${dateKey !== 'Без даты' ? formatDateRu(dateKey) : dateKey} — ${dayName}
-        <span>${lessons.length} пар(ы) &bull; ${(lessons.length * 1.5).toFixed(1)} ч.</span>
+        <span class="count">${lessons.length} пар(ы) &bull; ${(lessons.length * 1.5).toFixed(1)} ч.</span>
       </div>
-      <table>
+      <table class="data">
         <thead>
           <tr>
             <th>Пара</th>
             <th>Время</th>
-            ${activeTab !== 'my-lessons' && user?.role !== 'student' ? '<th>Группа</th>' : ''}
+            ${showGroup ? '<th>Группа</th>' : ''}
             <th>Предмет</th>
             <th>Преподаватель</th>
             <th>Ауд.</th>
@@ -1406,18 +1430,18 @@ function HomeContent() {
         <tbody>
           ${lessons.sort((a, b) => a.pair_number - b.pair_number).map(lesson => `
           <tr>
-            <td><strong>${lesson.pair_number}</strong></td>
+            <td>${lesson.pair_number}</td>
             <td>${PAIRS[lesson.pair_number - 1]?.time || ''}</td>
-            ${activeTab !== 'my-lessons' && user?.role !== 'student' ? `<td>${lesson.group_name}</td>` : ''}
+            ${showGroup ? `<td>${lesson.group_name}</td>` : ''}
             <td><strong>${lesson.subject_name}</strong></td>
             <td>${lesson.teacher_name}</td>
             <td>${lesson.classroom_name || '—'}</td>
-            <td class="notes-cell">${lesson.notes || '—'}</td>
+            <td>${lesson.notes || '—'}</td>
           </tr>
           `).join('')}
-          <tr class="total-row">
-            <td colspan="${activeTab !== 'my-lessons' && user?.role !== 'student' ? '7' : '6'}">
-              <strong>Итого за день:</strong> ${lessons.length} пар &bull; ${(lessons.length * 1.5).toFixed(1)} ак. часов
+          <tr class="total">
+            <td colspan="${colSpan}">
+              Итого за день: ${lessons.length} пар &bull; ${(lessons.length * 1.5).toFixed(1)} ак. часов
             </td>
           </tr>
         </tbody>
@@ -1427,24 +1451,23 @@ function HomeContent() {
   }).join('')}
   
   <div class="footer">
-    <p>Документ сгенерирован автоматически &bull; Система управления расписанием</p>
-    <p>Дата формирования: ${new Date().toLocaleString('ru-RU')} &bull; Всего: ${totalLessons} занятий &bull; ${totalHours} часов</p>
+    <p>Документ сгенерирован автоматически &bull; ${new Date().toLocaleString('ru-RU')}</p>
   </div>
 </body>
 </html>`;
 
     await html2pdf().set({
-      margin: [0.3, 0.3, 0.3, 0.3],
+      margin: [0.2, 0.2, 0.2, 0.2],
       filename: `Расписание_${new Date().toISOString().split('T')[0]}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, letterRendering: true, useCORS: true, logging: false },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' },
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     }).from(element).save();
 
     showNotification('PDF файл сохранен', 'success');
   } catch (error) {
-    console.error('Ошибка экспорта PDF:', error);
+    console.error('Ошибка:', error);
     showNotification('Ошибка экспорта PDF', 'error');
   }
 }, [schedule, activeTab, isTeacher, teachers, user, groups]);
