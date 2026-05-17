@@ -956,22 +956,7 @@ body {
   color: var(--primary);
 }
 
-.lesson-notes-badge {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--warning);
-  background: rgba(196, 163, 90, 0.1);
-  padding: 0.4rem 0.65rem;
-  border-radius: var(--radius-sm);
-  margin-top: 0.25rem;
-  max-height: 120px;           /* ✅ максимальная высота */
-  overflow-y: auto;            /* ✅ вертикальная прокрутка */
-  word-break: break-word;      /* ✅ перенос длинных слов */
-  line-height: 1.5;
-  cursor: pointer;             /* ✅ показываем что можно взаимодействовать */
-}
+
 
 .lesson-notes-badge i {
   color: var(--warning);
@@ -1001,21 +986,7 @@ body {
 .lesson-notes-badge::-webkit-scrollbar-thumb:hover {
   background: rgba(196, 163, 90, 0.5);
 }
-/* Заметки преподавателя — тоже с прокруткой */
-.teacher-notes-textarea {
-  width: 100%;
-  padding: 0.625rem;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  resize: vertical;
-  font-family: inherit;
-  background: var(--surface);
-  color: var(--text-primary);
-  transition: var(--transition);
-  min-height: 50px;
-  max-height: 150px;           /* ✅ максимальная высота */
-}
+
 
 .teacher-notes-textarea:focus {
   outline: none;
@@ -1125,18 +1096,6 @@ body {
   50% { opacity: 0.5; transform: scale(1.2); }
 }
 
-.teacher-notes-textarea {
-  width: 100%;
-  padding: 0.625rem;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  resize: vertical;
-  font-family: inherit;
-  background: var(--surface);
-  color: var(--text-primary);
-  transition: var(--transition);
-}
 
 .teacher-notes-textarea:focus {
   outline: none;
@@ -2762,32 +2721,9 @@ body {
   }
 }
 /* Multiple lessons in one cell */
-.lessons-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.5rem;
-  max-height: 400px;
-  overflow-y: auto;
-}
+
 /* Стилизация скроллбара */
-.lessons-container::-webkit-scrollbar {
-  width: 5px;
-}
 
-.lessons-container::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 3px;
-}
-
-.lessons-container::-webkit-scrollbar-thumb {
-  background: var(--primary-light);
-  border-radius: 3px;
-}
-
-.lessons-container::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
-}
 .lesson-cell.has-lessons {
   background: var(--surface);
   vertical-align: top;
@@ -3535,11 +3471,7 @@ body {
     font-size: 0.75rem;
   }
   
-  /* Контейнер с занятиями */
-  .lessons-container {
-    max-height: 300px;
-    gap: 0.5rem;
-  }
+ 
   
   /* Хедер */
   .app-header {
@@ -4078,14 +4010,7 @@ button:disabled {
   accent-color: var(--primary);
 }
 /* Прокрутка если много занятий в одной ячейке */
-.lessons-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.5rem;
-  max-height: 400px;          /* максимальная высота контейнера */
-  overflow-y: auto;           /* вертикальная прокрутка */
-}
+
 
 .teacher-lessons-container {
   display: flex;
