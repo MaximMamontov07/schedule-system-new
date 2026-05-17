@@ -1115,68 +1115,66 @@ function HomeContent() {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
-      padding: 20px;
+      padding: 12px 15px;
       color: #1e293b;
       background: #fff;
-      font-size: 11px;
+      font-size: 9px;
     }
     
     .report-header {
       background: #2c3e66;
       color: #fff;
-      padding: 22px 28px;
-      border-radius: 10px;
-      margin-bottom: 20px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      margin-bottom: 12px;
     }
-    .report-header h1 { font-size: 22px; margin-bottom: 6px; font-weight: 700; }
-    .report-header .teacher { font-size: 16px; opacity: 0.95; margin-bottom: 10px; }
-    .report-header .meta { font-size: 10px; opacity: 0.8; }
+    .report-header h1 { font-size: 16px; margin-bottom: 2px; font-weight: 700; }
+    .report-header .teacher { font-size: 12px; opacity: 0.95; margin-bottom: 4px; }
+    .report-header .meta { font-size: 8px; opacity: 0.8; }
     
-    .summary {
-      margin-bottom: 20px;
-    }
+    .summary { margin-bottom: 12px; }
     .summary table { width: auto; border-collapse: collapse; }
     .summary td {
-      padding: 8px 18px;
+      padding: 4px 10px;
       border: 1px solid #e2e8f0;
       text-align: center;
-      font-size: 10px;
+      font-size: 8px;
       background: #f8fafc;
     }
-    .summary .val { font-size: 20px; font-weight: 700; color: #2c3e66; }
-    .summary .lbl { font-size: 8px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .summary .val { font-size: 14px; font-weight: 700; color: #2c3e66; }
+    .summary .lbl { font-size: 7px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
     
     .section-title {
-      font-size: 15px; font-weight: 700; color: #2c3e66;
-      padding-bottom: 6px; border-bottom: 3px solid #2c3e66;
-      margin: 20px 0 12px;
+      font-size: 12px; font-weight: 700; color: #2c3e66;
+      padding-bottom: 4px; border-bottom: 2px solid #2c3e66;
+      margin: 12px 0 6px;
     }
     
-    table.data { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 15px; }
+    table.data { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 8px; }
     table.data thead { background: #2c3e66; color: #fff; }
     table.data th {
-      padding: 7px 5px; text-align: left; font-weight: 600;
-      font-size: 8px; text-transform: uppercase;
+      padding: 5px 3px; text-align: left; font-weight: 600;
+      font-size: 7px; text-transform: uppercase;
     }
-    table.data td { padding: 5px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    table.data td { padding: 3px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
     table.data tr:nth-child(even) td { background: #f8fafc; }
     table.data .total td {
       font-weight: 700; background: #e2e8f0 !important;
       border-top: 2px solid #2c3e66;
     }
     
-    .week-block { margin-bottom: 14px; page-break-inside: avoid; }
+    .week-block { margin-bottom: 8px; page-break-inside: avoid; }
     .week-title {
-      font-size: 11px; font-weight: 700; color: #2c3e66;
-      padding: 6px 10px; background: #f1f5f9; border-radius: 4px;
-      margin-bottom: 6px;
+      font-size: 9px; font-weight: 700; color: #2c3e66;
+      padding: 4px 8px; background: #f1f5f9; border-radius: 4px;
+      margin-bottom: 4px;
     }
-    .week-title .info { float: right; font-weight: 400; font-size: 9px; color: #64748b; }
+    .week-title .info { float: right; font-weight: 400; font-size: 8px; color: #64748b; }
     
     .footer {
-      margin-top: 20px; padding-top: 10px;
+      margin-top: 10px; padding-top: 6px;
       border-top: 1px solid #e2e8f0;
-      text-align: center; font-size: 8px; color: #94a3b8;
+      text-align: center; font-size: 7px; color: #94a3b8;
     }
   </style>
 </head>
@@ -1284,12 +1282,12 @@ function HomeContent() {
 </html>`;
 
     await html2pdf().set({
-      margin: [0.3, 0.3, 0.3, 0.3],
+      margin: [0.2, 0.2, 0.2, 0.2],
       filename: `Отчет_по_часам_${teacher.name.replace(/\s+/g, '_')}_${dateFrom}_${dateTo}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg', quality: 0.95 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], before: '.section-title', avoid: '.week-block' }
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['table', '.week-block', '.summary'] }
     }).from(element).save();
 
     showNotification('Отчет сформирован', 'success');
