@@ -1049,163 +1049,255 @@ function HomeContent() {
 
   // ---------- Отчёты (ОБНОВЛЁННЫЙ) ----------
   const generateTeacherReport = useCallback(async (teacherId, dateFrom, dateTo) => {
-    try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const teacher = teachers.find(t => t.id === parseInt(teacherId));
-      if (!teacher) return showNotification('Преподаватель не найден', 'error');
+  try {
+    const html2pdf = (await import('html2pdf.js')).default;
+    const teacher = teachers.find(t => t.id === parseInt(teacherId));
+    if (!teacher) return showNotification('Преподаватель не найден', 'error');
 
-      // Загружаем данные за КАЖДУЮ неделю периода
-      const allLessons = [];
-      const fromDate = parseLocalDate(dateFrom);
-      const toDate = parseLocalDate(dateTo);
-      const currentMonday = getMonday(fromDate);
+    // Загружаем данные за КАЖДУЮ неделю периода
+    const allLessons = [];
+    const fromDate = parseLocalDate(dateFrom);
+    const toDate = parseLocalDate(dateTo);
+    const currentMonday = getMonday(fromDate);
+    
+    while (currentMonday <= toDate) {
+      const weekStart = formatForInput(currentMonday);
+      const url = `/api/schedule?weekStart=${weekStart}&teacherId=${teacherId}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const weekData = await res.json();
       
-      while (currentMonday <= toDate) {
-        const weekStart = formatForInput(currentMonday);
-        const url = `/api/schedule?weekStart=${weekStart}&teacherId=${teacherId}`;
-        const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        const weekData = await res.json();
-        
-        // Фильтруем занятия по датам периода
-        const filteredWeek = weekData.filter(l => {
-          if (!l.date) return false;
-          const lessonDate = parseLocalDate(l.date);
-          return lessonDate >= fromDate && lessonDate <= toDate;
-        });
-        
-        allLessons.push(...filteredWeek);
-        currentMonday.setDate(currentMonday.getDate() + 7);
-      }
-
-      if (allLessons.length === 0) {
-        return showNotification('Нет занятий за выбранный период', 'error');
-      }
-
-      // Группировка по предметам
-      const subjectHours = {};
-      allLessons.forEach(l => {
-        const subjectName = l.subject_name;
-        if (!subjectHours[subjectName]) {
-          subjectHours[subjectName] = { name: subjectName, hours: 0, count: 0, groups: new Set() };
-        }
-        subjectHours[subjectName].hours += 1.5;
-        subjectHours[subjectName].count++;
-        subjectHours[subjectName].groups.add(l.group_name);
+      const filteredWeek = weekData.filter(l => {
+        if (!l.date) return false;
+        return l.date >= dateFrom && l.date <= dateTo;
       });
-
-      // Группировка по неделям
-      const weeklyData = {};
-      allLessons.forEach(l => {
-        if (l.date) {
-          const weekStart = formatForInput(getMonday(parseLocalDate(l.date)));
-          if (!weeklyData[weekStart]) weeklyData[weekStart] = [];
-          weeklyData[weekStart].push(l);
-        }
-      });
-
-      const sortedWeeks = Object.keys(weeklyData).sort();
-      const totalHours = (allLessons.length * 1.5).toFixed(1);
       
-      const el = document.createElement('div');
-      el.innerHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-        body{font-family:Segoe UI,Arial,sans-serif;padding:25px;color:#1e293b}
-        .header{background:linear-gradient(135deg,#2c3e66,#1e2a4a);color:#fff;padding:25px;border-radius:12px;margin-bottom:20px}
-        .header h1{font-size:26px;margin:0 0 8px}
-        .header .teacher-name{font-size:18px;opacity:.9}
-        .header .period{font-size:11px;opacity:.7;margin-top:10px}
-        .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px}
-        .stat-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:15px;text-align:center}
-        .stat-card .value{font-size:30px;font-weight:700;color:#2c3e66}
-        .stat-card .label{font-size:10px;color:#64748b;text-transform:uppercase}
-        .section-title{font-size:18px;font-weight:700;color:#2c3e66;border-bottom:3px solid #2c3e66;padding-bottom:8px;margin-bottom:15px}
-        table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:15px}
-        th{background:#2c3e66;color:#fff;padding:10px 8px;text-align:left;text-transform:uppercase;font-size:9px}
-        td{padding:8px;border-bottom:1px solid #e2e8f0}
-        tr:nth-child(even) td{background:#f8fafc}
-        .total-row td{font-weight:700;background:#e2e8f0!important;border-top:2px solid #2c3e66}
-        .week-block{margin-bottom:15px}
-        .week-title{font-weight:700;color:#2c3e66;padding:6px 10px;background:#f1f5f9;border-radius:6px;margin-bottom:6px;font-size:12px}
-        .footer{margin-top:20px;padding-top:15px;border-top:2px solid #e2e8f0;text-align:center;font-size:9px;color:#94a3b8}
-      </style></head><body>
-        <div class="header">
-          <h1>📊 Отчет о нагрузке преподавателя</h1>
-          <div class="teacher-name">${teacher.name}</div>
-          <div class="period">Период: ${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} • ${new Date().toLocaleString('ru-RU')}</div>
-        </div>
-        <div class="stats">
-          <div class="stat-card"><div class="value">${totalHours}</div><div class="label">Всего часов</div></div>
-          <div class="stat-card"><div class="value">${allLessons.length}</div><div class="label">Занятий</div></div>
-          <div class="stat-card"><div class="value">${Object.keys(subjectHours).length}</div><div class="label">Предметов</div></div>
-          <div class="stat-card"><div class="value">${new Set(allLessons.map(l => l.group_name)).size}</div><div class="label">Групп</div></div>
-          <div class="stat-card"><div class="value">${sortedWeeks.length}</div><div class="label">Недель</div></div>
-        </div>
-        <h2 class="section-title">📚 Сводка по предметам</h2>
-        <table>
-          <thead><tr><th>№</th><th>Предмет</th><th>Занятий</th><th>Часов</th><th>Группы</th></tr></thead>
-          <tbody>
-            ${Object.values(subjectHours).sort((a,b)=>b.hours-a.hours).map((item,idx)=>`
-              <tr>
-                <td>${idx+1}</td>
-                <td><strong>${item.name}</strong></td>
-                <td>${item.count} пар(ы)</td>
-                <td><strong>${item.hours.toFixed(1)} ч.</strong></td>
-                <td>${[...item.groups].join(', ')}</td>
-              </tr>
-            `).join('')}
-            <tr class="total-row"><td colspan="2"><strong>ИТОГО</strong></td><td><strong>${allLessons.length} пар</strong></td><td colspan="2"><strong>${totalHours} часов</strong></td></tr>
-          </tbody>
-        </table>
-        <h2 class="section-title">📅 Детализация по неделям</h2>
-        ${sortedWeeks.map(weekStart => {
-          const weekLessons = weeklyData[weekStart];
-          const weekEnd = new Date(parseLocalDate(weekStart));
-          weekEnd.setDate(weekEnd.getDate() + 6);
-          const weekNumber = getWeekNumber(parseLocalDate(weekStart));
-          return `
-            <div class="week-block">
-              <div class="week-title">📌 Неделя ${weekNumber} • ${formatDateRu(weekStart)} — ${formatDateRu(formatForInput(weekEnd))} <span style="float:right;font-weight:400">${weekLessons.length} пар • ${(weekLessons.length * 1.5).toFixed(1)} ч.</span></div>
-              <table>
-                <thead><tr><th>Дата</th><th>День</th><th>Пара</th><th>Предмет</th><th>Группа</th><th>Ауд.</th></tr></thead>
-                <tbody>
-                  ${weekLessons.sort((a,b) => {
-                    if (a.date < b.date) return -1;
-                    if (a.date > b.date) return 1;
-                    return a.pair_number - b.pair_number;
-                  }).map(l => `
-                    <tr>
-                      <td>${l.date ? formatDateRu(l.date) : '—'}</td>
-                      <td>${DAYS[l.day_of_week - 1]}</td>
-                      <td><strong>${l.pair_number}</strong> (${PAIRS[l.pair_number-1]?.time||''})</td>
-                      <td>${l.subject_name}</td>
-                      <td>${l.group_name}</td>
-                      <td>${l.classroom_name || '—'}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-          `;
-        }).join('')}
-        <div class="footer">
-          <p>Отчет сгенерирован автоматически • ${new Date().toLocaleString('ru-RU')}</p>
-        </div>
-      </body></html>`;
-      
-      await html2pdf().set({ 
-        margin: [0.4, 0.4, 0.4, 0.4], 
-        filename: `Отчет_${teacher.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`, 
-        image: { type: 'jpeg', quality: 0.98 }, 
-        html2canvas: { scale: 2, useCORS: true }, 
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }, 
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } 
-      }).from(el).save();
-      
-      showNotification('✅ Отчет сформирован', 'success');
-    } catch (e) { 
-      console.error(e);
-      showNotification('❌ Ошибка формирования отчета', 'error'); 
+      allLessons.push(...filteredWeek);
+      currentMonday.setDate(currentMonday.getDate() + 7);
     }
-  }, [teachers, token]);
+
+    if (allLessons.length === 0) return showNotification('Нет занятий за выбранный период', 'error');
+
+    // Группируем по предметам
+    const subjectsHours = {};
+    allLessons.forEach(lesson => {
+      const sn = lesson.subject_name;
+      if (!subjectsHours[sn]) {
+        subjectsHours[sn] = { name: sn, hours: 0, lessons: [], groups: new Set() };
+      }
+      subjectsHours[sn].hours += 1.5;
+      subjectsHours[sn].lessons.push(lesson);
+      subjectsHours[sn].groups.add(lesson.group_name);
+    });
+
+    // Группируем по неделям
+    const weeksMap = {};
+    allLessons.forEach(lesson => {
+      if (lesson.date) {
+        const ws = formatForInput(getMonday(parseLocalDate(lesson.date)));
+        if (!weeksMap[ws]) weeksMap[ws] = [];
+        weeksMap[ws].push(lesson);
+      }
+    });
+
+    const sortedWeeks = Object.keys(weeksMap).sort();
+    const totalHours = (allLessons.length * 1.5).toFixed(1);
+    const uniqueSubjects = Object.keys(subjectsHours).length;
+    const uniqueGroups = new Set(allLessons.map(l => l.group_name)).size;
+    const now = new Date();
+
+    const element = document.createElement('div');
+    element.innerHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      padding: 20px;
+      color: #1e293b;
+      background: #fff;
+      font-size: 11px;
+    }
+    
+    .report-header {
+      background: #2c3e66;
+      color: #fff;
+      padding: 22px 28px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .report-header h1 { font-size: 22px; margin-bottom: 6px; font-weight: 700; }
+    .report-header .teacher { font-size: 16px; opacity: 0.95; margin-bottom: 10px; }
+    .report-header .meta { font-size: 10px; opacity: 0.8; }
+    
+    .summary {
+      margin-bottom: 20px;
+    }
+    .summary table { width: auto; border-collapse: collapse; }
+    .summary td {
+      padding: 8px 18px;
+      border: 1px solid #e2e8f0;
+      text-align: center;
+      font-size: 10px;
+      background: #f8fafc;
+    }
+    .summary .val { font-size: 20px; font-weight: 700; color: #2c3e66; }
+    .summary .lbl { font-size: 8px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .section-title {
+      font-size: 15px; font-weight: 700; color: #2c3e66;
+      padding-bottom: 6px; border-bottom: 3px solid #2c3e66;
+      margin: 20px 0 12px;
+    }
+    
+    table.data { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 15px; }
+    table.data thead { background: #2c3e66; color: #fff; }
+    table.data th {
+      padding: 7px 5px; text-align: left; font-weight: 600;
+      font-size: 8px; text-transform: uppercase;
+    }
+    table.data td { padding: 5px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    table.data tr:nth-child(even) td { background: #f8fafc; }
+    table.data .total td {
+      font-weight: 700; background: #e2e8f0 !important;
+      border-top: 2px solid #2c3e66;
+    }
+    
+    .week-block { margin-bottom: 14px; page-break-inside: avoid; }
+    .week-title {
+      font-size: 11px; font-weight: 700; color: #2c3e66;
+      padding: 6px 10px; background: #f1f5f9; border-radius: 4px;
+      margin-bottom: 6px;
+    }
+    .week-title .info { float: right; font-weight: 400; font-size: 9px; color: #64748b; }
+    
+    .footer {
+      margin-top: 20px; padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center; font-size: 8px; color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <h1>Отчет о нагрузке преподавателя</h1>
+    <div class="teacher">${teacher.name}</div>
+    <div class="meta">
+      Период: ${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;|&nbsp; Сформирован: ${now.toLocaleString('ru-RU')}
+    </div>
+  </div>
+  
+  <div class="summary">
+    <table>
+      <tr>
+        <td><div class="val">${totalHours}</div><div class="lbl">Всего часов</div></td>
+        <td><div class="val">${allLessons.length}</div><div class="lbl">Занятий</div></td>
+        <td><div class="val">${uniqueSubjects}</div><div class="lbl">Предметов</div></td>
+        <td><div class="val">${uniqueGroups}</div><div class="lbl">Групп</div></td>
+        <td><div class="val">${sortedWeeks.length}</div><div class="lbl">Недель</div></td>
+      </tr>
+    </table>
+  </div>
+  
+  <div class="section-title">Сводка по предметам</div>
+  <table class="data">
+    <thead>
+      <tr>
+        <th>N</th>
+        <th>Предмет</th>
+        <th>Занятий</th>
+        <th>Часов</th>
+        <th>Группы</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${Object.values(subjectsHours).sort((a, b) => b.hours - a.hours).map((item, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td><strong>${item.name}</strong></td>
+        <td>${item.lessons.length} пар(ы)</td>
+        <td><strong>${item.hours.toFixed(1)} ч.</strong></td>
+        <td>${[...item.groups].join(', ')}</td>
+      </tr>
+      `).join('')}
+      <tr class="total">
+        <td colspan="2"><strong>ИТОГО</strong></td>
+        <td><strong>${allLessons.length} пар</strong></td>
+        <td colspan="2"><strong>${totalHours} часов</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <div class="section-title">Детализация по неделям</div>
+  ${sortedWeeks.map(ws => {
+    const wd = weeksMap[ws];
+    const we = new Date(parseLocalDate(ws));
+    we.setDate(we.getDate() + 6);
+    const wn = getWeekNumber(parseLocalDate(ws));
+    return `
+    <div class="week-block">
+      <div class="week-title">
+        Неделя ${wn} &nbsp;|&nbsp; ${formatDateRu(ws)} — ${formatDateRu(formatForInput(we))}
+        <span class="info">${wd.length} пар &nbsp;|&nbsp; ${(wd.length * 1.5).toFixed(1)} ч.</span>
+      </div>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>День</th>
+            <th>Пара</th>
+            <th>Время</th>
+            <th>Предмет</th>
+            <th>Группа</th>
+            <th>Ауд.</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${wd.sort((a, b) => {
+            if (a.date < b.date) return -1;
+            if (a.date > b.date) return 1;
+            return a.pair_number - b.pair_number;
+          }).map(l => `
+          <tr>
+            <td>${l.date ? formatDateRu(l.date) : '—'}</td>
+            <td>${DAYS[l.day_of_week - 1]}</td>
+            <td>${l.pair_number}</td>
+            <td>${PAIRS[l.pair_number - 1]?.time || ''}</td>
+            <td>${l.subject_name}</td>
+            <td>${l.group_name}</td>
+            <td>${l.classroom_name || '—'}</td>
+          </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    `;
+  }).join('')}
+  
+  <div class="footer">
+    <p>Документ сгенерирован автоматически &nbsp;|&nbsp; Система управления расписанием</p>
+    <p>${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;|&nbsp; ${now.toLocaleString('ru-RU')}</p>
+  </div>
+</body>
+</html>`;
+
+    await html2pdf().set({
+      margin: [0.3, 0.3, 0.3, 0.3],
+      filename: `Отчет_по_часам_${teacher.name.replace(/\s+/g, '_')}_${dateFrom}_${dateTo}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], before: '.section-title', avoid: '.week-block' }
+    }).from(element).save();
+
+    showNotification('Отчет сформирован', 'success');
+  } catch (e) {
+    console.error('Ошибка:', e);
+    showNotification('Ошибка формирования отчета', 'error');
+  }
+}, [teachers, token]);
 
   const exportTeacherHoursReport = useCallback(async () => {
     if (!user || user.role !== 'teacher') return;
