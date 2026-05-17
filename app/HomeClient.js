@@ -2285,7 +2285,108 @@ const loadRequests = async () => {
         </div>
       );
     }
-
+if (activeTab === 'requests' && canManageUsers) {
+  return (
+    <div className="content-card">
+      <div className="content-header">
+        <div className="header-left">
+          <h2><i className="fas fa-clipboard-list"></i> Заявки на изменения</h2>
+        </div>
+      </div>
+      
+      <div className="requests-container">
+        {changeRequests.length === 0 ? (
+          <div className="requests-empty">
+            <i className="fas fa-inbox"></i>
+            <h3>Нет заявок</h3>
+            <p>Заявки от преподавателей будут появляться здесь</p>
+          </div>
+        ) : (
+          changeRequests.map(req => (
+            <div key={req.id} className={`request-card status-${req.status}`}>
+              <div className="request-card-header">
+                <span className={`request-type-badge ${req.request_type}`}>
+                  {req.request_type === 'cancel' && '🚫 Отмена'}
+                  {req.request_type === 'change' && '✏️ Изменение'}
+                  {req.request_type === 'replace' && '🔄 Замена'}
+                </span>
+                <span className={`request-status-badge ${req.status}`}>
+                  {req.status === 'pending' && '⏳ На рассмотрении'}
+                  {req.status === 'approved' && '✅ Одобрено'}
+                  {req.status === 'rejected' && '❌ Отклонено'}
+                </span>
+              </div>
+              
+              <div className="request-card-body">
+                <div className="request-info-row">
+                  <i className="fas fa-chalkboard-teacher"></i>
+                  <span><strong>{req.teacher_name}</strong></span>
+                </div>
+                <div className="request-info-row">
+                  <i className="fas fa-users"></i>
+                  <span>Группа <strong>{req.group_name}</strong></span>
+                </div>
+                <div className="request-info-row">
+                  <i className="fas fa-calendar-day"></i>
+                  <span>{DAYS[req.day_of_week - 1]}, {req.pair_number} пара</span>
+                  {req.week_start_date && <span> • {formatDateRu(req.week_start_date)}</span>}
+                </div>
+                
+                {req.request_type !== 'cancel' && (
+                  <div className="request-change-details">
+                    {req.new_teacher_name && (
+                      <div className="change-item">
+                        <i className="fas fa-user"></i>
+                        <span className="old-value">{req.teacher_name}</span>
+                        <span className="arrow">→</span>
+                        <span className="new-value">{req.new_teacher_name}</span>
+                      </div>
+                    )}
+                    {req.new_subject_name && (
+                      <div className="change-item">
+                        <i className="fas fa-book"></i>
+                        <span className="new-value">{req.new_subject_name}</span>
+                      </div>
+                    )}
+                    {req.new_classroom_name && (
+                      <div className="change-item">
+                        <i className="fas fa-door-open"></i>
+                        <span className="new-value">{req.new_classroom_name}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {req.reason && (
+                  <div className="request-reason">
+                    <strong>Причина:</strong> {req.reason}
+                  </div>
+                )}
+                
+                {req.admin_comment && (
+                  <div className="request-admin-comment">
+                    <i className="fas fa-comment"></i> Комментарий: {req.admin_comment}
+                  </div>
+                )}
+              </div>
+              
+              {req.status === 'pending' && (
+                <div className="request-card-actions">
+                  <button className="request-approve-btn" onClick={() => handleApproveRequest(req.id)}>
+                    <i className="fas fa-check"></i> Одобрить
+                  </button>
+                  <button className="request-reject-btn" onClick={() => handleRejectRequest(req.id)}>
+                    <i className="fas fa-times"></i> Отклонить
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
     if (activeTab === 'directories' && canEditSchedule) {
       return (
         <div className="content-card">
