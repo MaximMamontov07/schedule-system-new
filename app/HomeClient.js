@@ -722,7 +722,7 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
 };
 
 // ---------- TeacherPanel ----------
-const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, currentDate, onPrevWeek, onNextWeek, onCurrentWeek }) => {
+const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSave, onCancel, currentDate, onPrevWeek, onNextWeek, onCurrentWeek, onRequestChange }) => {
   const weekDates = getWeekDates(currentDate || new Date());
   const scheduleMatrix = useMemo(() => {
     const matrix = Array(7).fill().map(() => Array(6).fill().map(() => []));
@@ -810,13 +810,16 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                                     <button onClick={() => onSave(lesson)} disabled={isSaving} className="teacher-action-btn save">{isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить</button>
                                   </div>
                                 )}
+                                <button onClick={() => onRequestChange(lesson)} className="teacher-action-btn" style={{ background: 'var(--accent)', color: 'white', marginTop: '0.3rem', width: '100%' }}>
+                                  <i className="fas fa-paper-plane"></i> Заявка на изменение
+                                </button>
                               </div>
                             </div>
                           );
                         })}
                       </div>
                     ) : <div className="empty-cell"></div>}
-                   </td>
+                  </td>
                 );
               })}
             </tr>
@@ -827,7 +830,80 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
   );
 };
 
-// ---------- TeacherReportModal (ОБНОВЛЁННЫЙ) ----------
+// ---------- ChangeRequestList ----------
+const ChangeRequestList = ({ requests, onApprove, onReject, loading }) => {
+  const getStatusBadge = (status) => {
+    switch(status) {
+      case 'pending': return <span className="status-badge pending"><i className="fas fa-clock"></i> Ожидает</span>;
+      case 'approved': return <span className="status-badge approved"><i className="fas fa-check-circle"></i> Одобрена</span>;
+      case 'rejected': return <span className="status-badge rejected"><i className="fas fa-times-circle"></i> Отклонена</span>;
+      default: return null;
+    }
+  };
+
+  const getRequestTypeText = (type) => {
+    switch(type) {
+      case 'cancel': return 'Отмена занятия';
+      case 'change': return 'Изменение';
+      case 'replace': return 'Замена преподавателя';
+      default: return type;
+    }
+  };
+
+  if (loading) {
+    return <div className="loading-state"><div className="spinner"></div><p>Загрузка заявок...</p></div>;
+  }
+
+  if (requests.length === 0) {
+    return (
+      <div className="empty-state">
+        <i className="fas fa-clipboard-list"></i>
+        <p>Нет заявок на изменение</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="change-requests-list">
+      {requests.map(req => (
+        <div key={req.id} className="change-request-card">
+          <div className="request-header">
+            <div className="request-info">
+              <span className="request-type">{getRequestTypeText(req.request_type)}</span>
+              {getStatusBadge(req.status)}
+            </div>
+            <div className="request-date">{formatDateRu(req.created_at)}</div>
+          </div>
+          <div className="request-details">
+            <p><strong>Группа:</strong> {req.group_name}</p>
+            <p><strong>Занятие:</strong> {DAYS[req.day_of_week - 1]}, {req.pair_number} пара</p>
+            {req.week_start_date && <p><strong>Неделя:</strong> с {formatDateRu(req.week_start_date)}</p>}
+            {req.new_teacher_name && <p><strong>Новый преподаватель:</strong> {req.new_teacher_name}</p>}
+            {req.new_subject_name && <p><strong>Новый предмет:</strong> {req.new_subject_name}</p>}
+            {req.new_classroom_name && <p><strong>Новая аудитория:</strong> {req.new_classroom_name}</p>}
+            {req.new_pair_number && <p><strong>Новая пара:</strong> {req.new_pair_number}</p>}
+            {req.new_day_of_week && <p><strong>Новый день:</strong> {DAYS[req.new_day_of_week - 1]}</p>}
+            {req.reason && (
+              <div className="request-reason">
+                <strong>Причина:</strong>
+                <p>{req.reason}</p>
+              </div>
+            )}
+            <p className="request-author"><strong>Автор:</strong> {req.author_name}</p>
+          </div>
+          {req.status === 'pending' && (
+            <div className="request-actions">
+              <button onClick={() => onApprove(req.id)} className="approve-btn"><i className="fas fa-check"></i> Одобрить</button>
+              <button onClick={() => onReject(req.id)} className="reject-btn"><i className="fas fa-times"></i> Отклонить</button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ---------- TeacherReportModal ----------
 const TeacherReportModal = ({ teachers, schedule, onClose, onGenerate, isTeacher, currentTeacherId }) => {
   const [selectedTeacherId, setSelectedTeacherId] = useState(isTeacher ? String(currentTeacherId) : '');
   const [generating, setGenerating] = useState(false);
@@ -944,11 +1020,80 @@ function HomeContent() {
   const [saving, setSaving] = useState({});
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  
+  // Новые состояния для заявок
+  const [showChangeRequestModal, setShowChangeRequestModal] = useState(false);
+  const [changeRequestLesson, setChangeRequestLesson] = useState(null);
+  const [changeRequests, setChangeRequests] = useState([]);
+  const [showRequestsList, setShowRequestsList] = useState(false);
+  const [loadingRequests, setLoadingRequests] = useState(false);
 
   const showNotification = (msg, type = 'success') => { setNotification({ msg, type }); setTimeout(() => setNotification(null), 3000); };
   const canEditSchedule = user && (user.role === 'admin' || user.role === 'methodist');
   const canManageUsers = user && user.role === 'admin';
   const isTeacher = user && user.role === 'teacher';
+
+  // ---------- Загрузка заявок ----------
+  const loadChangeRequests = useCallback(async () => {
+    if (!token) return;
+    setLoadingRequests(true);
+    try {
+      const res = await fetch('/api/schedule/change-requests', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChangeRequests(data);
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки заявок:', e);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, [token]);
+
+  // ---------- Одобрение/отклонение заявки ----------
+  const handleApproveRequest = async (requestId) => {
+    try {
+      const res = await fetch(`/api/schedule/change-requests/${requestId}/approve`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showNotification('Заявка одобрена и применена');
+        loadChangeRequests();
+        // Перезагружаем расписание
+        const monday = getMonday(new Date());
+        await loadScheduleForWeek(formatForInput(monday), null, selectedGroupFilter, true);
+        if (activeTab === 'manage-schedule') {
+          await loadScheduleForWeekForManage();
+        }
+      } else {
+        const data = await res.json();
+        showNotification(data.error || 'Ошибка при одобрении заявки', 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    try {
+      const res = await fetch(`/api/schedule/change-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        showNotification('Заявка отклонена');
+        loadChangeRequests();
+      } else {
+        const data = await res.json();
+        showNotification(data.error || 'Ошибка при отклонении заявки', 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
 
   // ---------- Загрузка данных ----------
   const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null, forceReload = false) => {
@@ -1047,14 +1192,13 @@ function HomeContent() {
     }
   }, []);
 
-  // ---------- Отчёты (ОБНОВЛЁННЫЙ) ----------
+  // ---------- Отчёты ----------
   const generateTeacherReport = useCallback(async (teacherId, dateFrom, dateTo) => {
   try {
     const html2pdf = (await import('html2pdf.js')).default;
     const teacher = teachers.find(t => t.id === parseInt(teacherId));
     if (!teacher) return showNotification('Преподаватель не найден', 'error');
 
-    // Загружаем данные за КАЖДУЮ неделю периода
     const allLessons = [];
     const fromDate = parseLocalDate(dateFrom);
     const toDate = parseLocalDate(dateTo);
@@ -1077,7 +1221,6 @@ function HomeContent() {
 
     if (allLessons.length === 0) return showNotification('Нет занятий за выбранный период', 'error');
 
-    // Группируем по предметам
     const subjectsHours = {};
     allLessons.forEach(lesson => {
       const sn = lesson.subject_name;
@@ -1089,7 +1232,6 @@ function HomeContent() {
       subjectsHours[sn].groups.add(lesson.group_name);
     });
 
-    // Группируем по неделям
     const weeksMap = {};
     allLessons.forEach(lesson => {
       if (lesson.date) {
@@ -1396,7 +1538,6 @@ function HomeContent() {
       subtitle = `Дата: ${new Date().toLocaleString('ru-RU')}`;
     }
 
-    // Группируем по дням
     const grouped = {};
     exportData.forEach(lesson => {
       const key = lesson.date || 'Без даты';
@@ -1408,7 +1549,6 @@ function HomeContent() {
     const totalLessons = exportData.length;
     const totalHours = (totalLessons * 1.5).toFixed(1);
 
-    // Определяем количество колонок
     const showGroup = activeTab !== 'my-lessons' && user?.role !== 'student';
     const colSpan = showGroup ? 7 : 6;
 
@@ -1908,6 +2048,49 @@ function HomeContent() {
     } catch (e) { showNotification('Ошибка соединения', 'error'); }
   };
 
+  // ---------- Обработчик заявки ----------
+  const handleRequestChange = (lesson) => {
+    setChangeRequestLesson(lesson);
+    setShowChangeRequestModal(true);
+  };
+
+  // ---------- Отправка заявки ----------
+  const handleSubmitChangeRequest = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const body = {
+      group_id: changeRequestLesson.group_id,
+      day_of_week: changeRequestLesson.day_of_week,
+      pair_number: changeRequestLesson.pair_number,
+      week_start_date: changeRequestLesson.date ? formatForInput(getMonday(parseLocalDate(changeRequestLesson.date))) : null,
+      request_type: form.request_type.value,
+      new_teacher_id: form.new_teacher_id?.value || null,
+      new_subject_id: form.new_subject_id?.value || null,
+      new_classroom_id: form.new_classroom_id?.value || null,
+      new_pair_number: form.new_pair_number?.value || null,
+      new_day_of_week: form.new_day_of_week?.value || null,
+      reason: form.reason.value || null
+    };
+    
+    try {
+      const res = await fetch('/api/schedule/change-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        showNotification('Заявка отправлена');
+        setShowChangeRequestModal(false);
+        setChangeRequestLesson(null);
+      } else {
+        const data = await res.json();
+        showNotification(data.error, 'error');
+      }
+    } catch (e) {
+      showNotification('Ошибка соединения', 'error');
+    }
+  };
+
   // ---------- Эффекты ----------
   useEffect(() => {
     const init = async () => {
@@ -1926,6 +2109,13 @@ function HomeContent() {
 
   useEffect(() => { if (!authChecking) loadData(); }, [authChecking, loadData]);
   useEffect(() => { if (token && canManageUsers) loadUsers(); }, [token, canManageUsers, loadUsers]);
+  
+  // Загружаем заявки для админа
+  useEffect(() => {
+    if (token && user?.role === 'admin') {
+      loadChangeRequests();
+    }
+  }, [token, user, loadChangeRequests]);
 
   useEffect(() => {
     if (isTeacher && teachers.length > 0 && user) {
@@ -1996,6 +2186,7 @@ function HomeContent() {
               onPrevWeek={() => { const d = new Date(teacherCurrentDate); d.setDate(d.getDate() - 7); setTeacherCurrentDate(d); }}
               onNextWeek={() => { const d = new Date(teacherCurrentDate); d.setDate(d.getDate() + 7); setTeacherCurrentDate(d); }}
               onCurrentWeek={() => setTeacherCurrentDate(new Date())}
+              onRequestChange={handleRequestChange}
             />
           }
         </div>
@@ -2171,6 +2362,23 @@ function HomeContent() {
       );
     }
 
+    if (activeTab === 'requests' && user?.role === 'admin') {
+      return (
+        <div className="content-card">
+          <div className="content-header">
+            <div className="header-left"><h2><i className="fas fa-clipboard-list"></i> Заявки на изменение</h2></div>
+            <button className="action-button" onClick={loadChangeRequests}><i className="fas fa-sync-alt"></i> Обновить</button>
+          </div>
+          <ChangeRequestList 
+            requests={changeRequests} 
+            onApprove={handleApproveRequest} 
+            onReject={handleRejectRequest} 
+            loading={loadingRequests}
+          />
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -2236,7 +2444,10 @@ function HomeContent() {
             <button className={`nav-item ${activeTab === 'template' ? 'active' : ''}`} onClick={() => { setActiveTab('template'); setSidebarOpen(false); }}><i className="fas fa-layer-group"></i><span>Шаблон</span></button>
             <button className={`nav-item ${activeTab === 'directories' ? 'active' : ''}`} onClick={() => { setActiveTab('directories'); setSidebarOpen(false); }}><i className="fas fa-database"></i><span>Справочники</span></button>
           </>}
-          {user?.role === 'admin' && <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}><i className="fas fa-users-cog"></i><span>Пользователи</span></button>}
+          {user?.role === 'admin' && <>
+            <button className={`nav-item ${activeTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveTab('users'); setSidebarOpen(false); }}><i className="fas fa-users-cog"></i><span>Пользователи</span></button>
+            <button className={`nav-item ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => { setActiveTab('requests'); setSidebarOpen(false); loadChangeRequests(); }}><i className="fas fa-clipboard-list"></i><span>Заявки</span></button>
+          </>}
         </nav>
         <div className="sidebar-footer">
           <button className="theme-toggle-btn" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i><span>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span></button>
@@ -2247,7 +2458,7 @@ function HomeContent() {
       <main className="app-main">
         <header className="app-header">
           <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)}><i className="fas fa-bars"></i></button>
-          <div className="header-title"><h1>{isTeacher ? 'Мои занятия' : activeTab === 'schedule' ? 'Расписание занятий' : activeTab === 'manage-schedule' ? 'Управление' : activeTab === 'template' ? 'Шаблон' : activeTab === 'directories' ? 'Справочники' : 'Пользователи'}</h1></div>
+          <div className="header-title"><h1>{isTeacher ? 'Мои занятия' : activeTab === 'schedule' ? 'Расписание занятий' : activeTab === 'manage-schedule' ? 'Управление' : activeTab === 'template' ? 'Шаблон' : activeTab === 'directories' ? 'Справочники' : activeTab === 'users' ? 'Пользователи' : activeTab === 'requests' ? 'Заявки' : 'Расписание'}</h1></div>
           <div className="header-actions-right"><button className="theme-toggle-header" onClick={toggleTheme}><i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i></button><div className="role-badge">{ROLES[user.role]}</div></div>
         </header>
         <div className="app-content">{renderMainContent()}</div>
@@ -2320,6 +2531,77 @@ function HomeContent() {
               )}
               <button type="submit" className="submit-btn">
                 <i className="fas fa-save"></i> {editingLesson.id ? 'Сохранить изменения' : 'Добавить занятие'}
+              </button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Модальное окно заявки на изменение */}
+      {showChangeRequestModal && changeRequestLesson && createPortal(
+        <div className="modal" onClick={() => setShowChangeRequestModal(false)}>
+          <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+            <div className="modal-header">
+              <h2><i className="fas fa-paper-plane"></i> Заявка на изменение</h2>
+              <button className="modal-close" onClick={() => setShowChangeRequestModal(false)}><i className="fas fa-times"></i></button>
+            </div>
+            <form onSubmit={handleSubmitChangeRequest} className="modal-form">
+              <div className="form-group">
+                <label>Тип заявки</label>
+                <select name="request_type" required>
+                  <option value="cancel">Отмена занятия</option>
+                  <option value="change">Изменение</option>
+                  <option value="replace">Замена преподавателя</option>
+                </select>
+              </div>
+              <div style={{ background: 'var(--surface-muted)', padding: '10px', borderRadius: '6px', marginBottom: '15px', fontSize: '0.85rem' }}>
+                <p><strong>Занятие:</strong> {changeRequestLesson.subject_name}</p>
+                <p><strong>День:</strong> {DAYS[changeRequestLesson.day_of_week - 1]}</p>
+                <p><strong>Пара:</strong> {changeRequestLesson.pair_number}</p>
+                {changeRequestLesson.date && <p><strong>Дата:</strong> {formatDateRu(changeRequestLesson.date)}</p>}
+              </div>
+              <div className="form-group">
+                <label>Новый преподаватель</label>
+                <select name="new_teacher_id">
+                  <option value="">Не менять</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Новый предмет</label>
+                <select name="new_subject_id">
+                  <option value="">Не менять</option>
+                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Новая аудитория</label>
+                <select name="new_classroom_id">
+                  <option value="">Не менять</option>
+                  {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Новая пара</label>
+                <select name="new_pair_number">
+                  <option value="">Не менять</option>
+                  {PAIRS.map(p => <option key={p.number} value={p.number}>{p.name} ({p.time})</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Новый день недели</label>
+                <select name="new_day_of_week">
+                  <option value="">Не менять</option>
+                  {DAYS.map((d, i) => <option key={i+1} value={i+1}>{d}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Причина</label>
+                <textarea name="reason" rows="3" placeholder="Опишите причину изменений" style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid var(--border)' }}></textarea>
+              </div>
+              <button type="submit" className="submit-btn">
+                <i className="fas fa-paper-plane"></i> Отправить заявку
               </button>
             </form>
           </div>
