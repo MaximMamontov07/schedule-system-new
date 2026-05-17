@@ -4119,3 +4119,20 @@ button:disabled {
 .teacher-lessons-container::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }
+.quick-period-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 2rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.quick-period-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
