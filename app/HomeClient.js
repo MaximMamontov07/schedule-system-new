@@ -810,8 +810,12 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                                     <button onClick={() => onSave(lesson)} disabled={isSaving} className="teacher-action-btn save">{isSaving ? <i className="fas fa-spinner fa-pulse"></i> : <i className="fas fa-check"></i>} Сохранить</button>
                                   </div>
                                 )}
-                                <button onClick={() => onRequestChange(lesson)} className="teacher-action-btn" style={{ background: 'var(--accent)', color: 'white', marginTop: '0.3rem', width: '100%' }}>
-                                  <i className=""></i> Заявка на изменение
+                                <button 
+                                  onClick={() => onRequestChange(lesson)} 
+                                   className="teacher-request-btn"
+                                     title="Отправить заявку на изменение"
+                                      >
+                                     <i className="fas fa-paper-plane"></i> <span>Заявка на изменение</span>
                                 </button>
                               </div>
                             </div>
