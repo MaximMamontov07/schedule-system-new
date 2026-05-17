@@ -812,10 +812,10 @@ const TeacherPanel = ({ data, localData, hasChanges, saving, onNotesChange, onSa
                                 )}
                                 <button 
                                   onClick={() => onRequestChange(lesson)} 
-                                   className="teacher-request-btn"
+                                   className=""
                                      title="Отправить заявку на изменение"
                                       >
-                                     <i className="fas fa-paper-plane"></i> <span>Заявка на изменение</span>
+                                     <i className=""></i> <span>Заявка на изменение</span>
                                 </button>
                               </div>
                             </div>
