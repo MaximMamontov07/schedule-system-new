@@ -447,7 +447,12 @@ const ScheduleGrid = React.memo(({ data, canEdit = false, onEditClick, onDeleteC
                               <div className="lesson-info"><i className="fas fa-chalkboard-teacher"></i><span>{lesson.teacher_name}</span></div>
                               {lesson.classroom_name && <div className="lesson-info"><i className="fas fa-door-open"></i><span>{lesson.classroom_name}</span></div>}
                               {lesson.date && <div className="lesson-info"><i className="fas fa-calendar-alt"></i><span>{formatDateRu(lesson.date)}</span></div>}
-                              {lesson.notes && <div className="lesson-notes-badge" title={lesson.notes}><i className="fas fa-sticky-note"></i><span>{lesson.notes.length > 35 ? lesson.notes.substring(0, 35) + '...' : lesson.notes}</span></div>}
+                              {lesson.notes && (
+  <div className="lesson-notes-badge">
+    <i className="fas fa-sticky-note"></i>
+    <span>{lesson.notes}</span>
+  </div>
+)}
                               {lesson.source && lesson.source !== 'template' && (
                                 <div className={`lesson-status-badge status-${lesson.source}`}>
                                   {lesson.source === 'cancelled' ? <><i className="fas fa-ban"></i> Отменено</>
