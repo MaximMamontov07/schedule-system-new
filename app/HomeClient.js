@@ -1058,11 +1058,19 @@ function HomeContent() {
     const res = await fetch('/api/schedule/change-requests', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ requestId, status: 'approved' })
+      body: JSON.stringify({ requestId: parseInt(requestId), status: 'approved' })
     });
-    if (res.ok) { showNotification('Заявка одобрена'); loadRequests(); }
-    else { const d = await res.json(); showNotification(d.error, 'error'); }
-  } catch (e) { showNotification('Ошибка соединения', 'error'); }
+    const data = await res.json();
+    if (res.ok) {
+      showNotification('Заявка одобрена. Изменения применены.');
+      loadRequests();
+    } else {
+      showNotification(data.error || 'Ошибка', 'error');
+    }
+  } catch (e) {
+    console.error('Approve error:', e);
+    showNotification('Ошибка соединения', 'error');
+  }
 };
 
 const handleRejectRequest = async (requestId) => {
@@ -1071,13 +1079,31 @@ const handleRejectRequest = async (requestId) => {
     const res = await fetch('/api/schedule/change-requests', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ requestId, status: 'rejected', adminComment: comment || null })
+      body: JSON.stringify({ requestId: parseInt(requestId), status: 'rejected', adminComment: comment || null })
     });
-    if (res.ok) { showNotification('Заявка отклонена'); loadRequests(); }
-    else { const d = await res.json(); showNotification(d.error, 'error'); }
-  } catch (e) { showNotification('Ошибка соединения', 'error'); }
+    const data = await res.json();
+    if (res.ok) {
+      showNotification('Заявка отклонена');
+      loadRequests();
+    } else {
+      showNotification(data.error || 'Ошибка', 'error');
+    }
+  } catch (e) {
+    console.error('Reject error:', e);
+    showNotification('Ошибка соединения', 'error');
+  }
 };
-
+const loadRequests = async () => {
+  if (!token || !canManageUsers) return;
+  try {
+    const res = await fetch('/api/schedule/change-requests', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) setChangeRequests(await res.json());
+  } catch (e) {
+    console.error('Load requests error:', e);
+  }
+};
   // ---------- Загрузка данных ----------
   const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null, forceReload = false) => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
