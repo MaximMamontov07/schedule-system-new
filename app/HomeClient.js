@@ -1054,46 +1054,29 @@ function HomeContent() {
 
   // ---------- Одобрение/отклонение заявки ----------
   const handleApproveRequest = async (requestId) => {
-    try {
-      const res = await fetch(`/api/schedule/change-requests/${requestId}/approve`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        showNotification('Заявка одобрена и применена');
-        loadChangeRequests();
-        // Перезагружаем расписание
-        const monday = getMonday(new Date());
-        await loadScheduleForWeek(formatForInput(monday), null, selectedGroupFilter, true);
-        if (activeTab === 'manage-schedule') {
-          await loadScheduleForWeekForManage();
-        }
-      } else {
-        const data = await res.json();
-        showNotification(data.error || 'Ошибка при одобрении заявки', 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка соединения', 'error');
-    }
-  };
+  try {
+    const res = await fetch('/api/schedule/change-requests', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ requestId, status: 'approved' })
+    });
+    if (res.ok) { showNotification('Заявка одобрена'); loadRequests(); }
+    else { const d = await res.json(); showNotification(d.error, 'error'); }
+  } catch (e) { showNotification('Ошибка соединения', 'error'); }
+};
 
-  const handleRejectRequest = async (requestId) => {
-    try {
-      const res = await fetch(`/api/schedule/change-requests/${requestId}/reject`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        showNotification('Заявка отклонена');
-        loadChangeRequests();
-      } else {
-        const data = await res.json();
-        showNotification(data.error || 'Ошибка при отклонении заявки', 'error');
-      }
-    } catch (e) {
-      showNotification('Ошибка соединения', 'error');
-    }
-  };
+const handleRejectRequest = async (requestId) => {
+  const comment = prompt('Причина отклонения (необязательно):');
+  try {
+    const res = await fetch('/api/schedule/change-requests', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ requestId, status: 'rejected', adminComment: comment || null })
+    });
+    if (res.ok) { showNotification('Заявка отклонена'); loadRequests(); }
+    else { const d = await res.json(); showNotification(d.error, 'error'); }
+  } catch (e) { showNotification('Ошибка соединения', 'error'); }
+};
 
   // ---------- Загрузка данных ----------
   const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null, forceReload = false) => {
