@@ -2226,7 +2226,7 @@ const loadRequests = async () => {
       return (
         <div className="content-card">
           <div className="content-header">
-            <div className="header-left"><h2><i className="fas fa-edit"></i> Расписания Занятий</h2></div>
+            <div className="header-left"><h2><i className="fas fa-edit"></i> Управление расписанием</h2></div>
             <div className="header-actions">
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <button onClick={() => { const d = new Date(manageCurrentDate); d.setDate(d.getDate() - 7); setManageCurrentDate(d); }} className="week-nav-btn"><i className="fas fa-chevron-left"></i> Пред.</button>
@@ -2513,7 +2513,7 @@ if (activeTab === 'requests' && canManageUsers) {
           <div className="landing-content">
             <div className="landing-hero">
               <div className="hero-badge"><span><i className="fas fa-calendar-alt"></i> Расписание</span></div>
-              <h1 className="hero-title">Управление<br/><span className="gradient-highlight">Расписанием</span></h1>
+              <h1 className="hero-title">Расписание<br/><span className="gradient-highlight">Занятий</span></h1>
               <p className="hero-description">Система для создания, просмотра и управления расписанием занятий</p>
               <div className="hero-buttons">
                 <button className="btn-primary" onClick={() => setShowLogin(true)}><i className="fas fa-sign-in-alt"></i> Войти</button>
