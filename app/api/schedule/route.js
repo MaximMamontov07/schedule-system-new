@@ -1,3 +1,4 @@
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -13,6 +14,7 @@ export async function GET(request) {
     const weekStart = searchParams.get('weekStart');
     const date = searchParams.get('date');
 
+    
     // Определяем понедельник недели
     let startMonday = weekStart;
     if (!startMonday && date) {

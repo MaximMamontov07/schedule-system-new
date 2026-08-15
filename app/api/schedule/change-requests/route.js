@@ -136,7 +136,7 @@ export async function PATCH(request) {
       `UPDATE lesson_change_requests SET status = $1, admin_comment = $2, updated_at = NOW() WHERE id = $3`,
       [status, adminComment || null, parseInt(requestId)]
     );
-
+      
     // Если одобрено — применяем изменения
     if (status === 'approved') {
       const req = await db.query('SELECT * FROM lesson_change_requests WHERE id = $1', [parseInt(requestId)]);

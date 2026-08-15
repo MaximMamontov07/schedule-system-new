@@ -38,6 +38,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Дата занятия обязательна' }, { status: 400 });
     }
 
+    
     // Проверка конфликтов при редактировании
     // 1. Проверяем группу
     const groupConflict = await db.query(`
