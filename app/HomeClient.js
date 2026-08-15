@@ -590,14 +590,14 @@ const ScheduleView = ({ schedule, groups, teachers, subjects, classrooms, loadin
   }, [weekDates, selectedGroupId, filters.groupId, hasAppliedFilter]);
 
   const filteredSchedule = useMemo(() => {
-    let filtered = [...schedule];
+    let filtered = Array.isArray(schedule) ? [...schedule] : [];
     if (filters.teacherId) filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
     if (filters.subjectId) filtered = filtered.filter(s => s.subject_id === parseInt(filters.subjectId));
     if (filters.dayOfWeek) filtered = filtered.filter(s => s.day_of_week === parseInt(filters.dayOfWeek));
     if (filters.pairNumber) filtered = filtered.filter(s => s.pair_number === parseInt(filters.pairNumber));
     if (filters.classroomId) filtered = filtered.filter(s => s.classroom_id === parseInt(filters.classroomId));
     return filtered;
-  }, [schedule, filters, isLoadingLocal]);
+  }, [schedule, filters]);
 
   const handleFilterChange = (key, value) => {
     if (key === 'groupId') setSelectedGroupId(value);
@@ -675,14 +675,14 @@ const PublicScheduleView = ({ schedule, groups, teachers, subjects, classrooms, 
   }, [weekDates, selectedGroupId, filters.groupId, hasAppliedFilter]);
 
   const filteredSchedule = useMemo(() => {
-    let filtered = [...schedule];
+    let filtered = Array.isArray(schedule) ? [...schedule] : [];
     if (filters.teacherId) filtered = filtered.filter(s => s.teacher_id === parseInt(filters.teacherId));
     if (filters.subjectId) filtered = filtered.filter(s => s.subject_id === parseInt(filters.subjectId));
     if (filters.dayOfWeek) filtered = filtered.filter(s => s.day_of_week === parseInt(filters.dayOfWeek));
     if (filters.pairNumber) filtered = filtered.filter(s => s.pair_number === parseInt(filters.pairNumber));
     if (filters.classroomId) filtered = filtered.filter(s => s.classroom_id === parseInt(filters.classroomId));
     return filtered;
-  }, [schedule, filters, isLoadingLocal]);
+  }, [schedule, filters]);
 
   const handleFilterChange = (key, value) => {
     if (key === 'groupId') setSelectedGroupId(value);
@@ -1054,56 +1054,46 @@ function HomeContent() {
 
   // ---------- Одобрение/отклонение заявки ----------
   const handleApproveRequest = async (requestId) => {
-  try {
-    const res = await fetch('/api/schedule/change-requests', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ requestId: parseInt(requestId), status: 'approved' })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      showNotification('Заявка одобрена. Изменения применены.');
-      loadRequests();
-    } else {
-      showNotification(data.error || 'Ошибка', 'error');
+    try {
+      const res = await fetch('/api/schedule/change-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ requestId: parseInt(requestId), status: 'approved' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotification('Заявка одобрена. Изменения применены.');
+        loadChangeRequests();
+      } else {
+        showNotification(data.error || 'Ошибка', 'error');
+      }
+    } catch (e) {
+      console.error('Approve error:', e);
+      showNotification('Ошибка соединения', 'error');
     }
-  } catch (e) {
-    console.error('Approve error:', e);
-    showNotification('Ошибка соединения', 'error');
-  }
-};
+  };
 
-const handleRejectRequest = async (requestId) => {
-  const comment = prompt('Причина отклонения (необязательно):');
-  try {
-    const res = await fetch('/api/schedule/change-requests', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ requestId: parseInt(requestId), status: 'rejected', adminComment: comment || null })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      showNotification('Заявка отклонена');
-      loadRequests();
-    } else {
-      showNotification(data.error || 'Ошибка', 'error');
+  const handleRejectRequest = async (requestId) => {
+    const comment = prompt('Причина отклонения (необязательно):');
+    try {
+      const res = await fetch('/api/schedule/change-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ requestId: parseInt(requestId), status: 'rejected', adminComment: comment || null })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotification('Заявка отклонена');
+        loadChangeRequests();
+      } else {
+        showNotification(data.error || 'Ошибка', 'error');
+      }
+    } catch (e) {
+      console.error('Reject error:', e);
+      showNotification('Ошибка соединения', 'error');
     }
-  } catch (e) {
-    console.error('Reject error:', e);
-    showNotification('Ошибка соединения', 'error');
-  }
-};
-const loadRequests = async () => {
-  if (!token || !canManageUsers) return;
-  try {
-    const res = await fetch('/api/schedule/change-requests', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) setChangeRequests(await res.json());
-  } catch (e) {
-    console.error('Load requests error:', e);
-  }
-};
+  };
+
   // ---------- Загрузка данных ----------
   const loadScheduleForWeek = useCallback(async (weekStart, weekEnd, groupId = null, forceReload = false) => {
     const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -1128,9 +1118,10 @@ const loadRequests = async () => {
     try {
       const scheduleRes = await fetch(url, { headers });
       const scheduleData = await scheduleRes.json();
-      scheduleCache.set(cacheKey, { data: scheduleData, timestamp: Date.now() });
-      setSchedule(scheduleData);
-      return scheduleData;
+      const dataArray = Array.isArray(scheduleData) ? scheduleData : [];
+      scheduleCache.set(cacheKey, { data: dataArray, timestamp: Date.now() });
+      setSchedule(dataArray);
+      return dataArray;
     } catch (e) {
       showNotification('Ошибка загрузки расписания', 'error');
       return [];
@@ -1152,7 +1143,7 @@ const loadRequests = async () => {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
-        setSchedule(data);
+        setSchedule(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('Ошибка загрузки расписания преподавателя:', e);
@@ -1164,7 +1155,9 @@ const loadRequests = async () => {
       const [groupsRes, teachersRes, subjectsRes] = await Promise.all([
         fetch('/api/groups'), fetch('/api/teachers'), fetch('/api/subjects')
       ]);
-      setGroups(await groupsRes.json()); setTeachers(await teachersRes.json()); setSubjects(await subjectsRes.json());
+      setGroups(await groupsRes.json());
+      setTeachers(await teachersRes.json());
+      setSubjects(await subjectsRes.json());
 
       try {
         const classroomsRes = await fetch('/api/classrooms');
@@ -1203,250 +1196,250 @@ const loadRequests = async () => {
 
   // ---------- Отчёты ----------
   const generateTeacherReport = useCallback(async (teacherId, dateFrom, dateTo) => {
-  try {
-    const html2pdf = (await import('html2pdf.js')).default;
-    const teacher = teachers.find(t => t.id === parseInt(teacherId));
-    if (!teacher) return showNotification('Преподаватель не найден', 'error');
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const teacher = teachers.find(t => t.id === parseInt(teacherId));
+      if (!teacher) return showNotification('Преподаватель не найден', 'error');
 
-    const allLessons = [];
-    const fromDate = parseLocalDate(dateFrom);
-    const toDate = parseLocalDate(dateTo);
-    const currentMonday = getMonday(fromDate);
-    
-    while (currentMonday <= toDate) {
-      const weekStart = formatForInput(currentMonday);
-      const url = `/api/schedule?weekStart=${weekStart}&teacherId=${teacherId}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const weekData = await res.json();
+      const allLessons = [];
+      const fromDate = parseLocalDate(dateFrom);
+      const toDate = parseLocalDate(dateTo);
+      const currentMonday = getMonday(fromDate);
       
-      const filteredWeek = weekData.filter(l => {
-        if (!l.date) return false;
-        return l.date >= dateFrom && l.date <= dateTo;
+      while (currentMonday <= toDate) {
+        const weekStart = formatForInput(currentMonday);
+        const url = `/api/schedule?weekStart=${weekStart}&teacherId=${teacherId}`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const weekData = await res.json();
+        
+        const filteredWeek = weekData.filter(l => {
+          if (!l.date) return false;
+          return l.date >= dateFrom && l.date <= dateTo;
+        });
+        
+        allLessons.push(...filteredWeek);
+        currentMonday.setDate(currentMonday.getDate() + 7);
+      }
+
+      if (allLessons.length === 0) return showNotification('Нет занятий за выбранный период', 'error');
+
+      const subjectsHours = {};
+      allLessons.forEach(lesson => {
+        const sn = lesson.subject_name;
+        if (!subjectsHours[sn]) {
+          subjectsHours[sn] = { name: sn, hours: 0, lessons: [], groups: new Set() };
+        }
+        subjectsHours[sn].hours += 1.5;
+        subjectsHours[sn].lessons.push(lesson);
+        subjectsHours[sn].groups.add(lesson.group_name);
       });
-      
-      allLessons.push(...filteredWeek);
-      currentMonday.setDate(currentMonday.getDate() + 7);
-    }
 
-    if (allLessons.length === 0) return showNotification('Нет занятий за выбранный период', 'error');
+      const weeksMap = {};
+      allLessons.forEach(lesson => {
+        if (lesson.date) {
+          const ws = formatForInput(getMonday(parseLocalDate(lesson.date)));
+          if (!weeksMap[ws]) weeksMap[ws] = [];
+          weeksMap[ws].push(lesson);
+        }
+      });
 
-    const subjectsHours = {};
-    allLessons.forEach(lesson => {
-      const sn = lesson.subject_name;
-      if (!subjectsHours[sn]) {
-        subjectsHours[sn] = { name: sn, hours: 0, lessons: [], groups: new Set() };
-      }
-      subjectsHours[sn].hours += 1.5;
-      subjectsHours[sn].lessons.push(lesson);
-      subjectsHours[sn].groups.add(lesson.group_name);
-    });
+      const sortedWeeks = Object.keys(weeksMap).sort();
+      const totalHours = (allLessons.length * 1.5).toFixed(1);
+      const uniqueSubjects = Object.keys(subjectsHours).length;
+      const uniqueGroups = new Set(allLessons.map(l => l.group_name)).size;
+      const now = new Date();
 
-    const weeksMap = {};
-    allLessons.forEach(lesson => {
-      if (lesson.date) {
-        const ws = formatForInput(getMonday(parseLocalDate(lesson.date)));
-        if (!weeksMap[ws]) weeksMap[ws] = [];
-        weeksMap[ws].push(lesson);
-      }
-    });
+      const element = document.createElement('div');
+      element.innerHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Segoe UI', Arial, sans-serif;
+              padding: 12px 15px;
+              color: #1e293b;
+              background: #fff;
+              font-size: 9px;
+            }
+            
+            .report-header {
+              background: #2c3e66;
+              color: #fff;
+              padding: 12px 18px;
+              border-radius: 8px;
+              margin-bottom: 12px;
+            }
+            .report-header h1 { font-size: 16px; margin-bottom: 2px; font-weight: 700; }
+            .report-header .teacher { font-size: 12px; opacity: 0.95; margin-bottom: 4px; }
+            .report-header .meta { font-size: 8px; opacity: 0.8; }
+            
+            .summary { margin-bottom: 12px; }
+            .summary table { width: auto; border-collapse: collapse; }
+            .summary td {
+              padding: 4px 10px;
+              border: 1px solid #e2e8f0;
+              text-align: center;
+              font-size: 8px;
+              background: #f8fafc;
+            }
+            .summary .val { font-size: 14px; font-weight: 700; color: #2c3e66; }
+            .summary .lbl { font-size: 7px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+            
+            .section-title {
+              font-size: 12px; font-weight: 700; color: #2c3e66;
+              padding-bottom: 4px; border-bottom: 2px solid #2c3e66;
+              margin: 12px 0 6px;
+            }
+            
+            table.data { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 8px; }
+            table.data thead { background: #2c3e66; color: #fff; }
+            table.data th {
+              padding: 5px 3px; text-align: left; font-weight: 600;
+              font-size: 7px; text-transform: uppercase;
+            }
+            table.data td { padding: 3px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+            table.data tr:nth-child(even) td { background: #f8fafc; }
+            table.data .total td {
+              font-weight: 700; background: #e2e8f0 !important;
+              border-top: 2px solid #2c3e66;
+            }
+            
+            .week-block { margin-bottom: 8px; page-break-inside: avoid; }
+            .week-title {
+              font-size: 9px; font-weight: 700; color: #2c3e66;
+              padding: 4px 8px; background: #f1f5f9; border-radius: 4px;
+              margin-bottom: 4px;
+            }
+            .week-title .info { float: right; font-weight: 400; font-size: 8px; color: #64748b; }
+            
+            .footer {
+              margin-top: 10px; padding-top: 6px;
+              border-top: 1px solid #e2e8f0;
+              text-align: center; font-size: 7px; color: #94a3b8;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report-header">
+            <h1>Отчет о нагрузке преподавателя</h1>
+            <div class="teacher">${teacher.name}</div>
+            <div class="meta">
+              Период: ${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;|&nbsp; Сформирован: ${now.toLocaleString('ru-RU')}
+            </div>
+          </div>
+          
+          <div class="summary">
+            <table>
+              <tr>
+                <td><div class="val">${totalHours}</div><div class="lbl">Всего часов</div></td>
+                <td><div class="val">${allLessons.length}</div><div class="lbl">Занятий</div></td>
+                <td><div class="val">${uniqueSubjects}</div><div class="lbl">Предметов</div></td>
+                <td><div class="val">${uniqueGroups}</div><div class="lbl">Групп</div></td>
+                <td><div class="val">${sortedWeeks.length}</div><div class="lbl">Недель</div></td>
+              </tr>
+            </table>
+          </div>
+          
+          <div class="section-title">Сводка по предметам</div>
+          <table class="data">
+            <thead>
+              <tr>
+                <th>N</th>
+                <th>Предмет</th>
+                <th>Занятий</th>
+                <th>Часов</th>
+                <th>Группы</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.values(subjectsHours).sort((a, b) => b.hours - a.hours).map((item, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${item.name}</strong></td>
+                <td>${item.lessons.length} пар(ы)</td>
+                <td><strong>${item.hours.toFixed(1)} ч.</strong></td>
+                <td>${[...item.groups].join(', ')}</td>
+              </tr>
+              `).join('')}
+              <tr class="total">
+                <td colspan="2"><strong>ИТОГО</strong></td>
+                <td><strong>${allLessons.length} пар</strong></td>
+                <td colspan="2"><strong>${totalHours} часов</strong></td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <div class="section-title">Детализация по неделям</div>
+          ${sortedWeeks.map(ws => {
+            const wd = weeksMap[ws];
+            const we = new Date(parseLocalDate(ws));
+            we.setDate(we.getDate() + 6);
+            const wn = getWeekNumber(parseLocalDate(ws));
+            return `
+            <div class="week-block">
+              <div class="week-title">
+                Неделя ${wn} &nbsp;|&nbsp; ${formatDateRu(ws)} — ${formatDateRu(formatForInput(we))}
+                <span class="info">${wd.length} пар &nbsp;|&nbsp; ${(wd.length * 1.5).toFixed(1)} ч.</span>
+              </div>
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>День</th>
+                    <th>Пара</th>
+                    <th>Время</th>
+                    <th>Предмет</th>
+                    <th>Группа</th>
+                    <th>Ауд.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${wd.sort((a, b) => {
+                    if (a.date < b.date) return -1;
+                    if (a.date > b.date) return 1;
+                    return a.pair_number - b.pair_number;
+                  }).map(l => `
+                  <tr>
+                    <td>${l.date ? formatDateRu(l.date) : '—'}</td>
+                    <td>${DAYS[l.day_of_week - 1]}</td>
+                    <td>${l.pair_number}</td>
+                    <td>${PAIRS[l.pair_number - 1]?.time || ''}</td>
+                    <td>${l.subject_name}</td>
+                    <td>${l.group_name}</td>
+                    <td>${l.classroom_name || '—'}</td>
+                  </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            `;
+          }).join('')}
+          
+          <div class="footer">
+            <p>Документ сгенерирован автоматически &nbsp;|&nbsp; Система управления расписанием</p>
+            <p>${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;|&nbsp; ${now.toLocaleString('ru-RU')}</p>
+          </div>
+        </body>
+        </html>`;
 
-    const sortedWeeks = Object.keys(weeksMap).sort();
-    const totalHours = (allLessons.length * 1.5).toFixed(1);
-    const uniqueSubjects = Object.keys(subjectsHours).length;
-    const uniqueGroups = new Set(allLessons.map(l => l.group_name)).size;
-    const now = new Date();
+      await html2pdf().set({
+        margin: [0.2, 0.2, 0.2, 0.2],
+        filename: `Отчет_по_часам_${teacher.name.replace(/\s+/g, '_')}_${dateFrom}_${dateTo}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'], avoid: ['table', '.week-block', '.summary'] }
+      }).from(element).save();
 
-    const element = document.createElement('div');
-    element.innerHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      padding: 12px 15px;
-      color: #1e293b;
-      background: #fff;
-      font-size: 9px;
+      showNotification('Отчет сформирован', 'success');
+    } catch (e) {
+      console.error('Ошибка:', e);
+      showNotification('Ошибка формирования отчета', 'error');
     }
-    
-    .report-header {
-      background: #2c3e66;
-      color: #fff;
-      padding: 12px 18px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-    }
-    .report-header h1 { font-size: 16px; margin-bottom: 2px; font-weight: 700; }
-    .report-header .teacher { font-size: 12px; opacity: 0.95; margin-bottom: 4px; }
-    .report-header .meta { font-size: 8px; opacity: 0.8; }
-    
-    .summary { margin-bottom: 12px; }
-    .summary table { width: auto; border-collapse: collapse; }
-    .summary td {
-      padding: 4px 10px;
-      border: 1px solid #e2e8f0;
-      text-align: center;
-      font-size: 8px;
-      background: #f8fafc;
-    }
-    .summary .val { font-size: 14px; font-weight: 700; color: #2c3e66; }
-    .summary .lbl { font-size: 7px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    
-    .section-title {
-      font-size: 12px; font-weight: 700; color: #2c3e66;
-      padding-bottom: 4px; border-bottom: 2px solid #2c3e66;
-      margin: 12px 0 6px;
-    }
-    
-    table.data { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 8px; }
-    table.data thead { background: #2c3e66; color: #fff; }
-    table.data th {
-      padding: 5px 3px; text-align: left; font-weight: 600;
-      font-size: 7px; text-transform: uppercase;
-    }
-    table.data td { padding: 3px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
-    table.data tr:nth-child(even) td { background: #f8fafc; }
-    table.data .total td {
-      font-weight: 700; background: #e2e8f0 !important;
-      border-top: 2px solid #2c3e66;
-    }
-    
-    .week-block { margin-bottom: 8px; page-break-inside: avoid; }
-    .week-title {
-      font-size: 9px; font-weight: 700; color: #2c3e66;
-      padding: 4px 8px; background: #f1f5f9; border-radius: 4px;
-      margin-bottom: 4px;
-    }
-    .week-title .info { float: right; font-weight: 400; font-size: 8px; color: #64748b; }
-    
-    .footer {
-      margin-top: 10px; padding-top: 6px;
-      border-top: 1px solid #e2e8f0;
-      text-align: center; font-size: 7px; color: #94a3b8;
-    }
-  </style>
-</head>
-<body>
-  <div class="report-header">
-    <h1>Отчет о нагрузке преподавателя</h1>
-    <div class="teacher">${teacher.name}</div>
-    <div class="meta">
-      Период: ${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;|&nbsp; Сформирован: ${now.toLocaleString('ru-RU')}
-    </div>
-  </div>
-  
-  <div class="summary">
-    <table>
-      <tr>
-        <td><div class="val">${totalHours}</div><div class="lbl">Всего часов</div></td>
-        <td><div class="val">${allLessons.length}</div><div class="lbl">Занятий</div></td>
-        <td><div class="val">${uniqueSubjects}</div><div class="lbl">Предметов</div></td>
-        <td><div class="val">${uniqueGroups}</div><div class="lbl">Групп</div></td>
-        <td><div class="val">${sortedWeeks.length}</div><div class="lbl">Недель</div></td>
-      </tr>
-    </table>
-  </div>
-  
-  <div class="section-title">Сводка по предметам</div>
-  <table class="data">
-    <thead>
-      <tr>
-        <th>N</th>
-        <th>Предмет</th>
-        <th>Занятий</th>
-        <th>Часов</th>
-        <th>Группы</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${Object.values(subjectsHours).sort((a, b) => b.hours - a.hours).map((item, idx) => `
-      <tr>
-        <td>${idx + 1}</td>
-        <td><strong>${item.name}</strong></td>
-        <td>${item.lessons.length} пар(ы)</td>
-        <td><strong>${item.hours.toFixed(1)} ч.</strong></td>
-        <td>${[...item.groups].join(', ')}</td>
-      </tr>
-      `).join('')}
-      <tr class="total">
-        <td colspan="2"><strong>ИТОГО</strong></td>
-        <td><strong>${allLessons.length} пар</strong></td>
-        <td colspan="2"><strong>${totalHours} часов</strong></td>
-      </tr>
-    </tbody>
-  </table>
-  
-  <div class="section-title">Детализация по неделям</div>
-  ${sortedWeeks.map(ws => {
-    const wd = weeksMap[ws];
-    const we = new Date(parseLocalDate(ws));
-    we.setDate(we.getDate() + 6);
-    const wn = getWeekNumber(parseLocalDate(ws));
-    return `
-    <div class="week-block">
-      <div class="week-title">
-        Неделя ${wn} &nbsp;|&nbsp; ${formatDateRu(ws)} — ${formatDateRu(formatForInput(we))}
-        <span class="info">${wd.length} пар &nbsp;|&nbsp; ${(wd.length * 1.5).toFixed(1)} ч.</span>
-      </div>
-      <table class="data">
-        <thead>
-          <tr>
-            <th>Дата</th>
-            <th>День</th>
-            <th>Пара</th>
-            <th>Время</th>
-            <th>Предмет</th>
-            <th>Группа</th>
-            <th>Ауд.</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${wd.sort((a, b) => {
-            if (a.date < b.date) return -1;
-            if (a.date > b.date) return 1;
-            return a.pair_number - b.pair_number;
-          }).map(l => `
-          <tr>
-            <td>${l.date ? formatDateRu(l.date) : '—'}</td>
-            <td>${DAYS[l.day_of_week - 1]}</td>
-            <td>${l.pair_number}</td>
-            <td>${PAIRS[l.pair_number - 1]?.time || ''}</td>
-            <td>${l.subject_name}</td>
-            <td>${l.group_name}</td>
-            <td>${l.classroom_name || '—'}</td>
-          </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-    `;
-  }).join('')}
-  
-  <div class="footer">
-    <p>Документ сгенерирован автоматически &nbsp;|&nbsp; Система управления расписанием</p>
-    <p>${formatDateRu(dateFrom)} — ${formatDateRu(dateTo)} &nbsp;|&nbsp; ${now.toLocaleString('ru-RU')}</p>
-  </div>
-</body>
-</html>`;
-
-    await html2pdf().set({
-      margin: [0.2, 0.2, 0.2, 0.2],
-      filename: `Отчет_по_часам_${teacher.name.replace(/\s+/g, '_')}_${dateFrom}_${dateTo}.pdf`,
-      image: { type: 'jpeg', quality: 0.95 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['table', '.week-block', '.summary'] }
-    }).from(element).save();
-
-    showNotification('Отчет сформирован', 'success');
-  } catch (e) {
-    console.error('Ошибка:', e);
-    showNotification('Ошибка формирования отчета', 'error');
-  }
-}, [teachers, token]);
+  }, [teachers, token]);
 
   const exportTeacherHoursReport = useCallback(async () => {
     if (!user || user.role !== 'teacher') return;
@@ -1464,7 +1457,8 @@ const loadRequests = async () => {
     let exportData = [];
     if (activeTab === 'my-lessons' && isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
-      exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id).map(lesson => ({
+      const scheduleArray = Array.isArray(schedule) ? schedule : [];
+      exportData = teacher ? scheduleArray.filter(l => l.teacher_id === teacher.id).map(lesson => ({
         'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
         'День недели': DAYS[lesson.day_of_week - 1],
         'Пара': `${lesson.pair_number} (${PAIRS[lesson.pair_number - 1].time})`,
@@ -1475,7 +1469,8 @@ const loadRequests = async () => {
         'Заметки': lesson.notes || '—'
       })) : [];
     } else if (user && user.role === 'student' && user.groupId) {
-      exportData = schedule.filter(s => s.group_id === user.groupId).map(lesson => ({
+      const scheduleArray = Array.isArray(schedule) ? schedule : [];
+      exportData = scheduleArray.filter(s => s.group_id === user.groupId).map(lesson => ({
         'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
         'День недели': DAYS[lesson.day_of_week - 1],
         'Время': PAIRS[lesson.pair_number - 1].time,
@@ -1486,7 +1481,8 @@ const loadRequests = async () => {
         'Заметки': lesson.notes || '—'
       }));
     } else {
-      exportData = schedule.map(lesson => ({
+      const scheduleArray = Array.isArray(schedule) ? schedule : [];
+      exportData = scheduleArray.map(lesson => ({
         'Дата': lesson.date ? formatDateRu(lesson.date) : '-',
         'День недели': DAYS[lesson.day_of_week - 1],
         'Время': PAIRS[lesson.pair_number - 1].time,
@@ -1525,191 +1521,192 @@ const loadRequests = async () => {
     showNotification('Excel файл сохранен', 'success');
   }, [schedule, activeTab, isTeacher, teachers, user]);
 
- const exportToPDF = useCallback(async () => {
-  try {
-    const html2pdf = (await import('html2pdf.js')).default;
-    let exportData = [];
-    let title = 'Расписание занятий';
-    let subtitle = '';
+  const exportToPDF = useCallback(async () => {
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      let exportData = [];
+      let title = 'Расписание занятий';
+      let subtitle = '';
+      const scheduleArray = Array.isArray(schedule) ? schedule : [];
 
-    if (activeTab === 'my-lessons' && isTeacher) {
-      const teacher = teachers.find(t => t.user_id === user?.id);
-      title = 'Мои занятия';
-      subtitle = `Преподаватель: ${teacher?.name || ''}`;
-      exportData = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
-    } else if (user && user.role === 'student' && user.groupId) {
-      const group = groups.find(g => g.id === user.groupId);
-      title = 'Расписание занятий';
-      subtitle = `Группа: ${group?.name || ''}`;
-      exportData = schedule.filter(s => s.group_id === user.groupId);
-    } else {
-      exportData = schedule;
-      subtitle = `Дата: ${new Date().toLocaleString('ru-RU')}`;
-    }
+      if (activeTab === 'my-lessons' && isTeacher) {
+        const teacher = teachers.find(t => t.user_id === user?.id);
+        title = 'Мои занятия';
+        subtitle = `Преподаватель: ${teacher?.name || ''}`;
+        exportData = teacher ? scheduleArray.filter(l => l.teacher_id === teacher.id) : [];
+      } else if (user && user.role === 'student' && user.groupId) {
+        const group = groups.find(g => g.id === user.groupId);
+        title = 'Расписание занятий';
+        subtitle = `Группа: ${group?.name || ''}`;
+        exportData = scheduleArray.filter(s => s.group_id === user.groupId);
+      } else {
+        exportData = scheduleArray;
+        subtitle = `Дата: ${new Date().toLocaleString('ru-RU')}`;
+      }
 
-    const grouped = {};
-    exportData.forEach(lesson => {
-      const key = lesson.date || 'Без даты';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(lesson);
-    });
+      const grouped = {};
+      exportData.forEach(lesson => {
+        const key = lesson.date || 'Без даты';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(lesson);
+      });
 
-    const sortedDates = Object.keys(grouped).sort();
-    const totalLessons = exportData.length;
-    const totalHours = (totalLessons * 1.5).toFixed(1);
+      const sortedDates = Object.keys(grouped).sort();
+      const totalLessons = exportData.length;
+      const totalHours = (totalLessons * 1.5).toFixed(1);
 
-    const showGroup = activeTab !== 'my-lessons' && user?.role !== 'student';
-    const colSpan = showGroup ? 7 : 6;
+      const showGroup = activeTab !== 'my-lessons' && user?.role !== 'student';
+      const colSpan = showGroup ? 7 : 6;
 
-    const element = document.createElement('div');
-    element.innerHTML = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      padding: 15px;
-      color: #1e293b;
-      background: #fff;
-      font-size: 11px;
-    }
-    .header {
-      background: #2c3e66;
-      color: #fff;
-      padding: 18px 22px;
-      border-radius: 8px;
-      margin-bottom: 18px;
-    }
-    .header h1 { font-size: 20px; margin-bottom: 4px; }
-    .header p { font-size: 10px; opacity: 0.9; }
-    
-    .stats { margin-bottom: 18px; }
-    .stats table { width: auto; border-collapse: collapse; }
-    .stats td {
-      padding: 6px 16px;
-      border: 1px solid #e2e8f0;
-      text-align: center;
-      font-size: 10px;
-    }
-    .stats .val { font-size: 18px; font-weight: 700; color: #2c3e66; }
-    .stats .lbl { font-size: 8px; color: #64748b; text-transform: uppercase; }
-    
-    .day-section { margin-bottom: 18px; page-break-inside: avoid; }
-    .day-title {
-      font-size: 13px; font-weight: 700; color: #2c3e66;
-      padding: 7px 10px; background: #f1f5f9; border-left: 4px solid #2c3e66;
-      margin-bottom: 6px;
-    }
-    .day-title .count { float: right; font-weight: 400; font-size: 10px; color: #64748b; }
-    
-    table.data { width: 100%; border-collapse: collapse; font-size: 9px; }
-    table.data thead { background: #2c3e66; color: #fff; }
-    table.data th {
-      padding: 7px 5px; text-align: left; font-weight: 600;
-      font-size: 8px; text-transform: uppercase;
-    }
-    table.data td {
-      padding: 5px; border-bottom: 1px solid #e2e8f0;
-      vertical-align: top; word-break: break-word;
-    }
-    table.data tr:nth-child(even) td { background: #f8fafc; }
-    table.data .total td {
-      font-weight: 700; background: #e2e8f0 !important;
-      border-top: 2px solid #2c3e66;
-    }
-    
-    .footer {
-      margin-top: 20px; padding-top: 10px;
-      border-top: 1px solid #e2e8f0;
-      text-align: center; font-size: 8px; color: #94a3b8;
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>${title}</h1>
-    <p>${subtitle}</p>
-  </div>
-  
-  <div class="stats">
-    <table>
-      <tr>
-        <td><div class="val">${totalLessons}</div><div class="lbl">Занятий</div></td>
-        <td><div class="val">${totalHours}</div><div class="lbl">Часов</div></td>
-        <td><div class="val">${sortedDates.length}</div><div class="lbl">Дней</div></td>
-      </tr>
-    </table>
-  </div>
-  
-  ${sortedDates.map(dateKey => {
-    const lessons = grouped[dateKey];
-    const date = parseLocalDate(dateKey);
-    const dayName = date ? DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1] : '';
-    return `
-    <div class="day-section">
-      <div class="day-title">
-        ${dateKey !== 'Без даты' ? formatDateRu(dateKey) : dateKey} — ${dayName}
-        <span class="count">${lessons.length} пар(ы) &bull; ${(lessons.length * 1.5).toFixed(1)} ч.</span>
-      </div>
-      <table class="data">
-        <thead>
-          <tr>
-            <th>Пара</th>
-            <th>Время</th>
-            ${showGroup ? '<th>Группа</th>' : ''}
-            <th>Предмет</th>
-            <th>Преподаватель</th>
-            <th>Ауд.</th>
-            <th>Заметки</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${lessons.sort((a, b) => a.pair_number - b.pair_number).map(lesson => `
-          <tr>
-            <td>${lesson.pair_number}</td>
-            <td>${PAIRS[lesson.pair_number - 1]?.time || ''}</td>
-            ${showGroup ? `<td>${lesson.group_name}</td>` : ''}
-            <td><strong>${lesson.subject_name}</strong></td>
-            <td>${lesson.teacher_name}</td>
-            <td>${lesson.classroom_name || '—'}</td>
-            <td>${lesson.notes || '—'}</td>
-          </tr>
-          `).join('')}
-          <tr class="total">
-            <td colspan="${colSpan}">
-              Итого за день: ${lessons.length} пар &bull; ${(lessons.length * 1.5).toFixed(1)} ак. часов
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    `;
-  }).join('')}
-  
-  <div class="footer">
-    <p>Документ сгенерирован автоматически &bull; ${new Date().toLocaleString('ru-RU')}</p>
-  </div>
-</body>
-</html>`;
+      const element = document.createElement('div');
+      element.innerHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Segoe UI', Arial, sans-serif;
+              padding: 15px;
+              color: #1e293b;
+              background: #fff;
+              font-size: 11px;
+            }
+            .header {
+              background: #2c3e66;
+              color: #fff;
+              padding: 18px 22px;
+              border-radius: 8px;
+              margin-bottom: 18px;
+            }
+            .header h1 { font-size: 20px; margin-bottom: 4px; }
+            .header p { font-size: 10px; opacity: 0.9; }
+            
+            .stats { margin-bottom: 18px; }
+            .stats table { width: auto; border-collapse: collapse; }
+            .stats td {
+              padding: 6px 16px;
+              border: 1px solid #e2e8f0;
+              text-align: center;
+              font-size: 10px;
+            }
+            .stats .val { font-size: 18px; font-weight: 700; color: #2c3e66; }
+            .stats .lbl { font-size: 8px; color: #64748b; text-transform: uppercase; }
+            
+            .day-section { margin-bottom: 18px; page-break-inside: avoid; }
+            .day-title {
+              font-size: 13px; font-weight: 700; color: #2c3e66;
+              padding: 7px 10px; background: #f1f5f9; border-left: 4px solid #2c3e66;
+              margin-bottom: 6px;
+            }
+            .day-title .count { float: right; font-weight: 400; font-size: 10px; color: #64748b; }
+            
+            table.data { width: 100%; border-collapse: collapse; font-size: 9px; }
+            table.data thead { background: #2c3e66; color: #fff; }
+            table.data th {
+              padding: 7px 5px; text-align: left; font-weight: 600;
+              font-size: 8px; text-transform: uppercase;
+            }
+            table.data td {
+              padding: 5px; border-bottom: 1px solid #e2e8f0;
+              vertical-align: top; word-break: break-word;
+            }
+            table.data tr:nth-child(even) td { background: #f8fafc; }
+            table.data .total td {
+              font-weight: 700; background: #e2e8f0 !important;
+              border-top: 2px solid #2c3e66;
+            }
+            
+            .footer {
+              margin-top: 20px; padding-top: 10px;
+              border-top: 1px solid #e2e8f0;
+              text-align: center; font-size: 8px; color: #94a3b8;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${title}</h1>
+            <p>${subtitle}</p>
+          </div>
+          
+          <div class="stats">
+            <table>
+              <tr>
+                <td><div class="val">${totalLessons}</div><div class="lbl">Занятий</div></td>
+                <td><div class="val">${totalHours}</div><div class="lbl">Часов</div></td>
+                <td><div class="val">${sortedDates.length}</div><div class="lbl">Дней</div></td>
+              </tr>
+            </table>
+          </div>
+          
+          ${sortedDates.map(dateKey => {
+            const lessons = grouped[dateKey];
+            const date = parseLocalDate(dateKey);
+            const dayName = date ? DAYS[date.getDay() === 0 ? 6 : date.getDay() - 1] : '';
+            return `
+            <div class="day-section">
+              <div class="day-title">
+                ${dateKey !== 'Без даты' ? formatDateRu(dateKey) : dateKey} — ${dayName}
+                <span class="count">${lessons.length} пар(ы) &bull; ${(lessons.length * 1.5).toFixed(1)} ч.</span>
+              </div>
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>Пара</th>
+                    <th>Время</th>
+                    ${showGroup ? '<th>Группа</th>' : ''}
+                    <th>Предмет</th>
+                    <th>Преподаватель</th>
+                    <th>Ауд.</th>
+                    <th>Заметки</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${lessons.sort((a, b) => a.pair_number - b.pair_number).map(lesson => `
+                  <tr>
+                    <td>${lesson.pair_number}</td>
+                    <td>${PAIRS[lesson.pair_number - 1]?.time || ''}</td>
+                    ${showGroup ? `<td>${lesson.group_name}</td>` : ''}
+                    <td><strong>${lesson.subject_name}</strong></td>
+                    <td>${lesson.teacher_name}</td>
+                    <td>${lesson.classroom_name || '—'}</td>
+                    <td>${lesson.notes || '—'}</td>
+                  </tr>
+                  `).join('')}
+                  <tr class="total">
+                    <td colspan="${colSpan}">
+                      Итого за день: ${lessons.length} пар &bull; ${(lessons.length * 1.5).toFixed(1)} ак. часов
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            `;
+          }).join('')}
+          
+          <div class="footer">
+            <p>Документ сгенерирован автоматически &bull; ${new Date().toLocaleString('ru-RU')}</p>
+          </div>
+        </body>
+        </html>`;
 
-    await html2pdf().set({
-      margin: [0.2, 0.2, 0.2, 0.2],
-      filename: `Расписание_${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    }).from(element).save();
+      await html2pdf().set({
+        margin: [0.2, 0.2, 0.2, 0.2],
+        filename: `Расписание_${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      }).from(element).save();
 
-    showNotification('PDF файл сохранен', 'success');
-  } catch (error) {
-    console.error('Ошибка:', error);
-    showNotification('Ошибка экспорта PDF', 'error');
-  }
-}, [schedule, activeTab, isTeacher, teachers, user, groups]);
+      showNotification('PDF файл сохранен', 'success');
+    } catch (error) {
+      console.error('Ошибка:', error);
+      showNotification('Ошибка экспорта PDF', 'error');
+    }
+  }, [schedule, activeTab, isTeacher, teachers, user, groups]);
 
   // ---------- Аутентификация ----------
   const handleLogin = async (e) => {
@@ -2156,7 +2153,8 @@ const loadRequests = async () => {
   const renderMainContent = () => {
     if (isTeacher) {
       const teacher = teachers.find(t => t.user_id === user?.id);
-      const teacherLessons = teacher ? schedule.filter(l => l.teacher_id === teacher.id) : [];
+      const scheduleArray = Array.isArray(schedule) ? schedule : [];
+      const teacherLessons = teacher ? scheduleArray.filter(l => l.teacher_id === teacher.id) : [];
       return (
         <div className="content-card">
           <div className="content-header">
@@ -2285,108 +2283,110 @@ const loadRequests = async () => {
         </div>
       );
     }
-if (activeTab === 'requests' && canManageUsers) {
-  return (
-    <div className="content-card">
-      <div className="content-header">
-        <div className="header-left">
-          <h2><i className="fas fa-clipboard-list"></i> Заявки на изменения</h2>
-        </div>
-      </div>
-      
-      <div className="requests-container">
-        {changeRequests.length === 0 ? (
-          <div className="requests-empty">
-            <i className="fas fa-inbox"></i>
-            <h3>Нет заявок</h3>
-            <p>Заявки от преподавателей будут появляться здесь</p>
-          </div>
-        ) : (
-          changeRequests.map(req => (
-            <div key={req.id} className={`request-card status-${req.status}`}>
-              <div className="request-card-header">
-                <span className={`request-type-badge ${req.request_type}`}>
-                  {req.request_type === 'cancel' && 'Отмена'}
-                  {req.request_type === 'change' && 'Изменение'}
-                  {req.request_type === 'replace' && 'Замена'}
-                </span>
-                <span className={`request-status-badge ${req.status}`}>
-                  {req.status === 'pending' && '⏳ На рассмотрении'}
-                  {req.status === 'approved' && '✅ Одобрено'}
-                  {req.status === 'rejected' && '❌ Отклонено'}
-                </span>
-              </div>
-              
-              <div className="request-card-body">
-                <div className="request-info-row">
-                  <i className="fas fa-chalkboard-teacher"></i>
-                  <span><strong>{req.teacher_name}</strong></span>
-                </div>
-                <div className="request-info-row">
-                  <i className="fas fa-users"></i>
-                  <span>Группа <strong>{req.group_name}</strong></span>
-                </div>
-                <div className="request-info-row">
-                  <i className="fas fa-calendar-day"></i>
-                  <span>{DAYS[req.day_of_week - 1]}, {req.pair_number} пара</span>
-                  {req.week_start_date && <span> • {formatDateRu(req.week_start_date)}</span>}
-                </div>
-                
-                {req.request_type !== 'cancel' && (
-                  <div className="request-change-details">
-                    {req.new_teacher_name && (
-                      <div className="change-item">
-                        <i className="fas fa-user"></i>
-                        <span className="old-value">{req.teacher_name}</span>
-                        <span className="arrow">→</span>
-                        <span className="new-value">{req.new_teacher_name}</span>
-                      </div>
-                    )}
-                    {req.new_subject_name && (
-                      <div className="change-item">
-                        <i className="fas fa-book"></i>
-                        <span className="new-value">{req.new_subject_name}</span>
-                      </div>
-                    )}
-                    {req.new_classroom_name && (
-                      <div className="change-item">
-                        <i className="fas fa-door-open"></i>
-                        <span className="new-value">{req.new_classroom_name}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {req.reason && (
-                  <div className="request-reason">
-                    <strong>Причина:</strong> {req.reason}
-                  </div>
-                )}
-                
-                {req.admin_comment && (
-                  <div className="request-admin-comment">
-                    <i className="fas fa-comment"></i> Комментарий: {req.admin_comment}
-                  </div>
-                )}
-              </div>
-              
-              {req.status === 'pending' && (
-                <div className="request-card-actions">
-                  <button className="request-approve-btn" onClick={() => handleApproveRequest(req.id)}>
-                    <i className="fas fa-check"></i> Одобрить
-                  </button>
-                  <button className="request-reject-btn" onClick={() => handleRejectRequest(req.id)}>
-                    <i className="fas fa-times"></i> Отклонить
-                  </button>
-                </div>
-              )}
+
+    if (activeTab === 'requests' && canManageUsers) {
+      return (
+        <div className="content-card">
+          <div className="content-header">
+            <div className="header-left">
+              <h2><i className="fas fa-clipboard-list"></i> Заявки на изменения</h2>
             </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
+          </div>
+          
+          <div className="requests-container">
+            {changeRequests.length === 0 ? (
+              <div className="requests-empty">
+                <i className="fas fa-inbox"></i>
+                <h3>Нет заявок</h3>
+                <p>Заявки от преподавателей будут появляться здесь</p>
+              </div>
+            ) : (
+              changeRequests.map(req => (
+                <div key={req.id} className={`request-card status-${req.status}`}>
+                  <div className="request-card-header">
+                    <span className={`request-type-badge ${req.request_type}`}>
+                      {req.request_type === 'cancel' && 'Отмена'}
+                      {req.request_type === 'change' && 'Изменение'}
+                      {req.request_type === 'replace' && 'Замена'}
+                    </span>
+                    <span className={`request-status-badge ${req.status}`}>
+                      {req.status === 'pending' && '⏳ На рассмотрении'}
+                      {req.status === 'approved' && '✅ Одобрено'}
+                      {req.status === 'rejected' && '❌ Отклонено'}
+                    </span>
+                  </div>
+                  
+                  <div className="request-card-body">
+                    <div className="request-info-row">
+                      <i className="fas fa-chalkboard-teacher"></i>
+                      <span><strong>{req.teacher_name}</strong></span>
+                    </div>
+                    <div className="request-info-row">
+                      <i className="fas fa-users"></i>
+                      <span>Группа <strong>{req.group_name}</strong></span>
+                    </div>
+                    <div className="request-info-row">
+                      <i className="fas fa-calendar-day"></i>
+                      <span>{DAYS[req.day_of_week - 1]}, {req.pair_number} пара</span>
+                      {req.week_start_date && <span> • {formatDateRu(req.week_start_date)}</span>}
+                    </div>
+                    
+                    {req.request_type !== 'cancel' && (
+                      <div className="request-change-details">
+                        {req.new_teacher_name && (
+                          <div className="change-item">
+                            <i className="fas fa-user"></i>
+                            <span className="old-value">{req.teacher_name}</span>
+                            <span className="arrow">→</span>
+                            <span className="new-value">{req.new_teacher_name}</span>
+                          </div>
+                        )}
+                        {req.new_subject_name && (
+                          <div className="change-item">
+                            <i className="fas fa-book"></i>
+                            <span className="new-value">{req.new_subject_name}</span>
+                          </div>
+                        )}
+                        {req.new_classroom_name && (
+                          <div className="change-item">
+                            <i className="fas fa-door-open"></i>
+                            <span className="new-value">{req.new_classroom_name}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {req.reason && (
+                      <div className="request-reason">
+                        <strong>Причина:</strong> {req.reason}
+                      </div>
+                    )}
+                    
+                    {req.admin_comment && (
+                      <div className="request-admin-comment">
+                        <i className="fas fa-comment"></i> Комментарий: {req.admin_comment}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {req.status === 'pending' && (
+                    <div className="request-card-actions">
+                      <button className="request-approve-btn" onClick={() => handleApproveRequest(req.id)}>
+                        <i className="fas fa-check"></i> Одобрить
+                      </button>
+                      <button className="request-reject-btn" onClick={() => handleRejectRequest(req.id)}>
+                        <i className="fas fa-times"></i> Отклонить
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      );
+    }
+
     if (activeTab === 'directories' && canEditSchedule) {
       return (
         <div className="content-card">
@@ -2468,23 +2468,6 @@ if (activeTab === 'requests' && canManageUsers) {
               })}
             </div>
           </div>
-        </div>
-      );
-    }
-
-    if (activeTab === 'requests' && user?.role === 'admin') {
-      return (
-        <div className="content-card">
-          <div className="content-header">
-            <div className="header-left"><h2><i className="fas fa-clipboard-list"></i> Заявки на изменение</h2></div>
-            <button className="action-button" onClick={loadChangeRequests}><i className="fas fa-sync-alt"></i> Обновить</button>
-          </div>
-          <ChangeRequestList 
-            requests={changeRequests} 
-            onApprove={handleApproveRequest} 
-            onReject={handleRejectRequest} 
-            loading={loadingRequests}
-          />
         </div>
       );
     }
@@ -2653,7 +2636,7 @@ if (activeTab === 'requests' && canManageUsers) {
         <div className="modal" onClick={() => setShowChangeRequestModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()} style={{ maxWidth: '550px' }}>
             <div className="modal-header">
-              <h2><i className=""></i> Заявка на изменение</h2>
+              <h2><i className="fas fa-edit"></i> Заявка на изменение</h2>
               <button className="modal-close" onClick={() => setShowChangeRequestModal(false)}><i className="fas fa-times"></i></button>
             </div>
             <form onSubmit={handleSubmitChangeRequest} className="modal-form">
